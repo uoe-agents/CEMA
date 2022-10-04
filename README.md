@@ -1,2 +1,2 @@
-# xavi
+# XAVI
 Explainable Autonomous Vehicle Intelligence
