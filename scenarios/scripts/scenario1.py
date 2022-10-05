@@ -48,21 +48,9 @@ if __name__ == '__main__':
                                    (veh1_spawn_box, veh1_vel_range),
                                    (veh2_spawn_box, veh2_vel_range)])
 
-    # ip.plot_map(scenario_map, markings=True, midline=True)
-    # plt.plot(*list(zip(*ego_spawn_box.boundary)))
-    # plt.plot(*list(zip(*veh1_spawn_box.boundary)))
-    # plt.plot(*list(zip(*veh2_spawn_box.boundary)))
-    # for aid, state in frame.items():
-    #     plt.plot(*state.position, marker="x")
-    #     plt.text(*state.position, aid)
-    # for goal in goals.values():
-    #     plt.plot(*list(zip(*goal.box.boundary)), c="g")
-    # plt.gca().add_patch(plt.Circle(frame[0].position, 100, color='b', fill=False))
-    # plt.show()
-
-    cost_factors = {"time": 0.1, "velocity": 0.0, "acceleration": 0.1, "jerk": 0., "heading": 0.0,
-                    "angular_velocity": 0.1, "angular_acceleration": 0.1, "curvature": 0.0, "safety": 0.}
-    reward_factors = {"time": 1.0, "jerk": -0.1, "angular_acceleration": -0.2, "curvature": -0.1}
+    cost_factors = {"time": 1, "velocity": 0.0, "acceleration": 0.1, "jerk": 0., "heading": 0.0,
+                    "angular_velocity": 1.0, "angular_acceleration": 0.1, "curvature": 0.0, "safety": 0.}
+    reward_factors = {"time": 5.0, "jerk": -0.1, "angular_velocity": -0.1, "curvature": -0.1}
     simulation = xavi.Simulation(scenario_map, fps, t_plot=5)
 
     agents = {}
@@ -81,7 +69,8 @@ if __name__ == '__main__':
                                        fps=fps,
                                        n_simulations=n_simulations,
                                        view_radius=100,
-                                       store_results="all")
+                                       store_results="all",
+                                       kinematic=True)
             simulation.add_agent(agents[aid])
         else:
             agents[aid] = ip.TrafficAgent(aid, frame[aid], goal, fps)
@@ -89,6 +78,6 @@ if __name__ == '__main__':
 
     for t in range(500):
         simulation.step()
-        if t % 5 == 0:
-            simulation.plot()
+        if t == 0 or t % 39 == 0:
+            simulation.plot(debug=True)
             plt.show()
