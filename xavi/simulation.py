@@ -1,8 +1,10 @@
+from collections import defaultdict
+
 import igp2 as ip
 import logging
 import matplotlib.pyplot as plt
 
-from typing import Dict, Union
+from typing import Dict, Union, List
 
 import numpy as np
 
@@ -31,6 +33,7 @@ class Simulation:
         self.__t = 0
         self.__state = {}
         self.__agents = {}
+        self.__actions = defaultdict(list)
 
     def add_agent(self, new_agent: ip.Agent):
         """ Add a new agent to the simulation.
@@ -73,9 +76,13 @@ class Simulation:
         observation = ip.Observation(self.__state, self.__scenario_map)
 
         for agent_id, agent in self.__agents.items():
-            new_state = agent.next_state(observation)
+            if agent is None or not agent.alive:
+                continue
+
+            new_state, action = agent.next_state(observation, return_action=True)
 
             agent.trajectory_cl.add_state(new_state, reload_path=False)
+            self.__actions[agent_id].append(action)
             new_frame[agent_id] = new_state
 
             agent.alive = len(self.__scenario_map.roads_at(new_state.position)) > 0
@@ -105,7 +112,7 @@ class Simulation:
         ax = axes[0]
         ip.plot_map(self.__scenario_map, markings=True, ax=ax)
         for agent_id, agent in self.__agents.items():
-            if not agent.alive:
+            if agent is None or not agent.alive:
                 continue
 
             if isinstance(agent, ip.MCTSAgent):
@@ -155,19 +162,22 @@ class Simulation:
             plt.text(*agent.state.position, agent_id)
 
         if debug:
-            self.__plot_diagnostics()
+            self.__plot_diagnostics(self.__agents, self.__actions)
 
         return fig, axes
 
-    def __plot_diagnostics(self) -> (plt.Figure, plt.Axes):
+    @staticmethod
+    def __plot_diagnostics(agents: Dict[int, ip.Agent], actions: Dict[int, List[ip.Action]]) -> (plt.Figure, plt.Axes):
         attributes = ["velocity", "heading", "angular_velocity"]
-        n_agents = len(self.__agents)
+        n_agents = len(agents)
         n_attributes = len(attributes)
         subplot_w = 5
 
         fig, axes = plt.subplots(n_agents, n_attributes,
                                  figsize=(n_agents * subplot_w, n_attributes * subplot_w))
-        for i, (aid, agent) in enumerate(self.__agents.items()):
+        for i, (aid, agent) in enumerate(agents.items()):
+            if agent is None:
+                continue
             agent.trajectory_cl.calculate_path_and_velocity()
             ts = agent.trajectory_cl.times
             for j, attribute in enumerate(attributes):
@@ -176,17 +186,45 @@ class Simulation:
                 ys = np.round(ys, 4)
                 ax.plot(ts, ys)
                 ax.scatter(ts, ys, s=5)
+
+                # Plot target velocities
+                if attribute == "velocity":
+                    ys = [action.target_speed for action in actions[aid]]
+                    ys = [ys[0]] + ys
+                    ax.plot(ts, ys, c="red")
+                    ax.scatter(ts, ys, s=5, c="red")
                 axes[0, j].set_title(attribute)
+                Simulation.__plot_maneuvers(agent, ax)
             axes[i, 0].set_ylabel(f"Agent {aid}")
         fig.tight_layout()
         return fig, axes
 
     @staticmethod
+    def __plot_maneuvers(agent: ip.Agent, ax: plt.Axes) -> plt.Axes:
+        man_list = np.array([state.maneuver for state in agent.trajectory_cl.states])
+        man_list[0] = man_list[1]
+        ts = agent.trajectory_cl.times
+        colors = ["red", "blue", "green"]
+        t_start = 0
+        i = 0
+        t_max = len(man_list)
+        for t_end, (a, b) in enumerate(zip(man_list[:-1], man_list[1:]), 1):
+            if a != b:
+                ax.axvspan(ts[t_start], ts[t_end], facecolor=colors[i % len(colors)], alpha=0.2)
+                ax.annotate(a, xy=((t_start + 0.5 * (t_end - t_start)) / t_max, 0.0), rotation=-45,
+                            xycoords='axes fraction', fontsize=10, xytext=(-20, 5), textcoords='offset points')
+                t_start = t_end
+                i += 1
+        if ts[t_start] != ts[-1]:
+            ax.axvspan(ts[t_start], ts[-1], facecolor=colors[i % len(colors)], alpha=0.2)
+            ax.annotate(a, xy=((t_start + 0.5 * (t_max - t_start)) / t_max, 0.0), rotation=-45,
+                        xycoords='axes fraction', fontsize=10, xytext=(-30, 5), textcoords='offset points')
+        return ax
+
+    @staticmethod
     def __plot_predictions(agent: ip.MCTSAgent, ax: plt.Axes) -> plt.Axes:
-        y = 1.0
-        x = 0
-        dy = 0.05
-        dx = 0.5
+        x, y = 0., 1.
+        dx, dy = 0.5, 0.05
         ax.text(x, y, "Goal Prediction Probabilities", fontsize="large")
         y -= 2 * dy
         for i, (aid, goals_probs) in enumerate(agent.goal_probabilities.items()):
