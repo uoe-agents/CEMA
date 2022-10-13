@@ -156,7 +156,7 @@ class Simulation:
                     ax.text(*loc, gid)
 
                 # Plot goal probabilities
-                self.__plot_predictions(agent, axes[1])
+                self.__plot_predictions(agent, self.__agents, axes[1], debug)
             elif isinstance(agent, ip.TrajectoryAgent) and color_bar_non_ego is None:
                 color_bar_non_ego = plt.colorbar(agent_plot, location="left")
             plt.text(*agent.state.position, agent_id)
@@ -168,13 +168,15 @@ class Simulation:
 
     @staticmethod
     def __plot_diagnostics(agents: Dict[int, ip.Agent], actions: Dict[int, List[ip.Action]]) -> (plt.Figure, plt.Axes):
-        attributes = ["velocity", "heading", "angular_velocity"]
+        # attributes = ["velocity", "heading", "angular_velocity"]
+        attributes = ["velocity", "acceleration", "jerk"]
         n_agents = len(agents)
         n_attributes = len(attributes)
         subplot_w = 5
 
+        # Plot observations
         fig, axes = plt.subplots(n_agents, n_attributes,
-                                 figsize=(n_agents * subplot_w, n_attributes * subplot_w))
+                                 figsize=(n_attributes * subplot_w, n_agents * subplot_w))
         for i, (aid, agent) in enumerate(agents.items()):
             if agent is None:
                 continue
@@ -222,16 +224,19 @@ class Simulation:
         return ax
 
     @staticmethod
-    def __plot_predictions(agent: ip.MCTSAgent, ax: plt.Axes) -> plt.Axes:
+    def __plot_predictions(ego_agent: ip.MCTSAgent,
+                           agents: Dict[int, ip.Agent],
+                           ax: plt.Axes,
+                           debug: bool = False) -> plt.Axes:
         x, y = 0., 1.
         dx, dy = 0.5, 0.05
         ax.text(x, y, "Goal Prediction Probabilities", fontsize="large")
         y -= 2 * dy
-        for i, (aid, goals_probs) in enumerate(agent.goal_probabilities.items()):
+        for i, (aid, goals_probs) in enumerate(ego_agent.goal_probabilities.items()):
             ax.text(x, y, f"Agent {aid}:", fontsize="medium")
             y -= dy
             for gid, (goal, gp) in enumerate(goals_probs.goals_probabilities.items()):
-                ax.text(x, y, rf"   $P(g^{aid}_{gid}|s^{aid}_{{1:1}})={gp:.3f}$:")
+                ax.text(x, y, rf"   $P(g^{aid}_{gid}|s^{aid}_{{1:{ego_agent.trajectory_cl.states[-1].time}}})={gp:.3f}$:")
                 y -= dy
                 for tid, tp in enumerate(goals_probs.trajectories_probabilities[goal]):
                     ax.text(x, y, rf"       $P(\hat{{s}}^{{{aid}, {tid}}}_{{1:n}}|g^{aid}_{gid})={tp:.3f}$")
@@ -240,4 +245,31 @@ class Simulation:
             if i > 0 and i % 3 == 0:
                 x += dx
         ax.axis("off")
+
+        # Plot prediction trajectories
+        if debug:
+            attribute = "velocity"
+            n_agents = len(agents) - 1
+            n_goals = len(ego_agent.possible_goals)
+            subplot_w = 5
+
+            fig, axes = plt.subplots(n_agents, n_goals,
+                                     figsize=(n_goals * subplot_w, n_agents * subplot_w, ))
+            i = 0
+            for aid, agent in agents.items():
+                if agent.agent_id == ego_agent.agent_id:
+                    continue
+                axes[i, 0].set_ylabel(f"Agent {aid}")
+                probs = ego_agent.goal_probabilities[aid]
+                for gid, goal in enumerate(probs.goals_probabilities):
+                    axes[0, gid].set_title(f"{goal[0]}", fontsize=10)
+                    ax = axes[i, gid]
+                    opt_trajectory = probs.optimum_trajectory[goal]
+                    if probs.all_trajectories[goal]:
+                        trajectory = probs.all_trajectories[goal][0]
+                        ax.plot(opt_trajectory.times, getattr(opt_trajectory, attribute), "r")
+                        ax.plot(trajectory.times, getattr(trajectory, attribute), "b")
+                i += 1
+            fig.suptitle(attribute)
+            fig.tight_layout()
         return ax
