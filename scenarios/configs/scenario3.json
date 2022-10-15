@@ -37,19 +37,20 @@
         }
       },
       "cost_factors": {
-        "time": 0.5,
+        "time": 1.0,
         "velocity": 0.0,
         "acceleration": 0.0,
-        "jerk": 100.0,
+        "jerk": 1.0,
         "heading": 0.0,
-        "angular_velocity": 0.0,
+        "angular_velocity": 0.1,
         "angular_acceleration": 0.0,
         "curvature": 0.0,
         "safety": 0.0
       },
       "mcts": {
-        "t_update": 2.0,
-        "n_simulations": 5,
+        "t_update": 1.0,
+        "n_simulations": 10,
+        "max_depth": 5,
         "store_results": "all",
         "reward_factors": {
           "time": 1.0,
@@ -82,8 +83,8 @@
       "goal": {
         "box": {
           "center": [
-            28.25,
-            10.0
+            -1.375,
+            -25.0
           ],
           "length": 3.5,
           "width": 5,

@@ -30,11 +30,6 @@ if __name__ == '__main__':
 
     frame = generate_random_frame(scenario_map, config)
 
-    ip.plot_map(scenario_map, markings=True)
-    pol = plt.Polygon(ip.Box(**{"center": [-2.0, 8.5], "length": 10.0, "width": 3.5, "heading": 0.2}).boundary, color="red")
-    plt.gca().add_patch(pol)
-    plt.show()
-
     simulation = xavi.Simulation(scenario_map, fps)
 
     agents = {}
@@ -53,6 +48,6 @@ if __name__ == '__main__':
 
     for t in range(config.scenario.max_steps):
         simulation.step()
-        if t % 40 == 0:
+        if t % 20 == 0:
             simulation.plot(debug=True)
             plt.show()

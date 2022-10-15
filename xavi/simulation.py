@@ -249,14 +249,13 @@ class Simulation:
         # Plot prediction trajectories
         if debug:
             attribute = "velocity"
-            n_agents = len(agents) - 1
+            n_agents = max(2, len(agents) - 1)  # To make sure indexing works later on, at least 2 agents
             n_goals = len(ego_agent.possible_goals)
             subplot_w = 5
 
             fig, axes = plt.subplots(n_agents, n_goals,
                                      figsize=(n_goals * subplot_w, n_agents * subplot_w, ))
-            i = 0
-            for aid, agent in agents.items():
+            for i, (aid, agent) in enumerate(agents.items()):
                 if agent.agent_id == ego_agent.agent_id:
                     continue
                 axes[i, 0].set_ylabel(f"Agent {aid}")
@@ -267,9 +266,9 @@ class Simulation:
                     opt_trajectory = probs.optimum_trajectory[goal]
                     if probs.all_trajectories[goal]:
                         trajectory = probs.all_trajectories[goal][0]
-                        ax.plot(opt_trajectory.times, getattr(opt_trajectory, attribute), "r")
-                        ax.plot(trajectory.times, getattr(trajectory, attribute), "b")
-                i += 1
+                        ax.plot(opt_trajectory.times, getattr(opt_trajectory, attribute), "r", label="Optimal")
+                        ax.plot(trajectory.times, getattr(trajectory, attribute), "b", label="Observed")
+                axes[i, 0].legend()
             fig.suptitle(attribute)
             fig.tight_layout()
         return ax
