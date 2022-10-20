@@ -236,7 +236,8 @@ class Simulation:
             ax.text(x, y, f"Agent {aid}:", fontsize="medium")
             y -= dy
             for gid, (goal, gp) in enumerate(goals_probs.goals_probabilities.items()):
-                ax.text(x, y, rf"   $P(g^{aid}_{gid}|s^{aid}_{{1:{ego_agent.trajectory_cl.states[-1].time}}})={gp:.3f}$:")
+                ax.text(x, y,
+                        rf"   $P(g^{aid}_{gid}|s^{aid}_{{1:{ego_agent.trajectory_cl.states[-1].time}}})={gp:.3f}$:")
                 y -= dy
                 for tid, tp in enumerate(goals_probs.trajectories_probabilities[goal]):
                     ax.text(x, y, rf"       $P(\hat{{s}}^{{{aid}, {tid}}}_{{1:n}}|g^{aid}_{gid})={tp:.3f}$")
@@ -254,7 +255,7 @@ class Simulation:
             subplot_w = 5
 
             fig, axes = plt.subplots(n_agents, n_goals,
-                                     figsize=(n_goals * subplot_w, n_agents * subplot_w, ))
+                                     figsize=(n_goals * subplot_w, n_agents * subplot_w,))
             for i, (aid, agent) in enumerate(agents.items()):
                 if agent.agent_id == ego_agent.agent_id:
                     continue
@@ -272,3 +273,8 @@ class Simulation:
             fig.suptitle(attribute)
             fig.tight_layout()
         return ax
+
+    @property
+    def state(self) -> Dict[int, ip.AgentState]:
+        """ A dictionary to output the states of agents. """
+        return self.__state

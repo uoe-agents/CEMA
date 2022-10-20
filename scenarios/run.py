@@ -32,6 +32,8 @@ if __name__ == '__main__':
 
     simulation = xavi.Simulation(scenario_map, fps)
 
+    rollout = xavi.rollout_generation(scenario_map, 1 / fps)
+
     agents = {}
     for agent in config.agents:
         base_agent = {"agent_id": agent.id, "initial_state": frame[agent.id],
@@ -48,6 +50,7 @@ if __name__ == '__main__':
 
     for t in range(config.scenario.max_steps):
         simulation.step()
+        rollout.past_trajectories(simulation.state)
         if t % 20 == 0:
-            simulation.plot(debug=True)
+            simulation.plot(debug=False)
             plt.show()
