@@ -32,9 +32,9 @@ if __name__ == '__main__':
 
     simulation = xavi.Simulation(scenario_map, fps)
 
-    rollout = xavi.rollout_generation(scenario_map, 1 / fps)
-
     agents = {}
+
+    rollout = None
     for agent in config.agents:
         base_agent = {"agent_id": agent.id, "initial_state": frame[agent.id],
                       "goal": ip.BoxGoal(ip.Box(**agent.goal.box)), "fps": fps}
@@ -45,12 +45,17 @@ if __name__ == '__main__':
                                               kinematic=agent.kinematic,
                                               **base_agent,
                                               **agent.mcts))
+            rollout = xavi.rollout_generation(scenario_map=scenario_map,
+                                              cost_factors=agent.cost_factors,
+                                              view_radius=agent.view_radius,
+                                              **base_agent,
+                                              **agent.mcts)
         elif agent.type == "TrafficAgent":
             simulation.add_agent(ip.TrafficAgent(**base_agent))
 
     for t in range(config.scenario.max_steps):
+        rollout.state_buffer(simulation.state)
         simulation.step()
-        rollout.past_trajectories(simulation.state)
         if t % 20 == 0:
             simulation.plot(debug=False)
             plt.show()
