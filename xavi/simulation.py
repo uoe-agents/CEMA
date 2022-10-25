@@ -255,8 +255,9 @@ class Simulation:
             subplot_w = 5
 
             fig, axes = plt.subplots(n_agents, n_goals,
-                                     figsize=(n_goals * subplot_w, n_agents * subplot_w,))
-            for i, (aid, agent) in enumerate(agents.items()):
+                                     figsize=(n_goals * subplot_w, n_agents * subplot_w, ))
+            i = 0
+            for aid, agent in agents.items():
                 if agent.agent_id == ego_agent.agent_id:
                     continue
                 axes[i, 0].set_ylabel(f"Agent {aid}")
@@ -270,6 +271,7 @@ class Simulation:
                         ax.plot(opt_trajectory.times, getattr(opt_trajectory, attribute), "r", label="Optimal")
                         ax.plot(trajectory.times, getattr(trajectory, attribute), "b", label="Observed")
                 axes[i, 0].legend()
+                i += 1
             fig.suptitle(attribute)
             fig.tight_layout()
         return ax
