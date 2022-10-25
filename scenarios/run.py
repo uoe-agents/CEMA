@@ -34,27 +34,24 @@ if __name__ == '__main__':
 
     agents = {}
 
-    rollout = None
+    xavi_agent = None
     for agent in config.agents:
         base_agent = {"agent_id": agent.id, "initial_state": frame[agent.id],
                       "goal": ip.BoxGoal(ip.Box(**agent.goal.box)), "fps": fps}
         if agent.type == "MCTSAgent":
-            simulation.add_agent(ip.MCTSAgent(scenario_map=scenario_map,
-                                              cost_factors=agent.cost_factors,
-                                              view_radius=agent.view_radius,
-                                              kinematic=agent.kinematic,
-                                              **base_agent,
-                                              **agent.mcts))
-            rollout = xavi.rollout_generation(scenario_map=scenario_map,
-                                              cost_factors=agent.cost_factors,
-                                              view_radius=agent.view_radius,
-                                              **base_agent,
-                                              **agent.mcts)
+            xavi_agent = xavi.XAVIAgent(scenario_map=scenario_map,
+                                        cost_factors=agent.cost_factors,
+                                        view_radius=agent.view_radius,
+                                        kinematic=agent.kinematic,
+                                        **base_agent,
+                                        **agent.mcts)
+            simulation.add_agent(xavi_agent)
+
         elif agent.type == "TrafficAgent":
             simulation.add_agent(ip.TrafficAgent(**base_agent))
 
     for t in range(config.scenario.max_steps):
-        rollout.state_buffer(simulation.state)
+        xavi_agent.rollout_generation()
         simulation.step()
         if t % 20 == 0:
             simulation.plot(debug=False)

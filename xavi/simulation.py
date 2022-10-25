@@ -274,7 +274,3 @@ class Simulation:
             fig.tight_layout()
         return ax
 
-    @property
-    def state(self) -> Dict[int, ip.AgentState]:
-        """ A dictionary to output the states of agents. """
-        return self.__state

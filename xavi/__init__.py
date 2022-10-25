@@ -1,2 +1,2 @@
 from xavi.simulation import Simulation
-from xavi.explainer import rollout_generation
+from xavi.explainer import XAVIAgent
