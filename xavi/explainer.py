@@ -8,9 +8,9 @@ from igp2.agents.mcts_agent import MCTSAgent
 
 @dataclass
 class feature_set:
-    states: List[ip.AgentState]
+    states: Dict[int, ip.AgentState]
     feature_exist: List[bool]
-    reward: float
+    reward: Dict[str, float]
 
 
 class XAVIAgent(ip.MCTSAgent):
@@ -35,7 +35,6 @@ class XAVIAgent(ip.MCTSAgent):
                                         fps, cost_factors, reward_factors, n_simulations, max_depth, store_results,
                                         kinematic)
 
-        self.__macro_actions = None
         self._mcts = ip.MCTS(scenario_map, n_simulations=n_simulations, max_depth=max_depth,
                              store_results=store_results)
 
@@ -77,11 +76,11 @@ class XAVIAgent(ip.MCTSAgent):
                                                               self._previous_observations[agent_id][1],
                                                               frame,
                                                               visible_region=visible_region)
-        self.__macro_actions = self._mcts.search(self.agent_id, self.goal, frame,
-                                                 agents_metadata, self._goal_probabilities)
+        self._mcts.search(self.agent_id, self.goal, frame,
+                          agents_metadata, self._goal_probabilities)
 
     @staticmethod
-    def get_outcome_y(states: List[ip.AgentState]) -> List[bool]:
+    def get_outcome_y(states: ip.AgentState) -> List[bool]:
         """ Return boolean value for each predefined feature """
         """
         Args:
@@ -95,7 +94,10 @@ class XAVIAgent(ip.MCTSAgent):
             'relative slower': False,
             'relative faster': False,
             'same speed': False,
-            'ever stop': False
+            'ever stop': False,
+            'mu': False,
+            'omega': False,
+            'safety': False
         }
         acc = []
         for state in states:
@@ -117,29 +119,34 @@ class XAVIAgent(ip.MCTSAgent):
             mcts_results = ip.AllMCTSResult()
             mcts_results.add_data(self._mcts.results)
 
-        # save trajectories of non-ego agents
+        time = previous_observation.frame[0].time
+
         for m, rollout in enumerate(mcts_results):
             states = {}
+            r = []
+            # save states of the ego agent
+            ego_states = []
+            last_node = list(rollout.tree.tree)[-1]
+            for node, node_value in rollout.tree.tree.items():
+                ego_states.append(node_value.state[self.agent_id])
+                # save reward for each component
+                if node == last_node:
+                    for node_reward, reward_value, in node_value.reward_results.items():
+                        r = reward_value[0].reward_components
+
+            states[self.agent_id] = ego_states
+
+            # save states of non-ego agents
             for aid, pred in rollout.tree.predictions.items():
-                states[aid] = {}
                 for goal, trajectories in pred.all_trajectories.items():
-                    states[aid][goal] = trajectories
-
-            # save trajectories of the ego agent
-            states[self.agent_id] = {}
-            for macro_action in self.__macro_actions:
-                current_macro = self.update_macro_action(macro_action.macro_action_type,
-                                                         macro_action.ma_args,
-                                                         previous_observation)
-                marco = macro_action.__repr__()
-
-                states[self.agent_id][marco] = current_macro.current_maneuver.trajectory
-
+                    for trajectory in trajectories:
+                        states[aid] = ip.AgentState(time, position=trajectory.path,
+                                                    velocity=trajectory.velocity,
+                                                    acceleration=trajectory.acceleration,
+                                                    heading=trajectory.heading)
 
             print('ok')
-
-
-            data_set_m = feature_set(states, self.get_outcome_y(states), r)
+            data_set_m = feature_set(states, self.get_outcome_y(states[self.agent_id]), r)
             dataset[m] = data_set_m
 
         return dataset
