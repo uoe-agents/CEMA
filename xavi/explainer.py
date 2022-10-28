@@ -35,8 +35,9 @@ class XAVIAgent(ip.MCTSAgent):
                                         fps, cost_factors, reward_factors, n_simulations, max_depth, store_results,
                                         kinematic)
 
-        self._mcts = ip.MCTS(scenario_map, n_simulations=n_simulations, max_depth=max_depth,
-                             store_results=store_results)
+        self._previous_goal_probabilities = None
+        self._previous_mcts = ip.MCTS(scenario_map, n_simulations=n_simulations, max_depth=max_depth,
+                                      store_results=store_results)
 
         self._scenario_map = scenario_map
         self._tau = fps
@@ -62,22 +63,22 @@ class XAVIAgent(ip.MCTSAgent):
         """ Runs MCTS to generate a new sequence of macro actions to execute using previous observations."""
         frame = previous_observation.frame
         agents_metadata = {aid: state.metadata for aid, state in frame.items()}
-        self._goal_probabilities = {aid: ip.GoalsProbabilities(self._goals)
-                                    for aid in frame.keys() if aid != self.agent_id}
+        self._previous_goal_probabilities = {aid: ip.GoalsProbabilities(self._goals)
+                                             for aid in frame.keys() if aid != self.agent_id}
         visible_region = ip.Circle(frame[self.agent_id].position, self.view_radius)
 
         for agent_id in frame:
             if agent_id == self.agent_id:
                 continue
 
-            self._goal_recognition.update_goals_probabilities(self._goal_probabilities[agent_id],
+            self._goal_recognition.update_goals_probabilities(self._previous_goal_probabilities[agent_id],
                                                               self._previous_observations[agent_id][0],
                                                               agent_id,
                                                               self._previous_observations[agent_id][1],
                                                               frame,
                                                               visible_region=visible_region)
-        self._mcts.search(self.agent_id, self.goal, frame,
-                          agents_metadata, self._goal_probabilities)
+        self._previous_mcts.search(self.agent_id, self.goal, frame,
+                                   agents_metadata, self._previous_goal_probabilities)
 
     @staticmethod
     def get_outcome_y(states: ip.AgentState) -> List[bool]:
@@ -114,10 +115,10 @@ class XAVIAgent(ip.MCTSAgent):
     def get_dataset(self, previous_observation: ip.Observation) -> Dict[int, feature_set]:
         """ Return dataset recording states, boolean feature, and reward """
         dataset = {}
-        mcts_results = self._mcts.results
+        mcts_results = self._previous_mcts.results
         if isinstance(mcts_results, ip.MCTSResult):
             mcts_results = ip.AllMCTSResult()
-            mcts_results.add_data(self._mcts.results)
+            mcts_results.add_data(self._previous_mcts.results)
 
         time = previous_observation.frame[0].time
 
