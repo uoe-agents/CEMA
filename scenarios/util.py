@@ -80,7 +80,7 @@ def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:
 
         vel = (spawn_vel[1] - spawn_vel[0]) * np.random.random() + spawn_vel[0]
         vel = min(vel, ip.Maneuver.MAX_SPEED)
-        spawn_velocity = np.array([vel * np.cos(spawn_heading), vel * np.sin(spawn_heading)])
+        spawn_velocity = vel * np.array([np.cos(spawn_heading), np.sin(spawn_heading)])
 
         agent_metadata = ip.AgentMetadata(**agent.metadata) if "metadata" in agent \
             else ip.AgentMetadata(**ip.AgentMetadata.CAR_DEFAULT)
