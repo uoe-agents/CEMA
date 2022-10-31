@@ -36,7 +36,8 @@ scenarios/configs/new_config.json
 |    |    |   |   |____!length: float            The length of the goal area
 |    |    |   |   |____!width: float             The width of the goal area
 |    |    |   |   |____!heading: float           The heading of the goal area
- **The following is for MCTSAgents only**
+
+ **The following is for MCTSAgents (and subclasses) only**
 |    |    |____cost_factors: dict           The cost weighing factors for IGP2 goal recognition
 |    |    |    |____time: float                  Time to goal
 |    |    |    |____velocity: float              Average velocity
@@ -60,4 +61,9 @@ scenarios/configs/new_config.json
 |    |    |____view_radius: float         Radius of circle centered on the vehicle, in which it can observe the environment
 |    |    |____kinematic: bool            Whether to use a bicycle-model vehicle for simulations or a trajectory state-following vehicle
                                                The latter must be used for CARLA. 
+**The following is for XAVIAgents only**                                               
+|    |    |____explainer: dict
+|    |    |    |____tau: int                   Time steps to look back for counterfactual generation
+|    |    |    |____cf_n_simulations: int      Number of simulations for counterfactual MCTS
+|    |    |    |____cf_max_depth: int          Maximum search depth for counterfactual MCTS simulation                                   
 ```

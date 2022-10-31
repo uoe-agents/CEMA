@@ -173,5 +173,5 @@ class XAVIAgent(ip.MCTSAgent):
 
     @property
     def tau(self) -> int:
-        """ Rollback time steps for counterfactual generation. """
+        """ Parameter for how many time steps to rollback for counterfactual generation. """
         return self.__tau

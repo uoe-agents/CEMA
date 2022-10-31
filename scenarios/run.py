@@ -39,17 +39,27 @@ if __name__ == '__main__':
         base_agent = {"agent_id": agent.id, "initial_state": frame[agent.id],
                       "goal": ip.BoxGoal(ip.Box(**agent.goal.box)), "fps": fps}
         if agent.type == "MCTSAgent":
-            xavi_agent = xavi.XAVIAgent(scenario_map=scenario_map,
-                                        cost_factors=agent.cost_factors,
-                                        view_radius=agent.view_radius,
-                                        kinematic=agent.kinematic,
-                                        **base_agent,
-                                        **agent.mcts)
-            simulation.add_agent(xavi_agent)
-
+            agent = ip.MCTSAgent(scenario_map=scenario_map,
+                                 cost_factors=agent.cost_factors,
+                                 view_radius=agent.view_radius,
+                                 kinematic=agent.kinematic,
+                                 **base_agent,
+                                 **agent.mcts)
+        elif agent.type == "XAVIAgent":
+            agent = xavi.XAVIAgent(scenario_map=scenario_map,
+                                   cost_factors=agent.cost_factors,
+                                   view_radius=agent.view_radius,
+                                   kinematic=agent.kinematic,
+                                   **base_agent,
+                                   **agent.explainer,
+                                   **agent.mcts)
+            xavi_agent = agent
         elif agent.type == "TrafficAgent":
-            simulation.add_agent(ip.TrafficAgent(**base_agent))
+            agent = ip.TrafficAgent(**base_agent)
 
+        simulation.add_agent(agent)
+
+    # Execute simulation for fixed number of time steps
     for t in range(config.scenario.max_steps):
         simulation.step()
         if t % 20 == 0:
