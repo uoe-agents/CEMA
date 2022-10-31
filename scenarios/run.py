@@ -51,8 +51,9 @@ if __name__ == '__main__':
             simulation.add_agent(ip.TrafficAgent(**base_agent))
 
     for t in range(config.scenario.max_steps):
-        xavi_agent.rollout_generation()
         simulation.step()
         if t % 20 == 0:
             simulation.plot(debug=False)
             plt.show()
+        if t > 0 and t % 30 == 0:
+            xavi_agent.generate_counterfactuals()
