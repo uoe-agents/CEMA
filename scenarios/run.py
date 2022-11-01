@@ -62,8 +62,8 @@ if __name__ == '__main__':
     # Execute simulation for fixed number of time steps
     for t in range(config.scenario.max_steps):
         simulation.step()
-        if t % 20 == 0:
-            simulation.plot(debug=False)
-            plt.show()
-        if t > 0 and t % 30 == 0:
-            xavi_agent.generate_counterfactuals()
+        # if t % 20 == 0:
+        #     xavi.plot_simulation(simulation, debug=False)
+        #     plt.show()
+        if t > 0 and t % 75 == 0:
+            xavi_agent.explain_actions(exp_type="final", future=False)
