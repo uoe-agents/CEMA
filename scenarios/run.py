@@ -65,5 +65,6 @@ if __name__ == '__main__':
         # if t % 20 == 0:
         #     xavi.plot_simulation(simulation, debug=False)
         #     plt.show()
-        if t > 0 and t % 75 == 0:
-            xavi_agent.explain_actions(exp_type="final", future=False)
+        if t > 0 and t % 100 == 0:
+            # xavi_agent.explain_actions(exp_type="final", future=False)
+            xavi_agent.explain_actions(exp_type="final", future=True)
