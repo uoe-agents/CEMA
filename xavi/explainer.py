@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from sklearn.linear_model import LogisticRegression
 
 from xavi.features import Features
+from xavi.util import fill_missing_actions
 
 logger = logging.getLogger(__name__)
 
@@ -100,10 +101,12 @@ class XAVIAgent(ip.MCTSAgent):
             for mid, item in self.dataset.items():
                 trajectories = {aid: traj.slice(0, current_t) if not future else traj.slice(current_t, None)
                                 for aid, traj in item.trajectories.items()}
-                xs.append(np.array(list(self.__features.convert(self.agent_id, trajectories).values()), dtype=int))
+                xs.append(list(self.__features.convert(self.agent_id, trajectories).values()))
                 ys.append(int(item.query_present))
+            xs = self.__features.binarise(xs)
             model = LogisticRegression().fit(np.array(xs), np.array(ys))
             coeffs = model.coef_
+            logger.info(coeffs)
         else:
             raise ValueError(f"Explanation type {exp_type} is not supported.")
 
@@ -190,7 +193,14 @@ class XAVIAgent(ip.MCTSAgent):
             for agent_id, agent in last_node.run_results[-1].agents.items():
                 trajectory = ip.StateTrajectory(self.fps)
                 trajectory.extend(self.__previous_observations[agent_id][0], reload_path=False)
-                trajectory.extend(agent.trajectory_cl.slice(1, None), reload_path=True)
+                sim_trajectory = agent.trajectory_cl.slice(1, None)
+
+                # Retrieve maneuvers and macro actions for non-ego vehicles
+                if agent_id != self.agent_id:
+                    plan = self.tau_goals_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
+                    fill_missing_actions(sim_trajectory, plan)
+
+                trajectory.extend(sim_trajectory, reload_path=True)
                 trajectories[agent_id] = trajectory
 
             # save reward for each component
@@ -209,15 +219,20 @@ class XAVIAgent(ip.MCTSAgent):
         """ The generated set of counterfactual features with the key being its index. """
         return self.__dataset
 
-    @staticmethod
-    def get_outcome_y(trajectories: Dict[int, ip.Trajectory], actions: List[ip.MCTSAction]) -> bool:
+    @property
+    def tau_goals_probabilities(self) -> Dict[int, ip.GoalsProbabilities]:
+        """ The goal and trajectory probabilities inferred from tau time steps ago. """
+        return self.__previous_goal_probabilities
+
+    def get_outcome_y(self, trajectories: Dict[int, ip.StateTrajectory]) -> bool:
         """ Return boolean value for each predefined feature
 
         Args:
             trajectories: Joint trajectories of vehicles
-            actions: Actions of the ego vehicle
         """
-        return any([issubclass(ma.macro_action_type, ip.ChangeLaneLeft) for ma in actions])  # S1
+        ego_trajectory = trajectories[self.agent_id]
+        return any([s.macro_action.startswith("ChangeLaneLeft") for s in ego_trajectory.states
+                    if s.macro_action is not None])  # S1
         # return np.any(trajectories[0].velocity < 0.1)  # S2
 
     @property
