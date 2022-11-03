@@ -24,15 +24,15 @@ class Features:
         features = {}
         agent_trajectory = trajectories[agent_id]
 
-        # Agent acceleration as the weighted sum of acceleration with temporal difference
-        acceleration = np.dot(agent_trajectory.timesteps, agent_trajectory.acceleration)
-        features.update({f"{agent_id}_decelerate": acceleration < -eps,
-                         f"{agent_id}_maintain": -eps <= acceleration <= eps,
-                         f"{agent_id}_accelerate": eps < acceleration})
-
         for aid, trajectory in trajectories.items():
             if aid == agent_id:
                 continue
+
+            # Agent acceleration as the weighted sum of acceleration with temporal difference
+            acceleration = np.dot(trajectory.timesteps, trajectory.acceleration)
+            features.update({f"{agent_id}_decelerate": acceleration < -eps,
+                             f"{agent_id}_maintain": -eps <= acceleration <= eps,
+                             f"{agent_id}_accelerate": eps < acceleration})
 
             # Get average relative velocity as compared to each agent
             min_len = min(len(trajectory.velocity), len(agent_trajectory.velocity))

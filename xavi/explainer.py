@@ -198,7 +198,7 @@ class XAVIAgent(ip.MCTSAgent):
                 if last_action == rollout.trace[-1]:
                     r = reward_value[-1].reward_components
 
-            data_set_m = Item(trajectories, self.get_outcome_y(trajectories, actions), r)
+            data_set_m = Item(trajectories, self.get_outcome_y(trajectories), r)
             dataset[m] = data_set_m
 
         logger.info('Counterfactual dataset generation done.')
@@ -217,8 +217,8 @@ class XAVIAgent(ip.MCTSAgent):
             trajectories: Joint trajectories of vehicles
             actions: Actions of the ego vehicle
         """
-        # return any([issubclass(ma.macro_action_type, ip.ChangeLaneLeft) for ma in actions])  # S1
-        return np.any(trajectories[0].velocity < 0.1)
+        return any([issubclass(ma.macro_action_type, ip.ChangeLaneLeft) for ma in actions])  # S1
+        # return np.any(trajectories[0].velocity < 0.1)  # S2
 
     @property
     def tau(self) -> int:
