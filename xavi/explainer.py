@@ -101,10 +101,10 @@ class XAVIAgent(ip.MCTSAgent):
             for mid, item in self.dataset.items():
                 trajectories = {aid: traj.slice(0, current_t) if not future else traj.slice(current_t, None)
                                 for aid, traj in item.trajectories.items()}
-                xs.append(list(self.__features.convert(self.agent_id, trajectories).values()))
-                ys.append(int(item.query_present))
-            xs = self.__features.binarise(xs)
-            model = LogisticRegression().fit(np.array(xs), np.array(ys))
+                xs.append(self.__features.to_features(self.agent_id, trajectories))
+                ys.append(item.query_present)
+            X, y = self.__features.binarise(xs, ys)
+            model = LogisticRegression().fit(X, y)
             coeffs = model.coef_
             logger.info(coeffs)
         else:

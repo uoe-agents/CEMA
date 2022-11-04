@@ -21,4 +21,4 @@ def fill_missing_actions(trajectory: ip.StateTrajectory, plan: List[ip.MacroActi
 def most_common(lst: list):
     """ Return the most common element in a list. """
     data = Counter(lst)
-    return max(lst, key=data.get) if list else None
+    return max(lst, key=data.get) if lst else None
