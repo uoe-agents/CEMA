@@ -1,10 +1,18 @@
+import pickle
 from typing import Dict, List
 
 import igp2 as ip
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
+import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import RepeatedKFold, cross_validate
 
 from xavi.simulation import Simulation
+
+
+# -----------Simulation plotting functions---------------------
 
 
 def plot_simulation(simulation: Simulation, axes: plt.Axes = None, debug: bool = False) -> (plt.Figure, plt.Axes):
@@ -192,3 +200,69 @@ def plot_predictions(ego_agent: ip.MCTSAgent,
         fig.suptitle(attribute)
         fig.tight_layout()
     return ax
+
+
+# -----------Explanation plotting functions---------------------
+
+def plot_explanation(
+        r_diffs: Dict[str, float],
+        data: pd.DataFrame,
+        labels: np.ndarray,
+        model: LogisticRegression) -> plt.Axes:
+    """ Plot final and efficient explanations from the calculated information.
+
+    Args:
+        r_diffs: Reward component differences.
+        data: Input data to the logistic regression model
+        model: The logistic regression model
+
+    Returns:
+        plt.Axes that was plotted on.
+    """
+    # Plot reward differences
+    rewards, widths = list(zip(*[(k, v) for (k, v) in r_diffs.items() if not np.isnan(v)]))
+
+    # Plot reward differences
+    plt.barh(rewards, widths, left=0, height=1.0, color=plt.cm.get_cmap("tab10").colors)
+    c_star = max(r_diffs, key=lambda k: np.abs(r_diffs[k]))
+    r_star = r_diffs[c_star]
+    plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
+    plt.gcf().tight_layout()
+
+    # Plot model coefficients
+    feature_names = data.columns
+    coefs = pd.DataFrame(
+        np.squeeze(model.coef_) * data.std(axis=0),
+        columns=["Coefficient importance"],
+        index=feature_names,
+    )
+    coefs.plot(kind="barh", figsize=(9, 7), alpha=0.45)
+    plt.xlabel("Coefficient values corrected by the feature's std. dev.")
+    plt.title("Logistic model, small regularization")
+    plt.axvline(x=0, color=".5")
+    plt.subplots_adjust(left=0.3)
+
+    cv = RepeatedKFold(n_splits=5, n_repeats=7, random_state=0)
+    cv_model = cross_validate(model, data, labels,
+                              cv=cv, return_estimator=True, n_jobs=2)
+    coefs = pd.DataFrame(
+        [
+            np.squeeze(est.coef_) * data.iloc[train_idx].std(axis=0)
+            for est, (train_idx, _) in zip(cv_model["estimator"], cv.split(data, labels))
+        ],
+        columns=feature_names,
+    )
+    # plt.figure(figsize=(9, 7))
+    sns.stripplot(data=coefs, orient="h", palette="dark:k", alpha=0.5)
+    sns.boxplot(data=coefs, orient="h", color="cyan", saturation=0.5, whis=10)
+    plt.axvline(x=0, color=".5")
+    plt.xlabel("Coefficient importance")
+    plt.title("Coefficient importance and its variability")
+    plt.suptitle("Logistic model, small regularization")
+    plt.subplots_adjust(left=0.3)
+
+
+if __name__ == '__main__':
+    diffs, data, labels, model = pickle.load(open("s2_data_future.p", "rb"))
+    plot_explanation(diffs, data, labels, model)
+    plt.show()
