@@ -66,5 +66,6 @@ if __name__ == '__main__':
         #     xavi.plot_simulation(simulation, debug=False)
         #     plt.show()
         if t > 0 and t % 75 == 0:  # Use 60 for S1; 75 for S2
-            xavi_agent.explain_actions(exp_type="final", future=False)
-            xavi_agent.explain_actions(exp_type="final", future=True)
+            xavi_agent.explain_actions(future=False)
+            xavi_agent.explain_actions(future=True)
+            break

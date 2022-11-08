@@ -56,11 +56,10 @@ class XAVIAgent(ip.MCTSAgent):
         self.__previous_observations = None
         self.__dataset = None
 
-    def explain_actions(self, exp_type: str, future: bool = False):
+    def explain_actions(self, future: bool = False):
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
 
         Args:
-            exp_type: Type of explanation to generate. Either 'final' or 'efficient'
             future: Whether to generate an explanation considering the future predict actions of vehicles.
         """
         current_t = len(self.observations[self.agent_id][0].states) - 1
@@ -77,7 +76,7 @@ class XAVIAgent(ip.MCTSAgent):
 
         assert self.__dataset is not None, f"No counterfactual data set present."
 
-        if True or exp_type == "final":
+        # Generate final explanation
             query_present = {}
             query_not_present = {}
             for mid, fs in self.dataset.items():
@@ -96,7 +95,7 @@ class XAVIAgent(ip.MCTSAgent):
                 diffs[component] = r_qp - r_qnp  # TODO: Consider using the weighted reward factors here to represent the actual decision process of the ego vehicle
             c_star = max(diffs, key=lambda k: np.abs(diffs[k]))
             r_star = diffs[c_star]
-        if True or exp_type == "efficient":
+
             xs, ys = [], []
             for mid, item in self.dataset.items():
                 trajectories = {aid: traj.slice(0, current_t) if not future else traj.slice(current_t, None)
@@ -107,8 +106,8 @@ class XAVIAgent(ip.MCTSAgent):
             model = LogisticRegression().fit(X, y)
             coeffs = model.coef_
             logger.info(coeffs)
-        else:
-            raise ValueError(f"Explanation type {exp_type} is not supported.")
+
+        # TODO: Convert to NL explanations through language templates.
 
     def __generate_counterfactuals(self):
         """ Get observations from tau time steps before, and call MCTS from that joint state."""
