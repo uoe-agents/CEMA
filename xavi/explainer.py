@@ -77,35 +77,35 @@ class XAVIAgent(ip.MCTSAgent):
         assert self.__dataset is not None, f"No counterfactual data set present."
 
         # Generate final explanation
-            query_present = {}
-            query_not_present = {}
-            for mid, fs in self.dataset.items():
-                if fs.query_present:
-                    query_present[mid] = fs
-                else:
-                    query_not_present[mid] = fs
-            diffs = {}
-            for component in self._reward.COMPONENTS:
-                r_qp = [it.reward[component] for it in query_present.values()
-                        if it.reward[component] is not None]
-                r_qp = np.sum(r_qp) / len(r_qp) if r_qp else np.nan
-                r_qnp = [it.reward[component] for it in query_not_present.values()
-                         if it.reward[component] is not None]
-                r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else np.nan
-                diffs[component] = r_qp - r_qnp  # TODO: Consider using the weighted reward factors here to represent the actual decision process of the ego vehicle
-            c_star = max(diffs, key=lambda k: np.abs(diffs[k]))
-            r_star = diffs[c_star]
+        query_present = {}
+        query_not_present = {}
+        for mid, fs in self.dataset.items():
+            if fs.query_present:
+                query_present[mid] = fs
+            else:
+                query_not_present[mid] = fs
+        diffs = {}
+        for component in self._reward.COMPONENTS:
+            r_qp = [it.reward[component] for it in query_present.values()
+                    if it.reward[component] is not None]
+            r_qp = np.sum(r_qp) / len(r_qp) if r_qp else np.nan
+            r_qnp = [it.reward[component] for it in query_not_present.values()
+                     if it.reward[component] is not None]
+            r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else np.nan
+            diffs[component] = r_qp - r_qnp  # TODO: Consider using the weighted reward factors here to represent the actual decision process of the ego vehicle
+        c_star = max(diffs, key=lambda k: np.abs(diffs[k]))
+        r_star = diffs[c_star]
 
-            xs, ys = [], []
-            for mid, item in self.dataset.items():
-                trajectories = {aid: traj.slice(0, current_t) if not future else traj.slice(current_t, None)
-                                for aid, traj in item.trajectories.items()}
-                xs.append(self.__features.to_features(self.agent_id, trajectories))
-                ys.append(item.query_present)
-            X, y = self.__features.binarise(xs, ys)
-            model = LogisticRegression().fit(X, y)
-            coeffs = model.coef_
-            logger.info(coeffs)
+        xs, ys = [], []
+        for mid, item in self.dataset.items():
+            trajectories = {aid: traj.slice(0, current_t) if not future else traj.slice(current_t, None)
+                            for aid, traj in item.trajectories.items()}
+            xs.append(self.__features.to_features(self.agent_id, trajectories))
+            ys.append(item.query_present)
+        X, y = self.__features.binarise(xs, ys)
+        model = LogisticRegression().fit(X, y)
+        coeffs = model.coef_
+        logger.info(coeffs)
 
         # TODO: Convert to NL explanations through language templates.
 
