@@ -1,3 +1,4 @@
+import os.path
 import pickle
 from typing import Dict, List
 
@@ -208,13 +209,18 @@ def plot_explanation(
         r_diffs: Dict[str, float],
         data: pd.DataFrame,
         labels: np.ndarray,
-        model: LogisticRegression) -> plt.Axes:
+        model: LogisticRegression,
+        save_path: str = None,
+        future: bool = False) -> plt.Axes:
     """ Plot final and efficient explanations from the calculated information.
 
     Args:
         r_diffs: Reward component differences.
         data: Input data to the logistic regression model
+        labels: Labbels indicating the presence of a query
         model: The logistic regression model
+        save_path: If not None, then save figures to this path
+        future: Whether the data relates to future trajectories.
 
     Returns:
         plt.Axes that was plotted on.
@@ -228,6 +234,8 @@ def plot_explanation(
     r_star = r_diffs[c_star]
     plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
     plt.gcf().tight_layout()
+    if save_path is not None:
+        plt.savefig(os.path.join(save_path, f"{'future' if future else 'past'}_final.png"))
 
     # Plot model coefficients
     feature_names = data.columns
@@ -260,9 +268,18 @@ def plot_explanation(
     plt.title("Coefficient importance and its variability")
     plt.suptitle("Logistic model, small regularization")
     plt.subplots_adjust(left=0.3)
+    if save_path is not None:
+        plt.savefig(os.path.join(save_path, f"{'future' if future else 'past'}_efficient.png"))
 
 
 if __name__ == '__main__':
-    diffs, data, labels, model = pickle.load(open("s2_data_future.p", "rb"))
-    plot_explanation(diffs, data, labels, model)
+    scenario = 1
+    future = False
+    save_path = os.path.join("output", str(scenario))
+    if not os.path.exists(save_path):
+        os.mkdir(save_path)
+
+    plot_explanation(*pickle.load(open(f"s{scenario}_{'future' if future else 'past'}.p", "rb")),
+                     save_path=save_path,
+                     future=future)
     plt.show()
