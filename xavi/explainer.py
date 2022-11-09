@@ -28,6 +28,7 @@ class XAVIAgent(ip.MCTSAgent):
                  cf_n_trajectories: int = 3,
                  cf_n_simulations: int = 15,
                  cf_max_depth: int = 5,
+                 user_query: dict = None,
                  **kwargs):
         """ Create a new XAVIAgent.
 
@@ -55,6 +56,7 @@ class XAVIAgent(ip.MCTSAgent):
 
         self.__previous_observations = None
         self.__dataset = None
+        self.__user_query = user_query
 
     def explain_actions(self, future: bool = False):
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
@@ -230,7 +232,7 @@ class XAVIAgent(ip.MCTSAgent):
             trajectories: Joint trajectories of vehicles
         """
         ego_trajectory = trajectories[self.agent_id]
-        return any([s.macro_action.startswith("ChangeLaneLeft") for s in ego_trajectory.states
+        return any([s.macro_action.startswith(self.__user_query["maneuver"]) for s in ego_trajectory.states
                     if s.macro_action is not None])  # S1
         # return np.any(trajectories[0].velocity < 0.1)  # S2
 
