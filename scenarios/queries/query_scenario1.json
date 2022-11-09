@@ -1,0 +1,16 @@
+{
+  "why": {
+    "maneuver": "ChangeLaneLeft",
+    "time": 60.0
+  },
+  "whynot": {
+    "maneuver": "GoStraight",
+    "time": 60.0
+  },
+  "whatif": {
+    "agent_id": 1,
+    "maneuver": "ChangeLaneRight",
+    "negative": true,
+    "time": 60.0
+  }
+}

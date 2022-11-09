@@ -6,6 +6,7 @@ import random
 
 import matplotlib.pyplot as plt
 from util import generate_random_frame, setup_xavi_logging, parse_args, load_config
+from query_parser import query_parser
 
 logger = logging.Logger(__name__)
 
@@ -15,6 +16,7 @@ if __name__ == '__main__':
     args = parse_args()
     logger.debug(args)
     config = load_config(args)
+    query_info = query_parser(args)
 
     scenario_map = ip.Map.parse_from_opendrive(config.scenario.map_path)
 
@@ -50,6 +52,7 @@ if __name__ == '__main__':
                                    cost_factors=agent.cost_factors,
                                    view_radius=agent.view_radius,
                                    kinematic=agent.kinematic,
+                                   user_query=query_info,
                                    **base_agent,
                                    **agent.explainer,
                                    **agent.mcts)
@@ -65,7 +68,7 @@ if __name__ == '__main__':
         # if t % 20 == 0:
         #     xavi.plot_simulation(simulation, debug=False)
         #     plt.show()
-        if t > 0 and t % 75 == 0:  # Use 60 for S1; 75 for S2
+        if t > 0 and t % query_info["time"] == 0:  # Use 60 for S1; 75 for S2
             xavi_agent.explain_actions(future=False)
             xavi_agent.explain_actions(future=True)
             break
