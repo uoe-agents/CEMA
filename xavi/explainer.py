@@ -209,7 +209,7 @@ class XAVIAgent(ip.MCTSAgent):
                 if last_action == rollout.trace[-1]:
                     r = reward_value[-1].reward_components
 
-            data_set_m = Item(trajectories, self.get_outcome_y(trajectories), r)
+            data_set_m = Item(trajectories, self.get_outcome_y(rollout, trajectories), r)
             dataset[m] = data_set_m
 
         logger.info('Counterfactual dataset generation done.')
@@ -225,15 +225,14 @@ class XAVIAgent(ip.MCTSAgent):
         """ The goal and trajectory probabilities inferred from tau time steps ago. """
         return self.__previous_goal_probabilities
 
-    def get_outcome_y(self, trajectories: Dict[int, ip.StateTrajectory]) -> bool:
+    def get_outcome_y(self, rollout: ip.MCTSResult, trajectories: Dict[int, ip.StateTrajectory]) -> bool:
         """ Return boolean value for each predefined feature
 
         Args:
+            rollout: The current MCTS rollout.
             trajectories: Joint trajectories of vehicles
         """
-        ego_trajectory = trajectories[self.agent_id]
-        return any([s.macro_action.startswith(self.__user_query["maneuver"]) for s in ego_trajectory.states
-                    if s.macro_action is not None])  # S1
+        return any([self.__user_query["maneuver"] in ma for ma in rollout.trace])  # S1
         # return np.any(trajectories[0].velocity < 0.1)  # S2
 
     @property
