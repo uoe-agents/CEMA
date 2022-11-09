@@ -131,3 +131,5 @@ dmypy.json
 
 # PyCharm ignores
 .idea/
+
+output/
