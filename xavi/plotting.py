@@ -276,6 +276,8 @@ if __name__ == '__main__':
     scenario = 1
     future = False
     save_path = os.path.join("output", str(scenario))
+    if not os.path.exists("output"):
+        os.mkdir("output")
     if not os.path.exists(save_path):
         os.mkdir(save_path)
 
