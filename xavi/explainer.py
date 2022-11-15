@@ -8,6 +8,7 @@ from sklearn.linear_model import LogisticRegression
 
 from xavi.features import Features
 from xavi.util import fill_missing_actions
+from xavi.matching import matching
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class XAVIAgent(ip.MCTSAgent):
         self.__previous_observations = None
         self.__dataset = None
         self.__user_query = user_query
+        self.__matching = matching()
 
     def explain_actions(self, future: bool = False):
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
@@ -189,6 +191,7 @@ class XAVIAgent(ip.MCTSAgent):
             trajectories = {}
             r = []
             last_node = rollout.tree[rollout.trace[:-1]]
+            sim_trajectory_ego = None
 
             # save trajectories of each agent
             for agent_id, agent in last_node.run_results[-1].agents.items():
@@ -200,6 +203,8 @@ class XAVIAgent(ip.MCTSAgent):
                 if agent_id != self.agent_id:
                     plan = self.tau_goals_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
                     fill_missing_actions(sim_trajectory, plan)
+                else:
+                    sim_trajectory_ego = sim_trajectory
 
                 trajectory.extend(sim_trajectory, reload_path=True)
                 trajectories[agent_id] = trajectory
@@ -209,7 +214,7 @@ class XAVIAgent(ip.MCTSAgent):
                 if last_action == rollout.trace[-1]:
                     r = reward_value[-1].reward_components
 
-            data_set_m = Item(trajectories, self.get_outcome_y(rollout, trajectories), r)
+            data_set_m = Item(trajectories, self.get_outcome_y(sim_trajectory_ego), r)
             dataset[m] = data_set_m
 
         logger.info('Counterfactual dataset generation done.')
@@ -225,14 +230,14 @@ class XAVIAgent(ip.MCTSAgent):
         """ The goal and trajectory probabilities inferred from tau time steps ago. """
         return self.__previous_goal_probabilities
 
-    def get_outcome_y(self, rollout: ip.MCTSResult, trajectories: Dict[int, ip.StateTrajectory]) -> bool:
+    def get_outcome_y(self, trajectory: ip.StateTrajectory) -> bool:
         """ Return boolean value for each predefined feature
 
         Args:
-            rollout: The current MCTS rollout.
-            trajectories: Joint trajectories of vehicles
+            trajectory: trajectory of ego
         """
-        return any([self.__user_query["maneuver"] in ma for ma in rollout.trace])  # S1
+        maneuver = self.__user_query["maneuver"]
+        return self.__matching.maneuver_matching(maneuver, trajectory)
         # return np.any(trajectories[0].velocity < 0.1)  # S2
 
     @property

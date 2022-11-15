@@ -30,5 +30,6 @@ def query_parser(args):
         query_info["maneuver"] = query.whatif.maneuver
         query_info["negative"] = query.whatif.negative
         query_info["time"] = query.whatif.time
-
+    else:
+        raise TypeError('Type is not allowed')
     return query_info
