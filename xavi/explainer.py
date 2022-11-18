@@ -53,7 +53,6 @@ class XAVIAgent(ip.MCTSAgent):
         self.__features = Features()
         self.__scenario_map = kwargs["scenario_map"]
         self.__tau = tau if tau is not None else kwargs["fps"]
-        assert self.__tau >= 0, f"Tau cannot be negative. "
 
         self.__previous_observations = None
         self.__dataset = None
@@ -67,6 +66,7 @@ class XAVIAgent(ip.MCTSAgent):
             future: Whether to generate an explanation considering the future predict actions of vehicles.
         """
         current_t = len(self.observations[self.agent_id][0].states) - 1
+        self.determine_tau()
         if self.tau > current_t:
             logger.warning(f"Cannot roll back observation by tau "
                            f"without enough time steps. ({self.tau} > {current_t}")
@@ -112,6 +112,32 @@ class XAVIAgent(ip.MCTSAgent):
         logger.info(coeffs)
 
         # TODO: Convert to NL explanations through language templates.
+    def determine_tau(self):
+        for agent_id, observation in self.observations.items():
+            frame = observation[1]
+            len_states = len(observation[0].states)
+            if self.__user_query["query_type"] == "why":
+                if agent_id == self.agent_id:
+                    for state in observation[0].states:
+                        if state.macro_action is not None and self.__user_query["maneuver"] in state.macro_action:
+                            self.__tau = len_states - int(state.time)
+                            break
+            elif self.__user_query["query_type"] == "whynot":
+                if agent_id == self.agent_id:
+                    for inx in range(len_states - 1):
+                        if observation[0].states[inx].macro_action != observation[0].states[inx+1].macro_action:
+                            self.__tau = len_states - int(observation[0].states[inx].time)
+                            break
+            elif self.__user_query["query_type"] == "whatif":
+                if agent_id == self.__user_query["aid"]:
+                    for state in observation[0].states:
+                        if state.macro_action is not None and self.__user_query["maneuver"] in state.macro_action:
+                            self.__tau = len_states - int(state.time)
+                            break
+            elif self.__user_query["query_type"] == "what":
+                self.__tau = 0
+
+        assert self.__tau >= 0, f"Tau cannot be negative. "
 
     def __generate_counterfactuals(self):
         """ Get observations from tau time steps before, and call MCTS from that joint state."""
@@ -162,14 +188,27 @@ class XAVIAgent(ip.MCTSAgent):
                 frame=frame,
                 visible_region=visible_region)
 
-            # Set the probabilities equal for each goal and trajectory
-            #  to make sure we can sample all counterfactual scenarios
-            n_reachable = sum(map(lambda x: len(x) > 0, gps.trajectories_probabilities.values()))
-            for goal, traj_prob in gps.trajectories_probabilities.items():
-                traj_len = len(traj_prob)
-                if traj_len > 0:
-                    gps.goals_probabilities[goal] = 1 / n_reachable
-                    gps.trajectories_probabilities[goal] = [1 / traj_len for _ in range(traj_len)]
+            if self.__user_query["query_type"] == "why" or self.__user_query["query_type"] == "whynot":
+                # Set the probabilities equal for each goal and trajectory
+                #  to make sure we can sample all counterfactual scenarios
+                n_reachable = sum(map(lambda x: len(x) > 0, gps.trajectories_probabilities.values()))
+                for goal, traj_prob in gps.trajectories_probabilities.items():
+                    traj_len = len(traj_prob)
+                    if traj_len > 0:
+                        gps.goals_probabilities[goal] = 1 / n_reachable
+                        gps.trajectories_probabilities[goal] = [1 / traj_len for _ in range(traj_len)]
+
+            elif self.__user_query["query_type"] == "whatif":
+                # Set the probabilities of the queried maneuver(trajectories) to zero
+                # find which trajectory encompasses the queried maneuver
+                index = []
+                if agent_id == self.__user_query["aid"]:
+                    for goal, plans in gps.all_plans.items():
+                        for inx, plan in enumerate(plans):
+                            if self.__user_query["maneuver"] in plan:
+                                index.append([goal, inx])
+
+                # change trajectory probabilities, TODO
 
         # Reset the number of trajectories for goal generation
         self._goal_recognition._n_trajectories = n_trajectories

@@ -18,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fps", type=int, help="Framerate of the simulation.")
     parser.add_argument("--config_path", type=str, help="Path to a scenario configuration file.")
     parser.add_argument("--query_path", type=str, help="Path to load a query.")
-    parser.add_argument("query_type", type=int, help="define the query type: 1: why; 2: why not; 3: what if.")
+    parser.add_argument("query_type", type=int, help="define the query type: 1: why; 2: why not; 3: what if. 4: what")
     return parser.parse_args()
 
 

@@ -12,5 +12,8 @@
     "maneuver": "ChangeLaneRight",
     "negative": true,
     "time": 60.0
+  },
+  "what": {
+  "time": 60.0
   }
 }
