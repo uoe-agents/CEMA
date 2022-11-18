@@ -96,7 +96,8 @@ class XAVIAgent(ip.MCTSAgent):
             r_qnp = [it.reward[component] for it in query_not_present.values()
                      if it.reward[component] is not None]
             r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else np.nan
-            diffs[component] = r_qp - r_qnp  # TODO: Consider using the weighted reward factors here to represent the actual decision process of the ego vehicle
+            diffs[
+                component] = r_qp - r_qnp  # TODO: Consider using the weighted reward factors here to represent the actual decision process of the ego vehicle
         c_star = max(diffs, key=lambda k: np.abs(diffs[k]))
         r_star = diffs[c_star]
 
@@ -112,6 +113,7 @@ class XAVIAgent(ip.MCTSAgent):
         logger.info(coeffs)
 
         # TODO: Convert to NL explanations through language templates.
+
     def determine_tau(self):
         for agent_id, observation in self.observations.items():
             frame = observation[1]
@@ -125,7 +127,7 @@ class XAVIAgent(ip.MCTSAgent):
             elif self.__user_query["query_type"] == "whynot":
                 if agent_id == self.agent_id:
                     for inx in range(len_states - 1):
-                        if observation[0].states[inx].macro_action != observation[0].states[inx+1].macro_action:
+                        if observation[0].states[inx].macro_action != observation[0].states[inx + 1].macro_action:
                             self.__tau = len_states - int(observation[0].states[inx].time)
                             break
             elif self.__user_query["query_type"] == "whatif":
@@ -201,14 +203,24 @@ class XAVIAgent(ip.MCTSAgent):
             elif self.__user_query["query_type"] == "whatif":
                 # Set the probabilities of the queried maneuver(trajectories) to zero
                 # find which trajectory encompasses the queried maneuver
-                index = []
                 if agent_id == self.__user_query["aid"]:
-                    for goal, plans in gps.all_plans.items():
-                        for inx, plan in enumerate(plans):
-                            if self.__user_query["maneuver"] in plan:
-                                index.append([goal, inx])
-
-                # change trajectory probabilities, TODO
+                    for goal, trajectories in gps.all_trajectories.items():
+                        for num, traj in enumerate(trajectories):
+                            frames = []
+                            for inx in range(len(traj.times)):
+                                frames.append(ip.AgentState(time=inx,
+                                                            position=np.array(traj.path[inx]),
+                                                            velocity=np.array(traj.velocity[inx]),
+                                                            acceleration=np.array(traj.acceleration[inx]),
+                                                            heading=traj.heading[inx]))
+                            trajectory = ip.StateTrajectory(self.fps, frames=frames, path=traj.path, velocity=traj.velocity)
+                            plan = self.tau_goals_probabilities[agent_id].trajectory_to_plan(goal, traj)
+                            fill_missing_actions(trajectory, plan)
+                            if self.__matching.maneuver_matching(self.__user_query["maneuver"], trajectory):
+                                traj_len = len(gps.trajectories_probabilities[goal]) - 1
+                                if traj_len > 0:
+                                    gps.trajectories_probabilities[goal] = [prob_ + gps.trajectories_probabilities[goal][num]/traj_len for prob_ in gps.trajectories_probabilities[goal]]
+                                gps.trajectories_probabilities[goal][num] = 0
 
         # Reset the number of trajectories for goal generation
         self._goal_recognition._n_trajectories = n_trajectories
