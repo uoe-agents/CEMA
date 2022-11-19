@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 import logging
 
@@ -8,7 +10,8 @@ from sklearn.linear_model import LogisticRegression
 
 from xavi.features import Features
 from xavi.util import fill_missing_actions
-from xavi.matching import matching
+from xavi.matching import ActionMatching
+from xavi.query import Query
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +32,6 @@ class XAVIAgent(ip.MCTSAgent):
                  cf_n_trajectories: int = 3,
                  cf_n_simulations: int = 15,
                  cf_max_depth: int = 5,
-                 user_query: dict = None,
                  **kwargs):
         """ Create a new XAVIAgent.
 
@@ -51,22 +53,25 @@ class XAVIAgent(ip.MCTSAgent):
                                        max_depth=kwargs.get("cf_max_depth", cf_max_depth),
                                        store_results="all")
         self.__features = Features()
+        self.__matching = ActionMatching()
         self.__scenario_map = kwargs["scenario_map"]
         self.__tau = tau if tau is not None else kwargs["fps"]
 
         self.__previous_observations = None
         self.__dataset = None
-        self.__user_query = user_query
-        self.__matching = matching()
+        self.__user_query = None
 
-    def explain_actions(self, future: bool = False):
+    def explain_actions(self, user_query: Query, future: bool = False):
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
 
         Args:
+            user_query: The parsed query of the user.
             future: Whether to generate an explanation considering the future predict actions of vehicles.
         """
+        self.__user_query = user_query
+        self.__tau = self.__determine_tau()
+
         current_t = len(self.observations[self.agent_id][0].states) - 1
-        self.determine_tau()
         if self.tau > current_t:
             logger.warning(f"Cannot roll back observation by tau "
                            f"without enough time steps. ({self.tau} > {current_t}")
@@ -96,8 +101,9 @@ class XAVIAgent(ip.MCTSAgent):
             r_qnp = [it.reward[component] for it in query_not_present.values()
                      if it.reward[component] is not None]
             r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else np.nan
-            diffs[
-                component] = r_qp - r_qnp  # TODO: Consider using the weighted reward factors here to represent the actual decision process of the ego vehicle
+            # TODO: Consider using the weighted reward factors here
+            #  to represent the actual decision process of the ego vehicle
+            diffs[component] = r_qp - r_qnp
         c_star = max(diffs, key=lambda k: np.abs(diffs[k]))
         r_star = diffs[c_star]
 
@@ -112,34 +118,53 @@ class XAVIAgent(ip.MCTSAgent):
         coeffs = model.coef_
         logger.info(coeffs)
 
+        pickle.dump((diffs, X, y, model), open(f"s1_{'future' if future else 'past'}.p", "wb"))
+
         # TODO: Convert to NL explanations through language templates.
 
-    def determine_tau(self):
-        for agent_id, observation in self.observations.items():
-            frame = observation[1]
-            len_states = len(observation[0].states)
-            if self.__user_query["query_type"] == "why":
-                if agent_id == self.agent_id:
-                    for state in observation[0].states:
-                        if state.macro_action is not None and self.__user_query["maneuver"] in state.macro_action:
-                            self.__tau = len_states - int(state.time)
-                            break
-            elif self.__user_query["query_type"] == "whynot":
-                if agent_id == self.agent_id:
-                    for inx in range(len_states - 1):
-                        if observation[0].states[inx].macro_action != observation[0].states[inx + 1].macro_action:
-                            self.__tau = len_states - int(observation[0].states[inx].time)
-                            break
-            elif self.__user_query["query_type"] == "whatif":
-                if agent_id == self.__user_query["aid"]:
-                    for state in observation[0].states:
-                        if state.macro_action is not None and self.__user_query["maneuver"] in state.macro_action:
-                            self.__tau = len_states - int(state.time)
-                            break
-            elif self.__user_query["query_type"] == "what":
-                self.__tau = 0
+    def __determine_tau(self) -> int:
+        """ Determine current tau based on input query.
 
-        assert self.__tau >= 0, f"Tau cannot be negative. "
+         Returns:
+             The number of time steps from the latest time step just before the start of the queried maneuver.
+         """
+        tau = -1
+        agent_id = self.agent_id
+        q_type = self.query.type
+        q_action = self.query.action
+        if q_type == "whatif":
+            agent_id = self.query.agent_id
+
+        trajectory = self.observations[agent_id][0]
+        len_states = len(trajectory.states)
+        if q_type in ["why", "whatif"]:
+            # TODO: This code only works for macro actions, but not for behaviour like slow-down.
+            action_matched = False
+            for i, state in enumerate(trajectory.states[::-1]):
+                if state.macro_action is not None:
+                    if not action_matched and q_action in state.macro_action:
+                        action_matched = True
+                    if action_matched and q_action not in state.macro_action:
+                        tau = i
+                        break
+            else:
+                logger.warning(f"Couldn't find tau for man")
+        elif q_type == "whynot":
+            # Iterate across consecutive pairs in reverse order and count number of time steps to go back.
+            for i, (s_curr, s_prev) in enumerate(zip(trajectory.states[:0:-1], trajectory.states[-2::-1]), 2):
+                if s_curr.macro_action != s_prev.macro_action:
+                    tau = i
+                    break
+            else:
+                logger.warning(f"Tau is equal to the length of the entire trajectory.")
+                tau = len_states
+        elif q_type == "what":
+            tau = 0
+        else:
+            raise ValueError(f"Unknown query type {q_type}.")
+
+        assert self.__tau >= 0, f"Tau cannot be negative."
+        return tau
 
     def __generate_counterfactuals(self):
         """ Get observations from tau time steps before, and call MCTS from that joint state."""
@@ -226,6 +251,7 @@ class XAVIAgent(ip.MCTSAgent):
         self._goal_recognition._n_trajectories = n_trajectories
 
         # Run MCTS search for counterfactual simulations while storing run results
+        # TODO: This should be changed to only run for all distinct combinations of trajectories from goal recognition.
         self.__previous_mcts.search(
             agent_id=self.agent_id,
             goal=self.goal,
@@ -265,31 +291,36 @@ class XAVIAgent(ip.MCTSAgent):
                 if last_action == rollout.trace[-1]:
                     r = reward_value[-1].reward_components
 
-            data_set_m = Item(trajectories, self.get_outcome_y(sim_trajectory_ego), r)
+            data_set_m = Item(trajectories, self.__get_outcome_y(sim_trajectory_ego), r)
             dataset[m] = data_set_m
 
         logger.info('Counterfactual dataset generation done.')
         return dataset
 
-    @property
-    def dataset(self) -> Dict[int, Item]:
-        """ The generated set of counterfactual features with the key being its index. """
-        return self.__dataset
-
-    @property
-    def tau_goals_probabilities(self) -> Dict[int, ip.GoalsProbabilities]:
-        """ The goal and trajectory probabilities inferred from tau time steps ago. """
-        return self.__previous_goal_probabilities
-
-    def get_outcome_y(self, trajectory: ip.StateTrajectory) -> bool:
+    def __get_outcome_y(self, trajectory: ip.StateTrajectory) -> bool:
         """ Return boolean value for each predefined feature
 
         Args:
             trajectory: trajectory of ego
         """
         maneuver = self.__user_query["maneuver"]
-        return self.__matching.maneuver_matching(maneuver, trajectory)
+        return self.__matching.action_matching(maneuver, trajectory)
         # return np.any(trajectories[0].velocity < 0.1)  # S2
+
+    @property
+    def dataset(self) -> Dict[int, Item]:
+        """ The most recently generated set of counterfactual features with the key being its index. """
+        return self.__dataset
+
+    @property
+    def query(self) -> Query:
+        """ The most recently asked user query. """
+        return self.__user_query
+
+    @property
+    def tau_goals_probabilities(self) -> Dict[int, ip.GoalsProbabilities]:
+        """ The goal and trajectory probabilities inferred from tau time steps ago. """
+        return self.__previous_goal_probabilities
 
     @property
     def tau(self) -> int:

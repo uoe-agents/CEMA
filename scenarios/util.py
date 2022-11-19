@@ -1,7 +1,7 @@
 import logging
 import sys
 import os
-from typing import Dict
+from typing import Dict, List
 
 import igp2 as ip
 import numpy as np
@@ -9,6 +9,8 @@ import argparse
 import json
 from dotmap import DotMap
 from shapely.geometry import Polygon
+
+from xavi import Query
 
 
 def parse_args() -> argparse.Namespace:
@@ -18,7 +20,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fps", type=int, help="Framerate of the simulation.")
     parser.add_argument("--config_path", type=str, help="Path to a scenario configuration file.")
     parser.add_argument("--query_path", type=str, help="Path to load a query.")
-    parser.add_argument("query_type", type=int, help="define the query type: 1: why; 2: why not; 3: what if. 4: what")
     return parser.parse_args()
 
 
@@ -42,6 +43,18 @@ def load_config(args):
     else:
         raise ValueError("No scenario was specified!")
     return json.load(open(path, "r"), object_hook=lambda d: DotMap(**d))
+
+
+def parse_query(args) -> List[Query]:
+    """ Returns a list of parsed queries. """
+    if "scenario" in args:
+        path = os.path.join("scenarios", "queries", f"query_scenario{args.scenario}.json")
+    elif "query_path" in args:
+        path = args.query_path
+    else:
+        raise ValueError("No query was specified!")
+    queries = json.load(open(path, "r"))
+    return [Query(**query_dict) for query_dict in queries]
 
 
 def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:

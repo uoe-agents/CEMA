@@ -103,3 +103,8 @@ class Simulation:
     def actions(self) -> Dict[int, List[ip.Action]]:
         """ List of actions (acceleration and steering) taken by every vehicle. """
         return self.__actions
+
+    @property
+    def t(self) -> int:
+        """ The current time step of the simulation. """
+        return self.__t

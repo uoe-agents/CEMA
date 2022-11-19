@@ -5,97 +5,101 @@ import igp2 as ip
 logger = logging.getLogger(__name__)
 
 
-class matching:
-    """ determine if the maneuver asked by a user presents in a trajectory """
+class ActionMatching:
+    """ Determines if the action asked by a user is present in a trajectory. """
+
     def __init__(self):
-        self._tra = None
-        self._maneuver = None
+        self.__trajectory = None
+        self.__action = None
         self._eps = 0.1
 
-    def maneuver_matching(self, maneuver: str, ego_tra: ip.StateTrajectory) -> bool:
-        """ match use query with trajectories from MCTS. return true if matched
+    def action_matching(self, action: str, ego_trajectory: ip.StateTrajectory) -> bool:
+        """ Match user queried action with trajectories from MCTS.
 
         Args:
-            maneuver: the user queried maneuver.
-            ego_tra: The ego trajectory
+            action: the user queried action.
+            ego_trajectory: the ego trajectory
+            
+        Returns:
+            True if action was matched with trajectory
         """
-        self._tra = ego_tra
-        self._maneuver = maneuver
-        if maneuver == 'SlowDown':
-            return self.maneuver_slow_down()
-        elif maneuver == 'Stop':
-            return self.maneuver_stop()
-        elif maneuver == 'GiveWay':
-            return self.maneuver_give_way()
-        elif maneuver == 'GoStraight':
-            return self.maneuver_go_straight()
-        elif maneuver == 'ChangeLaneLeft' or maneuver == 'ChangeLaneRight':
-            return self.maneuver_lc()
-        elif maneuver == 'TurnLeft':
-            return self.maneuver_turn_left()
-        elif maneuver == 'TurnRight':
-            return self.maneuver_turn_right()
+        self.__trajectory = ego_trajectory
+        self.__action = action
+        if action == 'SlowDown':
+            return self.action_slow_down()
+        elif action == 'Stop':
+            return self.action_stop()
+        elif action == 'GiveWay':
+            return self.action_give_way()
+        elif action == 'GoStraight':
+            return self.action_go_straight()
+        elif action == 'ChangeLaneLeft' or action == 'ChangeLaneRight':
+            return self.action_lc()
+        elif action == 'TurnLeft':
+            return self.action_turn_left()
+        elif action == 'TurnRight':
+            return self.action_turn_right()
         else:
-            raise Exception('use query not exits in library')
+            raise Exception('User action does not exist in action library.')
 
-    def maneuver_slow_down(self):
-        """ find maneuver includes slow down. """
-        acceleration = np.dot(self._tra.timesteps, self._tra.acceleration)
+    def action_slow_down(self):
+        """ find action includes slow down. """
+        acceleration = np.dot(self.__trajectory.timesteps, self.__trajectory.acceleration)
         if acceleration < -self._eps:
             return True
         else:
             return False
 
-    def maneuver_stop(self):
-        """ find maneuver includes stop. """
-        stopped = self._tra.velocity < self._tra.VELOCITY_STOP
+    def action_stop(self):
+        """ find action includes stop. """
+        stopped = self.__trajectory.velocity < self.__trajectory.VELOCITY_STOP
         return np.any(stopped)
 
-    def maneuver_lc(self):
-        """ find maneuver includes lane changing. """
-        for state in self._tra.states:
+    def action_lc(self):
+        """ find action includes lane changing. """
+        for state in self.__trajectory.states:
             if state.macro_action is None:
                 continue
-            if self._maneuver in state.macro_action:
+            if self.__action in state.macro_action:
                 return True
         return False
 
-    def maneuver_turn_left(self):
-        """ find maneuver includes turning.
+    def action_turn_left(self):
+        """ find action includes turning.
         suppose left turn angular velocity is positive,and right turn angular velocity is negative
         """
-        for inx, state in enumerate(self._tra.states):
-            if state.maneuver is None:
+        for inx, state in enumerate(self.__trajectory.states):
+            if state.action is None:
                 continue
-            if 'TurnCL' in state.maneuver and self._tra.angular_velocity[inx] > self._eps:
+            if 'TurnCL' in state.action and self.__trajectory.angular_velocity[inx] > self._eps:
                 return True
         return False
 
-    def maneuver_turn_right(self):
-        """ find maneuver includes turning.
+    def action_turn_right(self):
+        """ find action includes turning.
         suppose left turn angular velocity is positive,and right turn angular velocity is negative
         """
-        for inx, state in enumerate(self._tra.states):
-            if state.maneuver is None:
+        for inx, state in enumerate(self.__trajectory.states):
+            if state.action is None:
                 continue
-            if 'TurnCL' in state.maneuver and self._tra.angular_velocity[inx] < -self._eps:
+            if 'TurnCL' in state.action and self.__trajectory.angular_velocity[inx] < -self._eps:
                 return True
         return False
 
-    def maneuver_give_way(self):
-        """ find maneuver includes give way. """
-        for state in self._tra.states:
-            if state.maneuver is None:
+    def action_give_way(self):
+        """ find action includes give way. """
+        for state in self.__trajectory.states:
+            if state.action is None:
                 continue
-            if 'GiveWayCL' in state.maneuver:
+            if 'GiveWayCL' in state.action:
                 return True
         return False
 
-    def maneuver_go_straight(self):
-        """ find maneuver includes go straight. """
-        for state in self._tra.states:
-            if state.maneuver is None:
+    def action_go_straight(self):
+        """ find action includes go straight. """
+        for state in self.__trajectory.states:
+            if state.action is None:
                 continue
-            if 'FollowLaneCL' in state.maneuver:
+            if 'FollowLaneCL' in state.action:
                 return True
         return False

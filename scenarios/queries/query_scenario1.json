@@ -1,19 +1,23 @@
-{
-  "why": {
-    "maneuver": "ChangeLaneLeft",
-    "time": 60.0
+[
+  {
+    "type": "why",
+    "action": "ChangeLaneLeft",
+    "time": 60
   },
-  "whynot": {
-    "maneuver": "GoStraight",
-    "time": 60.0
+  {
+    "type": "whynot",
+    "action": "GoStraight",
+    "time": 60
   },
-  "whatif": {
+  {
+    "type": "whatif",
     "agent_id": 1,
-    "maneuver": "ChangeLaneRight",
+    "action": "ChangeLaneRight",
     "negative": true,
-    "time": 60.0
+    "time": 60
   },
-  "what": {
-  "time": 60.0
+  {
+    "type": "what",
+    "time": 60
   }
-}
+]
