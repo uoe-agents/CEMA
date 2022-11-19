@@ -14,6 +14,7 @@ class ActionMatching:
         self._eps = 0.1
 
     def action_matching(self, action: str, ego_trajectory: ip.StateTrajectory) -> bool:
+        # TODO: Rewrite functions here to return all occurrences of action and the time spans during which they happen
         """ Match user queried action with trajectories from MCTS.
 
         Args:

@@ -215,7 +215,7 @@ class XAVIAgent(ip.MCTSAgent):
                 frame=frame,
                 visible_region=visible_region)
 
-            if self.__user_query["query_type"] == "why" or self.__user_query["query_type"] == "whynot":
+            if self.query.type in ["why", "whynot"]:
                 # Set the probabilities equal for each goal and trajectory
                 #  to make sure we can sample all counterfactual scenarios
                 n_reachable = sum(map(lambda x: len(x) > 0, gps.trajectories_probabilities.values()))
@@ -225,33 +225,26 @@ class XAVIAgent(ip.MCTSAgent):
                         gps.goals_probabilities[goal] = 1 / n_reachable
                         gps.trajectories_probabilities[goal] = [1 / traj_len for _ in range(traj_len)]
 
-            elif self.__user_query["query_type"] == "whatif":
+            elif self.query.type == "whatif":
                 # Set the probabilities of the queried maneuver(trajectories) to zero
                 # find which trajectory encompasses the queried maneuver
-                if agent_id == self.__user_query["aid"]:
-                    for goal, trajectories in gps.all_trajectories.items():
-                        for num, traj in enumerate(trajectories):
-                            frames = []
-                            for inx in range(len(traj.times)):
-                                frames.append(ip.AgentState(time=inx,
-                                                            position=np.array(traj.path[inx]),
-                                                            velocity=np.array(traj.velocity[inx]),
-                                                            acceleration=np.array(traj.acceleration[inx]),
-                                                            heading=traj.heading[inx]))
-                            trajectory = ip.StateTrajectory(self.fps, frames=frames, path=traj.path, velocity=traj.velocity)
-                            plan = self.tau_goals_probabilities[agent_id].trajectory_to_plan(goal, traj)
-                            fill_missing_actions(trajectory, plan)
-                            if self.__matching.maneuver_matching(self.__user_query["maneuver"], trajectory):
-                                traj_len = len(gps.trajectories_probabilities[goal]) - 1
-                                if traj_len > 0:
-                                    gps.trajectories_probabilities[goal] = [prob_ + gps.trajectories_probabilities[goal][num]/traj_len for prob_ in gps.trajectories_probabilities[goal]]
-                                gps.trajectories_probabilities[goal][num] = 0
+                if agent_id != self.query.agent_id:
+                    continue
+                for goal, trajectories in gps.all_trajectories.items():
+                    for tid, traj in enumerate(trajectories):
+                        plan = gps.trajectory_to_plan(goal, traj)
+                        trajectory = to_state_trajectory(traj, plan, self.fps)
+                        if self.__matching.action_matching(self.query.action, trajectory):
+                            probs = gps.trajectories_probabilities[goal]
+                            traj_len = len(probs) - 1
+                            if traj_len > 0:
+                                probs = [p + probs[tid] / traj_len for p in probs]
+                            probs[tid] = 0
 
         # Reset the number of trajectories for goal generation
         self._goal_recognition._n_trajectories = n_trajectories
 
         # Run MCTS search for counterfactual simulations while storing run results
-        # TODO: This should be changed to only run for all distinct combinations of trajectories from goal recognition.
         self.__previous_mcts.search(
             agent_id=self.agent_id,
             goal=self.goal,
@@ -303,8 +296,7 @@ class XAVIAgent(ip.MCTSAgent):
         Args:
             trajectory: trajectory of ego
         """
-        maneuver = self.__user_query["maneuver"]
-        return self.__matching.action_matching(maneuver, trajectory)
+        return self.__matching.action_matching(self.query.action, trajectory)
         # return np.any(trajectories[0].velocity < 0.1)  # S2
 
     @property
