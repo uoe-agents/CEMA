@@ -247,7 +247,7 @@ class XAVIAgent(ip.MCTSAgent):
             trajectories = {}
             r = []
             last_node = rollout.tree[rollout.trace[:-1]]
-            sim_trajectory_ego = None
+            trajectory_queried_agent = None
 
             # save trajectories of each agent
             for agent_id, agent in last_node.run_results[-1].agents.items():
@@ -259,8 +259,10 @@ class XAVIAgent(ip.MCTSAgent):
                 if agent_id != self.agent_id:
                     plan = self.tau_goals_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
                     fill_missing_actions(sim_trajectory, plan)
-                else:
-                    sim_trajectory_ego = sim_trajectory
+
+                if (self.query.type in ["why", "whynot"] and agent_id == self.agent_id) or \
+                        (self.query.type == "whatif" and agent_id == self.query.agent_id):
+                    trajectory_queried_agent = sim_trajectory
 
                 trajectory.extend(sim_trajectory, reload_path=True)
                 trajectories[agent_id] = trajectory
@@ -270,7 +272,7 @@ class XAVIAgent(ip.MCTSAgent):
                 if last_action == rollout.trace[-1]:
                     r = reward_value[-1].reward_components
 
-            data_set_m = Item(trajectories, self.__get_outcome_y(sim_trajectory_ego), r)
+            data_set_m = Item(trajectories, self.__get_outcome_y(trajectory_queried_agent), r)
             dataset[m] = data_set_m
 
         logger.info('Counterfactual dataset generation done.')
