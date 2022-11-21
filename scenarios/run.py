@@ -61,6 +61,7 @@ if __name__ == '__main__':
         simulation.add_agent(agent)
 
     # Execute simulation for fixed number of time steps
+    explanation_generated = False
     for t in range(config.scenario.max_steps):
         simulation.step()
         # if t % 20 == 0:
@@ -70,3 +71,8 @@ if __name__ == '__main__':
             if t > 0 and t % query.time == 0:  # Use 60 for S1; 75 for S2
                 xavi_agent.explain_actions(query, future=False)
                 xavi_agent.explain_actions(query, future=True)
+                explanation_generated = True
+
+        if explanation_generated:
+            break
+

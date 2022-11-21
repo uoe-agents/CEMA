@@ -34,8 +34,10 @@ class ActionMatching:
             return self.action_give_way()
         elif action == 'GoStraight':
             return self.action_go_straight()
-        elif action == 'ChangeLaneLeft' or action == 'ChangeLaneRight':
-            return self.action_lc()
+        elif action == 'ChangeLaneLeft':
+            return self.action_lc_left()
+        elif action == 'ChangeLaneRight':
+            return self.action_lc_right()
         elif action == 'TurnLeft':
             return self.action_turn_left()
         elif action == 'TurnRight':
@@ -56,7 +58,16 @@ class ActionMatching:
         stopped = self.__trajectory.velocity < self.__trajectory.VELOCITY_STOP
         return np.any(stopped)
 
-    def action_lc(self):
+    def action_lc_left(self):
+        """ find action includes lane changing. """
+        for state in self.__trajectory.states:
+            if state.macro_action is None:
+                continue
+            if self.__action in state.macro_action:
+                return True
+        return False
+
+    def action_lc_right(self):
         """ find action includes lane changing. """
         for state in self.__trajectory.states:
             if state.macro_action is None:
@@ -70,9 +81,9 @@ class ActionMatching:
         suppose left turn angular velocity is positive,and right turn angular velocity is negative
         """
         for inx, state in enumerate(self.__trajectory.states):
-            if state.action is None:
+            if state.maneuver is None:
                 continue
-            if 'TurnCL' in state.action and self.__trajectory.angular_velocity[inx] > self._eps:
+            if 'TurnCL' in state.maneuver and self.__trajectory.angular_velocity[inx] > self._eps:
                 return True
         return False
 
@@ -81,26 +92,26 @@ class ActionMatching:
         suppose left turn angular velocity is positive,and right turn angular velocity is negative
         """
         for inx, state in enumerate(self.__trajectory.states):
-            if state.action is None:
+            if state.maneuver is None:
                 continue
-            if 'TurnCL' in state.action and self.__trajectory.angular_velocity[inx] < -self._eps:
+            if 'TurnCL' in state.maneuver and self.__trajectory.angular_velocity[inx] < -self._eps:
                 return True
         return False
 
     def action_give_way(self):
         """ find action includes give way. """
         for state in self.__trajectory.states:
-            if state.action is None:
+            if state.maneuver is None:
                 continue
-            if 'GiveWayCL' in state.action:
+            if 'GiveWayCL' in state.maneuver:
                 return True
         return False
 
     def action_go_straight(self):
         """ find action includes go straight. """
         for state in self.__trajectory.states:
-            if state.action is None:
+            if state.maneuver is None:
                 continue
-            if 'FollowLaneCL' in state.action:
+            if 'FollowLaneCL' in state.maneuver:
                 return True
         return False

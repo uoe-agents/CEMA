@@ -147,7 +147,10 @@ class XAVIAgent(ip.MCTSAgent):
                     if action_matched and q_action not in state.macro_action:
                         tau = i
                         break
-            else:
+                # macro action is none at the first timestamp
+                elif i == len_states - 1:
+                    tau = i
+            if tau < 0:
                 logger.warning(f"Couldn't find tau for man")
         elif q_type == "whynot":
             # Iterate across consecutive pairs in reverse order and count number of time steps to go back.
@@ -176,7 +179,7 @@ class XAVIAgent(ip.MCTSAgent):
             len_states = len(observation[0].states)
             if len_states > self.__tau:
                 self.__previous_observations[agent_id] = (observation[0].slice(0, len_states - self.__tau), frame)
-                previous_frame[agent_id] = observation[0].states[len_states - self.__tau - 1]
+                previous_frame[agent_id] = observation[0].states[len_states - self.__tau]
 
         if previous_frame:
             previous_observation = ip.Observation(previous_frame, self.__scenario_map)
@@ -215,31 +218,14 @@ class XAVIAgent(ip.MCTSAgent):
                 frame=frame,
                 visible_region=visible_region)
 
-            if self.query.type in ["why", "whynot"]:
-                # Set the probabilities equal for each goal and trajectory
-                #  to make sure we can sample all counterfactual scenarios
-                n_reachable = sum(map(lambda x: len(x) > 0, gps.trajectories_probabilities.values()))
-                for goal, traj_prob in gps.trajectories_probabilities.items():
-                    traj_len = len(traj_prob)
-                    if traj_len > 0:
-                        gps.goals_probabilities[goal] = 1 / n_reachable
-                        gps.trajectories_probabilities[goal] = [1 / traj_len for _ in range(traj_len)]
-
-            elif self.query.type == "whatif":
-                # Set the probabilities of the queried maneuver(trajectories) to zero
-                # find which trajectory encompasses the queried maneuver
-                if agent_id != self.query.agent_id:
-                    continue
-                for goal, trajectories in gps.all_trajectories.items():
-                    for tid, traj in enumerate(trajectories):
-                        plan = gps.trajectory_to_plan(goal, traj)
-                        trajectory = to_state_trajectory(traj, plan, self.fps)
-                        if self.__matching.action_matching(self.query.action, trajectory):
-                            probs = gps.trajectories_probabilities[goal]
-                            traj_len = len(probs) - 1
-                            if traj_len > 0:
-                                probs = [p + probs[tid] / traj_len for p in probs]
-                            probs[tid] = 0
+            # Set the probabilities equal for each goal and trajectory
+            #  to make sure we can sample all counterfactual scenarios
+            n_reachable = sum(map(lambda x: len(x) > 0, gps.trajectories_probabilities.values()))
+            for goal, traj_prob in gps.trajectories_probabilities.items():
+                traj_len = len(traj_prob)
+                if traj_len > 0:
+                    gps.goals_probabilities[goal] = 1 / n_reachable
+                    gps.trajectories_probabilities[goal] = [1 / traj_len for _ in range(traj_len)]
 
         # Reset the number of trajectories for goal generation
         self._goal_recognition._n_trajectories = n_trajectories
