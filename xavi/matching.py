@@ -1,117 +1,102 @@
-import numpy as np
 import logging
 import igp2 as ip
+from dataclasses import dataclass
+from typing import List
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ActionData:
+    timesteps: List[int]
+    actions: List[str]
 
 
 class ActionMatching:
     """ Determines if the action asked by a user is present in a trajectory. """
 
     def __init__(self):
-        self.__trajectory = None
-        self.__action = None
+        self.__actions = None
         self._eps = 0.1
 
-    def action_matching(self, action: str, ego_trajectory: ip.StateTrajectory) -> bool:
+    def action_aggregation(self, trajectory: ip.StateTrajectory):
         # TODO: Rewrite functions here to return all occurrences of action and the time spans during which they happen
+        """ segment the trajectory into different actions and sorted with time.
+
+        Args:
+            trajectory: the trajectory
+        """
+
+        action_sequences = []
+        for inx in range(len(trajectory.times)):
+            action = []
+            if trajectory.acceleration[inx] < - self._eps:
+                action.append('SlowDown')
+            elif trajectory.acceleration[inx] > self._eps:
+                action.append('Accelerate')
+
+            if trajectory.velocity[inx] < trajectory.VELOCITY_STOP:
+                action.append('Stop')
+
+            if trajectory.states[inx].macro_action is not None:
+                if 'ChangeLaneLeft' in trajectory.states[inx].macro_action:
+                    action.append('ChangeLaneLeft')
+                elif 'ChangeLaneRight' in trajectory.states[inx].macro_action:
+                    action.append('ChangeLaneRight')
+
+            if trajectory.states[inx].maneuver is not None:
+                if 'TurnCL' in trajectory.states[inx].maneuver and trajectory.angular_velocity[inx] > self._eps:
+                    action.append('TurnLeft')
+                elif 'TurnCL' in trajectory.states[inx].maneuver and trajectory.angular_velocity[inx] < -self._eps:
+                    action.append('TurnRight')
+                elif 'GiveWayCL' in trajectory.states[inx].maneuver:
+                    action.append('GiveWay')
+                elif 'FollowLaneCL' in trajectory.states[inx].maneuver:
+                    action.append('GoStraight')
+
+            action_sequences.append(action)
+
+        # aggregate same actions during a period
+        action_segmentations = []
+        times = []
+        previous_actions = action_sequences[0]
+        for inx, actions in enumerate(action_sequences):
+            if previous_actions != actions:
+                action_segmentations.append(ActionData(times.copy(), previous_actions))
+                times.clear()
+                previous_actions = actions
+
+            times.append(inx)
+
+        return action_segmentations
+
+    def action_matching(self, action: str, trajectory: ip.StateTrajectory) -> bool:
         """ Match user queried action with trajectories from MCTS.
 
         Args:
             action: the user queried action.
-            ego_trajectory: the ego trajectory
-            
+            trajectory: the rollout trajectories
+
         Returns:
             True if action was matched with trajectory
         """
-        self.__trajectory = ego_trajectory
-        self.__action = action
-        if action == 'SlowDown':
-            return self.action_slow_down()
-        elif action == 'Stop':
-            return self.action_stop()
-        elif action == 'GiveWay':
-            return self.action_give_way()
-        elif action == 'GoStraight':
-            return self.action_go_straight()
-        elif action == 'ChangeLaneLeft':
-            return self.action_lc_left()
-        elif action == 'ChangeLaneRight':
-            return self.action_lc_right()
-        elif action == 'TurnLeft':
-            return self.action_turn_left()
-        elif action == 'TurnRight':
-            return self.action_turn_right()
-        else:
+        self.action_lib()
+        if action not in self.__actions:
             raise Exception('User action does not exist in action library.')
-
-    def action_slow_down(self):
-        """ find action includes slow down. """
-        acceleration = np.dot(self.__trajectory.timesteps, self.__trajectory.acceleration)
-        if acceleration < -self._eps:
-            return True
-        else:
-            return False
-
-    def action_stop(self):
-        """ find action includes stop. """
-        stopped = self.__trajectory.velocity < self.__trajectory.VELOCITY_STOP
-        return np.any(stopped)
-
-    def action_lc_left(self):
-        """ find action includes lane changing. """
-        for state in self.__trajectory.states:
-            if state.macro_action is None:
-                continue
-            if self.__action in state.macro_action:
+        action_segmentations = self.action_aggregation(trajectory)
+        for action_segmentation in action_segmentations:
+            if action in action_segmentation.actions:
                 return True
         return False
 
-    def action_lc_right(self):
-        """ find action includes lane changing. """
-        for state in self.__trajectory.states:
-            if state.macro_action is None:
-                continue
-            if self.__action in state.macro_action:
-                return True
-        return False
-
-    def action_turn_left(self):
-        """ find action includes turning.
-        suppose left turn angular velocity is positive,and right turn angular velocity is negative
-        """
-        for inx, state in enumerate(self.__trajectory.states):
-            if state.maneuver is None:
-                continue
-            if 'TurnCL' in state.maneuver and self.__trajectory.angular_velocity[inx] > self._eps:
-                return True
-        return False
-
-    def action_turn_right(self):
-        """ find action includes turning.
-        suppose left turn angular velocity is positive,and right turn angular velocity is negative
-        """
-        for inx, state in enumerate(self.__trajectory.states):
-            if state.maneuver is None:
-                continue
-            if 'TurnCL' in state.maneuver and self.__trajectory.angular_velocity[inx] < -self._eps:
-                return True
-        return False
-
-    def action_give_way(self):
-        """ find action includes give way. """
-        for state in self.__trajectory.states:
-            if state.maneuver is None:
-                continue
-            if 'GiveWayCL' in state.maneuver:
-                return True
-        return False
-
-    def action_go_straight(self):
-        """ find action includes go straight. """
-        for state in self.__trajectory.states:
-            if state.maneuver is None:
-                continue
-            if 'FollowLaneCL' in state.maneuver:
-                return True
-        return False
+    def action_lib(self):
+        """ the actions that we can answer in current framework. """
+        self.__actions = ['SlowDown',
+                          'Accelerate',
+                          'Stop',
+                          'ChangeLaneLeft',
+                          'ChangeLaneRight',
+                          'TurnLeft',
+                          'TurnRight',
+                          'GiveWay',
+                          'GoStraight']
