@@ -59,7 +59,6 @@
         }
       },
       "explainer": {
-        "tau": 40,
         "cf_n_simulations": 15,
         "cf_max_depth": 5
       },

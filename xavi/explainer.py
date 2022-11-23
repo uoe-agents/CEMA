@@ -1,10 +1,11 @@
 import pickle
 
 import numpy as np
+import pandas as pd
 import logging
 
 import igp2 as ip
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from dataclasses import dataclass
 from sklearn.linear_model import LogisticRegression
 
@@ -28,7 +29,7 @@ class Item:
 class XAVIAgent(ip.MCTSAgent):
     """ Generate new rollouts and save results after MCTS in the observation tau time before. """
 
-    def __init__(self, tau: int = None,
+    def __init__(self,
                  cf_n_trajectories: int = 3,
                  cf_n_simulations: int = 15,
                  cf_max_depth: int = 5,
@@ -55,131 +56,125 @@ class XAVIAgent(ip.MCTSAgent):
         self.__features = Features()
         self.__matching = ActionMatching()
         self.__scenario_map = kwargs["scenario_map"]
-        self.__tau = tau if tau is not None else kwargs["fps"]
 
         self.__previous_observations = None
         self.__dataset = None
+        self.__t_dataset = None
         self.__user_query = None
 
-    def explain_actions(self, user_query: Query, future: bool = False):
+    def explain_actions(self, user_query: Query):
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
 
         Args:
             user_query: The parsed query of the user.
-            future: Whether to generate an explanation considering the future predict actions of vehicles.
         """
         self.__user_query = user_query
-        self.__tau = self.__determine_tau()
+        current_t = self.observations[self.agent_id][0].states[-1].time
 
-        current_t = len(self.observations[self.agent_id][0].states) - 1
-        if self.tau > current_t:
-            logger.warning(f"Cannot roll back observation by tau "
-                           f"without enough time steps. ({self.tau} > {current_t}")
-            return None
+        if self.query.type == "what":
+            return self.__explain_what()
 
-        # If no dataset was generated before or we are calling the function at a different timestep
-        #  as the last dataset then generate a new dataset.
+        # Generate new or update existing dataset.
         if self.__dataset is None or \
-                current_t != len(self.__previous_observations[self.agent_id][0].states) - 1 + self.tau:
-            self.__generate_counterfactuals()
+                current_t != self.__t_dataset:
+            self.__get_counterfactuals()
+            self.__t_dataset = current_t
 
         assert self.__dataset is not None, f"No counterfactual data set present."
 
-        # Generate final explanation
-        query_present = {}
-        query_not_present = {}
-        for mid, fs in self.dataset.items():
-            if fs.query_present:
-                query_present[mid] = fs
-            else:
-                query_not_present[mid] = fs
-        diffs = {}
-        for component in self._reward.COMPONENTS:
-            r_qp = [it.reward[component] for it in query_present.values()
-                    if it.reward[component] is not None]
-            r_qp = np.sum(r_qp) / len(r_qp) if r_qp else np.nan
-            r_qnp = [it.reward[component] for it in query_not_present.values()
-                     if it.reward[component] is not None]
-            r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else np.nan
-            # TODO: Consider using the weighted reward factors here
-            #  to represent the actual decision process of the ego vehicle
-            diffs[component] = r_qp - r_qnp
-        c_star = max(diffs, key=lambda k: np.abs(diffs[k]))
-        r_star = diffs[c_star]
+        final_causes = self.__final_causes()
 
-        xs, ys = [], []
-        for mid, item in self.dataset.items():
-            trajectories = {aid: traj.slice(0, current_t) if not future else traj.slice(current_t, None)
-                            for aid, traj in item.trajectories.items()}
-            xs.append(self.__features.to_features(self.agent_id, trajectories))
-            ys.append(item.query_present)
-        X, y = self.__features.binarise(xs, ys)
-        model = LogisticRegression().fit(X, y)
-        coeffs = model.coef_
-        logger.info(coeffs)
+        if self.query.type == "whatif":
+            pass
 
-        pickle.dump((diffs, X, y, model), open(f"s1_{'future' if future else 'past'}.p", "wb"))
+        efficient_causes = self.__efficient_causes()
 
         # TODO: Convert to NL explanations through language templates.
 
-    def __determine_tau(self) -> int:
-        """ Determine current tau based on input query.
+    def __explain_what(self):
+        """ Generate an explanation to a what query.
+        Involves looking up the trajectory segment at T and returning a feature set of it. """
+        pass
 
-         Returns:
-             The number of time steps from the latest time step just before the start of the queried maneuver.
-         """
-        tau = -1
-        agent_id = self.agent_id
-        q_type = self.query.type
-        q_action = self.query.action
-        if q_type == "whatif":
-            agent_id = self.query.agent_id
+    def __final_causes(self) -> pd.DataFrame:
+        """ Generate final causes for the queried action.
 
-        trajectory = self.observations[agent_id][0]
-        len_states = len(trajectory.states)
-        if q_type in ["why", "whatif"]:
-            # TODO: This code only works for macro actions, but not for behaviour like slow-down.
-            action_matched = False
-            for i, state in enumerate(trajectory.states[::-1]):
-                if state.macro_action is not None:
-                    if not action_matched and q_action in state.macro_action:
-                        action_matched = True
-                    if action_matched and q_action not in state.macro_action:
-                        tau = i
-                        break
-                # macro action is none at the first timestamp
-                elif i == len_states - 1:
-                    tau = i
-            if tau < 0:
-                logger.warning(f"Couldn't find tau for man")
-        elif q_type == "whynot":
-            # Iterate across consecutive pairs in reverse order and count number of time steps to go back.
-            for i, (s_curr, s_prev) in enumerate(zip(trajectory.states[:0:-1], trajectory.states[-2::-1]), 2):
-                if s_curr.macro_action != s_prev.macro_action:
-                    tau = i
-                    break
+        Returns:
+            Dataframe of reward components with the absolute and relative changes for each component.
+        """
+        query_present = {}
+        query_not_present = {}
+        for mid, item in self.dataset.items():
+            if item.query_present:
+                query_present[mid] = item
             else:
-                logger.warning(f"Tau is equal to the length of the entire trajectory.")
-                tau = len_states
-        elif q_type == "what":
-            tau = 0
-        else:
-            raise ValueError(f"Unknown query type {q_type}.")
+                query_not_present[mid] = item
 
-        assert self.__tau >= 0, f"Tau cannot be negative."
-        return tau
+        diffs = {}
+        for component in self._reward.COMPONENTS:
+            factor = self._reward.factors[component]
+            r_qp = [item.reward[component] for item in query_present.values()
+                    if item.reward[component] is not None]
+            r_qp = factor * np.sum(r_qp) / len(r_qp) if r_qp else np.nan
+            r_qnp = [item.reward[component] for item in query_not_present.values()
+                     if item.reward[component] is not None]
+            r_qnp = factor * np.sum(r_qnp) / len(r_qnp) if r_qnp else np.nan
+            abs_diff = r_qp - r_qnp
+            diffs[component] = (abs_diff, abs_diff / r_qnp)
+        df = pd.DataFrame.from_dict(diffs, orient="index", columns=["absolute", "relative"])
+        return df.sort_values(ascending=False, by="absolute")
 
-    def __generate_counterfactuals(self):
+    def __efficient_causes(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """ Generate efficient causes for the queried action.
+
+        Returns:
+            Dataframes for past and future causes with causal effect size.
+        """
+        xs_past, ys_past = [], []
+        xs_future, ys_future = [], []
+        for m, item in self.dataset.items():
+            trajectories_past, trajectories_future = {}, {}
+            for aid, traj in item.trajectories.items():
+                trajectories_past[aid] = traj.slice(0, self.query.time)
+                trajectories_future[aid] = traj.slice(self.query.time, None)
+            xs_past.append(self.__features.to_features(self.agent_id, trajectories_past))
+            xs_future.append(self.__features.to_features(self.agent_id, trajectories_future))
+            ys_past.append(item.query_present)
+            ys_future.append(item.query_present)
+        X_past, y_past = self.__features.binarise(xs_past, ys_past)
+        X_future, y_future = self.__features.binarise(xs_future, ys_future)
+        model_past = LogisticRegression().fit(X_past, y_past)
+        model_future = LogisticRegression().fit(X_future, y_future)
+
+        coefs_past = pd.DataFrame(
+            np.squeeze(model_past.coef_) / X_past.std(axis=0),
+            columns=["Coefficient importance"],
+            index=X_past.columns,
+        )
+        coefs_future = pd.DataFrame(
+            np.squeeze(model_future.coef_) / X_future.std(axis=0),
+            columns=["Coefficient importance"],
+            index=X_future.columns,
+        )
+        return coefs_past, coefs_future
+
+    # ---------Counterfactual rollout generation---------------
+
+    def __get_counterfactuals(self):
         """ Get observations from tau time steps before, and call MCTS from that joint state."""
         logger.info("Generating counterfactual rollouts.")
+
+        self.query.get_tau(self.observations)
+        tau = self.query.tau
+
         previous_frame = {}
         self.__previous_observations = {}
         for agent_id, observation in self.observations.items():
             frame = observation[1]
             len_states = len(observation[0].states)
-            if len_states > self.__tau:
-                self.__previous_observations[agent_id] = (observation[0].slice(0, len_states - self.__tau), frame)
-                previous_frame[agent_id] = observation[0].states[len_states - self.__tau]
+            if len_states > tau:
+                self.__previous_observations[agent_id] = (observation[0].slice(0, len_states - tau), frame)
+                previous_frame[agent_id] = observation[0].states[len_states - tau]
 
         if previous_frame:
             previous_observation = ip.Observation(previous_frame, self.__scenario_map)
@@ -196,8 +191,9 @@ class XAVIAgent(ip.MCTSAgent):
         """
         frame = previous_observation.frame
         agents_metadata = {aid: state.metadata for aid, state in frame.items()}
-        self.__previous_goal_probabilities = {aid: ip.GoalsProbabilities(previous_goals)
-                                              for aid in frame.keys() if aid != self.agent_id}
+        self.__previous_goal_probabilities = \
+            {aid: ip.GoalsProbabilities(previous_goals)
+             for aid in frame.keys() if aid != self.agent_id}
         visible_region = ip.Circle(frame[self.agent_id].position, self.view_radius)
 
         # Increase number of trajectories to generate
@@ -279,13 +275,14 @@ class XAVIAgent(ip.MCTSAgent):
         return dataset
 
     def __get_outcome_y(self, trajectory: ip.StateTrajectory) -> bool:
-        """ Return boolean value for each predefined feature
+        """ Return boolean value for each predefined feature.
 
         Args:
-            trajectory: trajectory of ego
+            trajectory: trajectory of a vehicle.
         """
         return self.__matching.action_matching(self.query.action, trajectory)
-        # return np.any(trajectories[0].velocity < 0.1)  # S2
+
+    # -------------Field access properties-------------------
 
     @property
     def dataset(self) -> Dict[int, Item]:
@@ -301,8 +298,3 @@ class XAVIAgent(ip.MCTSAgent):
     def tau_goals_probabilities(self) -> Dict[int, ip.GoalsProbabilities]:
         """ The goal and trajectory probabilities inferred from tau time steps ago. """
         return self.__previous_goal_probabilities
-
-    @property
-    def tau(self) -> int:
-        """ Parameter for how many time steps to rollback for counterfactual generation. """
-        return self.__tau
