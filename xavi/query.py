@@ -32,6 +32,7 @@ class Query:
 
     def get_tau(self, observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]]):
         """ Calculate tau and the start time step of the queried action.
+        Stores results in fields tau, and t_action.
 
         Args:
             Observations of the environment up to current time step.
