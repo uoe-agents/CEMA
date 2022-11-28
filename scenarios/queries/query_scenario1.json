@@ -1,11 +1,13 @@
 [
   {
     "type": "why",
+    "agent_id": 0,
     "action": "ChangeLaneLeft",
     "time": 60
   },
   {
     "type": "whynot",
+    "agent_id": 0,
     "action": "GoStraight",
     "time": 60
   },

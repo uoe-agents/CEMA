@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ActionData:
-    timesteps: List[int]
+    times: List[int]
     actions: List[str]
 
 
@@ -19,7 +19,7 @@ class ActionMatching:
         self.__actions = None
         self._eps = 0.1
 
-    def action_aggregation(self, trajectory: ip.StateTrajectory):
+    def action_segmentation(self, trajectory: ip.StateTrajectory):
         # TODO: Rewrite functions here to return all occurrences of action and the time spans during which they happen
         """ segment the trajectory into different actions and sorted with time.
 
@@ -65,8 +65,9 @@ class ActionMatching:
                 action_segmentations.append(ActionData(times.copy(), previous_actions))
                 times.clear()
                 previous_actions = actions
-
             times.append(inx)
+            if inx == len(action_sequences) - 1:
+                action_segmentations.append(ActionData(times.copy(), actions))
 
         return action_segmentations
 
@@ -83,7 +84,7 @@ class ActionMatching:
         self.action_lib()
         if action not in self.__actions:
             raise Exception('User action does not exist in action library.')
-        action_segmentations = self.action_aggregation(trajectory)
+        action_segmentations = self.action_segmentation(trajectory)
         for action_segmentation in action_segmentations:
             if action in action_segmentation.actions:
                 return True
@@ -100,3 +101,31 @@ class ActionMatching:
                           'TurnRight',
                           'GiveWay',
                           'GoStraight']
+
+    @staticmethod
+    def find_counter_actions(action: str) -> List[str]:
+        """ find the counter action for whynot question.
+        Args:
+            action: the user queried action in whynot question.
+
+        Returns:
+            possible counter actions
+        """
+        # define actions and counter actions
+        action_set = [['GoStraight', 'ChangeLaneLeft', 'ChangeLaneRight'],
+                      ['SlowDown', 'Accelerate'],
+                      ['GoStraight', 'Stop'],
+                      ['GoStraight', 'TurnLeft', 'TurnRight']
+                      ]
+        counter_actions = []
+        for set_ in action_set:
+            if action not in set_:
+                continue
+            else:
+                for action_ in set_:
+                    if action != action_:
+                        counter_actions.append(action_)
+        if not counter_actions:
+            raise Exception('No counter action is found for the whynot question')
+
+        return counter_actions

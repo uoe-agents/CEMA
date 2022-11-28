@@ -4,6 +4,7 @@ from typing import Optional, Tuple, Dict
 
 import logging
 import igp2 as ip
+from xavi.matching import ActionMatching
 
 logger = logging.getLogger(__name__)
 
@@ -29,54 +30,91 @@ class Query:
 
     def __post_init__(self):
         self.type = QueryType(self.type)
+        self.__matching = ActionMatching()
 
     def get_tau(self, observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]]):
         """ Calculate tau and the start time step of the queried action.
-        Stores results in fields tau, and t_action.
+        Storing results in fields tau, and t_action.
 
         Args:
             Observations of the environment up to current time step.
         """
-        tau = -1
+        # saving tau for final cause and efficient cause
+        tau = [-1, -1]
         agent_id = self.agent_id
         if self.type == QueryType.WHAT_IF:
             agent_id = self.agent_id
 
         trajectory = observations[agent_id][0]
         len_states = len(trajectory.states)
-        if self.type in [QueryType.WHY, QueryType.WHAT_IF]:
-            # TODO: This code only works for macro actions, but not for behaviour like slow-down.
-            action_matched = False
-            for i, state in enumerate(trajectory.states[::-1]):
-                if state.macro_action is not None:
-                    if not action_matched and self.action in state.macro_action:
-                        action_matched = True
-                    if action_matched and self.action not in state.macro_action:
-                        tau = i
-                        break
-                # macro action is none at the first timestamp
-                elif i == len_states - 1:
-                    tau = i
-            if tau < 0:
-                logger.warning(f"Couldn't find tau for man")
+        action_segmentations = self.__matching.action_segmentation(trajectory)
+        if self.type == QueryType.WHY:
+            tau[0], seg_inx = self.determine_tau_factual(action_segmentations, len_states)
+            # tau for efficient cause, rollback starts from tau for final causes
+            previous_segment = action_segmentations[len(action_segmentations) - seg_inx - 1]
+            tau[1] = len_states - previous_segment.times[0]
+
         elif self.type == QueryType.WHY_NOT:
-            # Iterate across consecutive pairs in reverse order and count number of time steps to go back.
-            for i, (s_curr, s_prev) in enumerate(zip(trajectory.states[:0:-1], trajectory.states[-2::-1]), 2):
-                if s_curr.macro_action != s_prev.macro_action:
-                    tau = i
-                    break
+            tau[0], seg_inx = self.determine_tau_counterfactual(action_segmentations, len_states)
+            previous_segment = action_segmentations[len(action_segmentations) - seg_inx - 1]
+            tau[1] = len_states - previous_segment.times[0]
+
+        elif self.type == QueryType.WHAT_IF:
+            if self.negative:
+                tau[0], seg_inx = self.determine_tau_factual(action_segmentations, len_states)
             else:
-                logger.warning(f"Tau is equal to the length of the entire trajectory.")
-                tau = len_states
+                # TODO: for positive what if question, tau should be added here
+                pass
         elif self.type == QueryType.WHAT:
             tau = 0
         else:
             raise ValueError(f"Unknown query type {self.type}.")
 
-        assert self.__tau >= 0, f"Tau cannot be negative."
-        t_action = tau  # TODO: Placeholder, should be calculated correctly.
+        if tau[0] or tau[1] < 0:
+            logger.warning(f"Couldn't find tau for man")
+        elif tau[1] == len_states:
+            logger.warning(f"rollback to the start of an entire observation, "
+                           f"cannot generate past cases for efficient explanations")
+
+        t_action = len_states - tau  # TODO: Placeholder, should be calculated correctly.
         self.__tau = tau
         self.__t_action = t_action
+
+    def determine_tau_factual(self, action_segmentations, len_states) -> [float, int]:
+        """ determine tau for final cause for why and whatif negative question. factual action is mentioned"""
+        tau_final = -1
+        seg_inx = -1
+        action_matched = False
+        for i, action in enumerate(action_segmentations[::-1]):
+            if self.action in action.actions:
+                action_matched = True
+            if action_matched and self.action not in action.actions:
+                tau_final = len_states - action.times[-1] - 1
+                seg_inx = i
+                break
+        return tau_final, seg_inx
+
+    def determine_tau_counterfactual(self, action_segmentations, len_states) -> [float, int]:
+        """ determine tau for final cause for whynot and whatif positive question. counterfactual action is mentioned"""
+        counter_actions = self.__matching.find_counter_actions(self.action)
+        matched_action = None
+        action_matched = False
+        tau_final = -1
+        seg_inx = -1
+        for i, action in enumerate(action_segmentations[::-1]):
+            if not matched_action:
+                for action_ in action.actions:
+                    if action_ not in counter_actions:
+                        continue
+                    action_matched = True
+                    matched_action = action_
+                    break
+            if action_matched and matched_action not in action.actions:
+                tau_final = len_states - action.times[-1] - 1
+                seg_inx = i
+                break
+        logger.info(f'factual action found is {matched_action}')
+        return tau_final, seg_inx
 
     @property
     def tau(self) -> Optional[int]:
