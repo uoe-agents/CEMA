@@ -1,9 +1,10 @@
 import itertools
-from typing import List
+from typing import List, Tuple, Dict
 from collections import Counter
 import igp2 as ip
 import numpy as np
 
+Observations = Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]]
 
 def to_state_trajectory(
         trajectory: ip.VelocityTrajectory,
@@ -26,6 +27,24 @@ def to_state_trajectory(
     trajectory = ip.StateTrajectory(fps, frames=frames, path=trajectory.path, velocity=trajectory.velocity)
     fill_missing_actions(trajectory, plan)
     return trajectory
+
+
+def truncate_observations(observations: Observations, tau: int) -> (Observations, Dict[int, ip.AgentState]):
+    """ Truncate all observations from the end with tau timesteps.
+
+     Args:
+         observations: The observations to truncate.
+         tau: The number of steps to remove from the end.
+     """
+    truncated_obs = {}
+    previous_frame = {}
+    for agent_id, observation in observations.items():
+        frame = observation[1]
+        len_states = len(observation[0].states)
+        if len_states > tau:
+            truncated_obs[agent_id] = (observation[0].slice(0, len_states - tau), frame)
+            previous_frame[agent_id] = observation[0].states[len_states - tau]
+    return truncated_obs, previous_frame
 
 
 def fill_missing_actions(trajectory: ip.StateTrajectory, plan: List[ip.MacroAction]):
