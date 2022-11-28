@@ -19,14 +19,24 @@ class QueryType(Enum):
 
 @dataclass
 class Query:
-    """ Dataclass to store parsed query information. """
-    time: int
+    """ Dataclass to store parsed query information.
+
+    Args:
+        type: The type of the query. Either why, whynot, whatif, or what.
+        t_query: The time the user asked the query.
+        action: The action the user is interested in.
+        agent_id: The specific ID of the agent, the user queried.
+        negative: If true then the query will be matched against all trajectories that are NOT equal to action.
+        t_action: The start timestep of the action in question.
+        tau: The number of timesteps to rollback from the present for counterfactual generation.
+    """
     type: QueryType
+    t_query: int
     action: str = None
     agent_id: int = None
     negative: bool = None
-    __tau: int = None
-    __t_action: int = None
+    t_action: int = None
+    tau: int = None
 
     def __post_init__(self):
         self.type = QueryType(self.type)
@@ -67,6 +77,7 @@ class Query:
                 pass
         elif self.type == QueryType.WHAT:
             tau = 0
+            t_action = self.t_action
         else:
             raise ValueError(f"Unknown query type {self.type}.")
 
@@ -76,9 +87,9 @@ class Query:
             logger.warning(f"rollback to the start of an entire observation, "
                            f"cannot generate past cases for efficient explanations")
 
-        t_action = len_states - tau  # TODO: Placeholder, should be calculated correctly.
-        self.__tau = tau
-        self.__t_action = t_action
+        # t_action = len_states - tau  # TODO: Placeholder, should be calculated correctly.
+        self.tau = tau
+        self.t_action = t_action
 
     def determine_tau_factual(self, action_segmentations, len_states) -> [float, int]:
         """ determine tau for final cause for why and whatif negative question. factual action is mentioned"""
@@ -115,13 +126,3 @@ class Query:
                 break
         logger.info(f'factual action found is {matched_action}')
         return tau_final, seg_inx
-
-    @property
-    def tau(self) -> Optional[int]:
-        """ Rollback time span for counterfactual generation. """
-        return self.__tau
-
-    @property
-    def t_action(self) -> int:
-        """ The start timestep of the queried action. """
-        return self.__t_action
