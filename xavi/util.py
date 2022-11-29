@@ -6,6 +6,7 @@ import numpy as np
 
 Observations = Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]]
 
+
 def to_state_trajectory(
         trajectory: ip.VelocityTrajectory,
         plan: List[ip.MacroAction] = None,
@@ -17,14 +18,7 @@ def to_state_trajectory(
          plan: Optional plan to fill in missing action and maneuver information
          fps: Optional frame rate of the trajectory
      """
-    frames = []
-    for i in range(len(trajectory.times)):
-        frames.append(ip.AgentState(time=i,
-                                    position=np.array(trajectory.path[i]),
-                                    velocity=np.array(trajectory.velocity[i]),
-                                    acceleration=np.array(trajectory.acceleration[i]),
-                                    heading=trajectory.heading[i]))
-    trajectory = ip.StateTrajectory(fps, frames=frames, path=trajectory.path, velocity=trajectory.velocity)
+    trajectory = ip.StateTrajectory.from_velocity_trajectory(trajectory, fps)
     fill_missing_actions(trajectory, plan)
     return trajectory
 

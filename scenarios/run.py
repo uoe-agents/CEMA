@@ -4,7 +4,6 @@ import xavi
 import numpy as np
 import random
 
-import matplotlib.pyplot as plt
 from util import generate_random_frame, setup_xavi_logging, parse_args, load_config, parse_query
 
 logger = logging.Logger(__name__)

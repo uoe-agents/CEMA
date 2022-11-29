@@ -12,8 +12,7 @@ class Features:
     """ Convert joint trajectories into a set features. """
 
     def __init__(self):
-        self.__features = {}
-        logger.info("Features are still placeholder.")
+        self.__features = None
 
     def to_features(self,
                     agent_id: int,
@@ -70,6 +69,7 @@ class Features:
             features[f"{aid}_macro"] = most_common(mas) or None
             # cat_features[f"{aid}_maneuver"] = most_common(mans)
 
+        self.__features = features
         return features
 
     def binarise(self, data: List[Dict[str, Any]], labels: List[Any]) -> (pd.DataFrame, np.ndarray):
@@ -80,3 +80,8 @@ class Features:
         new_data = pd.concat([data, one_hot], axis=1)
         new_data = new_data.drop(columns=macro_cols.columns)
         return new_data, np.array(labels, dtype=int)
+
+    @property
+    def features(self) -> Dict[str, int]:
+        """ The features that were last calculated. """
+        return self.__features

@@ -1,56 +1,97 @@
 import logging
 import igp2 as ip
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ActionData:
+class ActionSegment:
     times: List[int]
     actions: List[str]
+
+
+@dataclass
+class ActionGroup:
+    maneuver: str
+    start: int
+    end: int
+    segments: List[ActionSegment]
+
+    def __repr__(self):
+        return f"{self.maneuver}[{self.start}-{self.end}]({len(self.segments)} segments)"
+
+    @staticmethod
+    def group_by_maneuver(segmentation: List[ActionSegment]) -> List["ActionGroup"]:
+        """ Group consecutive action segmentations by maneuvers. """
+        ret, group = [], []
+        prev_man = segmentation[0].actions[-1]
+        for segment in segmentation:
+            man = segment.actions[-1]  # TODO (low): Relies on final action type being the maneuver.
+            if prev_man != man:
+                ret.append(ActionGroup(prev_man, group[0].times[0], group[-1].times[-1], group))
+                group = []
+            group.append(segment)
+            prev_man = man
+        else:
+            ret.append(ActionGroup(prev_man, group[0].times[0], group[-1].times[-1], group))
+        return ret
 
 
 class ActionMatching:
     """ Determines if the action asked by a user is present in a trajectory. """
 
-    def __init__(self):
-        self.__actions = None
-        self._eps = 0.1
+    def __init__(self, eps: float = 0.1):
+        self.__actions = ['SlowDown',
+                          'Accelerate',
+                          'Stop',
+                          'ChangeLaneLeft',
+                          'ChangeLaneRight',
+                          'TurnLeft',
+                          'TurnRight',
+                          'GoStraightJunction'
+                          'GiveWay',
+                          'GoStraight']
+        self.__eps = eps
 
-    def action_segmentation(self, trajectory: ip.StateTrajectory):
-        """ segment the trajectory into different actions and sorted with time.
+    def action_segmentation(self, trajectory: ip.StateTrajectory) -> List[ActionSegment]:
+        """ Segment the trajectory into different actions and sorted with time.
 
         Args:
-            trajectory: the trajectory
+            trajectory: Trajectory to segment.
         """
 
         action_sequences = []
         for inx in range(len(trajectory.times)):
             action = []
-            if trajectory.acceleration[inx] < - self._eps:
+            state = trajectory.states[inx]
+            if trajectory.acceleration[inx] < - self.__eps:
                 action.append('SlowDown')
-            elif trajectory.acceleration[inx] > self._eps:
+            elif trajectory.acceleration[inx] > self.__eps:
                 action.append('Accelerate')
 
             if trajectory.velocity[inx] < trajectory.VELOCITY_STOP:
                 action.append('Stop')
 
-            if trajectory.states[inx].macro_action is not None:
-                if 'ChangeLaneLeft' in trajectory.states[inx].macro_action:
+            if state.macro_action is not None:
+                if 'ChangeLaneLeft' in state.macro_action:
                     action.append('ChangeLaneLeft')
-                elif 'ChangeLaneRight' in trajectory.states[inx].macro_action:
+                elif 'ChangeLaneRight' in state.macro_action:
                     action.append('ChangeLaneRight')
 
-            if trajectory.states[inx].maneuver is not None:
-                if 'TurnCL' in trajectory.states[inx].maneuver and trajectory.angular_velocity[inx] > self._eps:
-                    action.append('TurnLeft')
-                elif 'TurnCL' in trajectory.states[inx].maneuver and trajectory.angular_velocity[inx] < -self._eps:
-                    action.append('TurnRight')
-                elif 'GiveWayCL' in trajectory.states[inx].maneuver:
+            if state.maneuver is not None:
+                if 'Turn' in state.maneuver:
+                    angular_vel = trajectory.angular_velocity[inx]
+                    if angular_vel > self.__eps:
+                        action.append('TurnLeft')
+                    elif angular_vel < -self.__eps:
+                        action.append('TurnRight')
+                    else:
+                        action.append('GoStraightJunction')
+                elif 'GiveWay' in state.maneuver:
                     action.append('GiveWay')
-                elif 'FollowLaneCL' in trajectory.states[inx].maneuver:
+                elif 'FollowLane' in state.maneuver:
                     action.append('GoStraight')
 
             action_sequences.append(action)
@@ -59,14 +100,14 @@ class ActionMatching:
         action_segmentations = []
         times = []
         previous_actions = action_sequences[0]
-        for inx, actions in enumerate(action_sequences):
+        for inx, actions in enumerate(action_sequences, int(trajectory.states[0].time)):
             if previous_actions != actions:
-                action_segmentations.append(ActionData(times.copy(), previous_actions))
-                times.clear()
+                action_segmentations.append(ActionSegment(times, previous_actions))
+                times = []
                 previous_actions = actions
             times.append(inx)
             if inx == len(action_sequences) - 1:
-                action_segmentations.append(ActionData(times.copy(), actions))
+                action_segmentations.append(ActionSegment(times, actions))
 
         return action_segmentations
 
@@ -80,7 +121,6 @@ class ActionMatching:
         Returns:
             True if action was matched with trajectory
         """
-        self.action_lib()
         if action not in self.__actions:
             raise Exception('User action does not exist in action library.')
         action_segmentations = self.action_segmentation(trajectory)
@@ -88,18 +128,6 @@ class ActionMatching:
             if action in action_segmentation.actions:
                 return True
         return False
-
-    def action_lib(self):
-        """ the actions that we can answer in current framework. """
-        self.__actions = ['SlowDown',
-                          'Accelerate',
-                          'Stop',
-                          'ChangeLaneLeft',
-                          'ChangeLaneRight',
-                          'TurnLeft',
-                          'TurnRight',
-                          'GiveWay',
-                          'GoStraight']
 
     @staticmethod
     def find_counter_actions(action: str) -> List[str]:
@@ -114,8 +142,7 @@ class ActionMatching:
         action_set = [['GoStraight', 'ChangeLaneLeft', 'ChangeLaneRight'],
                       ['SlowDown', 'Accelerate'],
                       ['GoStraight', 'Stop'],
-                      ['GoStraight', 'TurnLeft', 'TurnRight']
-                      ]
+                      ['GoStraight', 'TurnLeft', 'TurnRight']]
         counter_actions = []
         for set_ in action_set:
             if action not in set_:
@@ -128,3 +155,8 @@ class ActionMatching:
             raise Exception('No counter action is found!')
 
         return counter_actions
+
+    @property
+    def action_library(self) -> List[str]:
+        """ The available actions for a query. """
+        return self.__actions
