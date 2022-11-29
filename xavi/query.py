@@ -25,7 +25,7 @@ class Query:
     action: str = None
     agent_id: int = None
     negative: bool = None
-    __tau: int = None
+    __tau: list = None
     __t_action: int = None
 
     def __post_init__(self):
@@ -63,10 +63,10 @@ class Query:
             if self.negative:
                 tau[0], seg_inx = self.determine_tau_factual(action_segmentations, len_states)
             else:
-                # TODO: for positive what if question, tau should be added here
-                pass
+                tau[0], seg_inx = self.determine_tau_counterfactual(action_segmentations, len_states)
+
         elif self.type == QueryType.WHAT:
-            tau = 0
+            tau[0] = 0
         else:
             raise ValueError(f"Unknown query type {self.type}.")
 
@@ -76,7 +76,7 @@ class Query:
             logger.warning(f"rollback to the start of an entire observation, "
                            f"cannot generate past cases for efficient explanations")
 
-        t_action = len_states - tau  # TODO: Placeholder, should be calculated correctly.
+        t_action = len_states - tau[0]
         self.__tau = tau
         self.__t_action = t_action
 
@@ -117,7 +117,7 @@ class Query:
         return tau_final, seg_inx
 
     @property
-    def tau(self) -> Optional[int]:
+    def tau(self) -> Optional[list]:
         """ Rollback time span for counterfactual generation. """
         return self.__tau
 
