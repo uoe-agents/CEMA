@@ -141,7 +141,7 @@ class XAVIAgent(ip.MCTSAgent):
         if start_t >= len(trajectory):
             logger.warning(f"Total trajectory for Agent {self.query.agent_id} is not "
                            f"long enough for query! Falling back to final timestep.")
-            start_t = -1
+            start_t = len(trajectory) - 1
         segments = self.__matching.action_segmentation(trajectory)
         grouped_segments = ActionGroup.group_by_maneuver(segments)
         return [seg for seg in grouped_segments if seg.start <= start_t <= seg.end][0]
