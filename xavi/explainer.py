@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from sklearn.linear_model import LogisticRegression
 
 from xavi.features import Features
-from xavi.util import fill_missing_actions
+from xavi.util import fill_missing_actions, truncate_observations, Observations
 from xavi.matching import ActionMatching
 from xavi.query import Query, QueryType
 
@@ -58,7 +58,7 @@ class XAVIAgent(ip.MCTSAgent):
         self.__scenario_map = kwargs["scenario_map"]
 
         self.__previous_observations = None
-        self.__dataset = None
+        self.__previous_dataset = None
         self.__t_dataset = None
         self.__user_query = None
 
@@ -76,12 +76,12 @@ class XAVIAgent(ip.MCTSAgent):
             return self.__explain_what()
 
         # Generate new or update existing dataset.
-        if self.__dataset is None or \
+        if self.__previous_dataset is None or \
                 current_t != self.__t_dataset:
             self.__get_counterfactuals()
             self.__t_dataset = current_t
 
-        assert self.__dataset is not None, f"No counterfactual data set present."
+        assert self.__previous_dataset is not None, f"No counterfactual data set present."
 
         final_causes = self.__final_causes()
 
@@ -96,7 +96,21 @@ class XAVIAgent(ip.MCTSAgent):
     def __explain_what(self):
         """ Generate an explanation to a what query.
         Involves looking up the trajectory segment at T and returning a feature set of it. """
-        pass
+        if self.query.agent_id is None:
+            logger.warning(f"No Agent ID given for what-query. Falling back to ego ID.")
+            self.query.agent_id = self.agent_id
+
+        # 1. Find current action, start t, and end t of it.
+        # 2. If user query points before start T then past time
+        # 3. If user query points after start t but before predicted end of current maneuver then present time
+        # 4. If user query points after end t of current maneuver then future time.
+        # TODO: Merge observed and predicted trajectory for vehicle. For non-egos need to decide which predicted
+        #  trajectory to use for this explanation.
+
+        trajectory = None
+        start_t = self.query.t_action
+        start_man = self.observations[self.query.agent_id][0].states[start_t].macro_action
+        end_t = start_t
 
     def __final_causes(self) -> pd.DataFrame:
         """ Generate final causes for the queried action.
@@ -106,7 +120,7 @@ class XAVIAgent(ip.MCTSAgent):
         """
         query_present = {}
         query_not_present = {}
-        for mid, item in self.dataset.items():
+        for mid, item in self.cf_dataset.items():
             # TODO: Filter for trajectories that match the observations between tau and t_action_start.
             if item.action_present:
                 query_present[mid] = item
@@ -135,7 +149,7 @@ class XAVIAgent(ip.MCTSAgent):
         """
         xs_past, ys_past = [], []
         xs_future, ys_future = [], []
-        for m, item in self.dataset.items():
+        for m, item in self.cf_dataset.items():
             trajectories_past, trajectories_future = {}, {}
             for aid, traj in item.trajectories.items():
                 trajectories_past[aid] = traj.slice(0, self.query.t_action)
@@ -167,24 +181,19 @@ class XAVIAgent(ip.MCTSAgent):
         """ Get observations from tau time steps before, and call MCTS from that joint state."""
         logger.info("Generating counterfactual rollouts.")
 
-        tau = self.query.tau
-
-        previous_frame = {}
-        self.__previous_observations = {}
-        for agent_id, observation in self.observations.items():
-            frame = observation[1]
-            len_states = len(observation[0].states)
-            if len_states > tau:
-                self.__previous_observations[agent_id] = (observation[0].slice(0, len_states - tau), frame)
-                previous_frame[agent_id] = observation[0].states[len_states - tau]
+        self.__previous_observations, previous_frame = \
+            truncate_observations(self.observations, self.query.tau)
 
         if previous_frame:
             previous_observation = ip.Observation(previous_frame, self.__scenario_map)
             previous_goals = self.get_goals(previous_observation)
             self.__generate_rollouts(previous_observation, previous_goals)
-            self.__dataset = self.__get_dataset()
+            self.__previous_dataset = self.__get_dataset(
+                self.__previous_mcts.results, self.__previous_observations)
 
-    def __generate_rollouts(self, previous_observation: ip.Observation, previous_goals: List[ip.Goal]):
+    def __generate_rollouts(self,
+                            previous_observation: ip.Observation,
+                            previous_goals: List[ip.Goal]):
         """ Runs MCTS to generate a new sequence of macro actions to execute using previous observations.
 
         Args:
@@ -236,10 +245,17 @@ class XAVIAgent(ip.MCTSAgent):
             meta=agents_metadata,
             predictions=self.__previous_goal_probabilities)
 
-    def __get_dataset(self) -> Dict[int, Item]:
-        """ Return dataset recording states, boolean feature, and reward """
+    def __get_dataset(self,
+                      mcts_results: ip.AllMCTSResult,
+                      observations: Observations) \
+            -> Dict[int, Item]:
+        """ Return dataset recording states, boolean feature, and reward
+
+         Args:
+             mcts_results: MCTS results class to convert to a dataset.
+             observations: The observations that preceded the planning step.
+         """
         dataset = {}
-        mcts_results = self.__previous_mcts.results
 
         for m, rollout in enumerate(mcts_results):
             trajectories = {}
@@ -250,7 +266,7 @@ class XAVIAgent(ip.MCTSAgent):
             # save trajectories of each agent
             for agent_id, agent in last_node.run_results[-1].agents.items():
                 trajectory = ip.StateTrajectory(self.fps)
-                trajectory.extend(self.__previous_observations[agent_id][0], reload_path=False)
+                trajectory.extend(observations[agent_id][0], reload_path=False)
                 sim_trajectory = agent.trajectory_cl.slice(1, None)
 
                 # Retrieve maneuvers and macro actions for non-ego vehicles
@@ -276,15 +292,15 @@ class XAVIAgent(ip.MCTSAgent):
             data_set_m = Item(trajectories, y, r)
             dataset[m] = data_set_m
 
-        logger.info('Counterfactual dataset generation done.')
+        logger.debug('Dataset generation done.')
         return dataset
 
     # -------------Field access properties-------------------
 
     @property
-    def dataset(self) -> Dict[int, Item]:
+    def cf_dataset(self) -> Dict[int, Item]:
         """ The most recently generated set of counterfactual features with the key being its index. """
-        return self.__dataset
+        return self.__previous_dataset
 
     @property
     def query(self) -> Query:

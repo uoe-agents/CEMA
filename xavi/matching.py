@@ -20,7 +20,6 @@ class ActionMatching:
         self._eps = 0.1
 
     def action_segmentation(self, trajectory: ip.StateTrajectory):
-        # TODO: Rewrite functions here to return all occurrences of action and the time spans during which they happen
         """ segment the trajectory into different actions and sorted with time.
 
         Args:
@@ -104,7 +103,7 @@ class ActionMatching:
 
     @staticmethod
     def find_counter_actions(action: str) -> List[str]:
-        """ find the counter action for whynot question.
+        """ find the counter action for whynot or whatif positive question.
         Args:
             action: the user queried action in whynot question.
 
@@ -126,6 +125,6 @@ class ActionMatching:
                     if action != action_:
                         counter_actions.append(action_)
         if not counter_actions:
-            raise Exception('No counter action is found for the whynot question')
+            raise Exception('No counter action is found!')
 
         return counter_actions
