@@ -76,23 +76,23 @@ class Query:
                 # TODO: for positive what if question, tau should be added here
                 pass
         elif self.type == QueryType.WHAT:
-            tau = 0
+            tau = [0, 0]
             t_action = self.t_action
         else:
             raise ValueError(f"Unknown query type {self.type}.")
 
-        if tau[0] or tau[1] < 0:
-            logger.warning(f"Couldn't find tau for man")
+        if tau[0] < 0 or tau[1] < 0:
+            logger.warning(f"Couldn't find tau for the action.")
         elif tau[1] == len_states:
-            logger.warning(f"rollback to the start of an entire observation, "
-                           f"cannot generate past cases for efficient explanations")
+            logger.warning(f"Rollback to the start of an entire observation, "
+                           f"cannot generate past causes for efficient explanations.")
 
         # t_action = len_states - tau  # TODO: Placeholder, should be calculated correctly.
         self.tau = tau
         self.t_action = t_action
 
     def determine_tau_factual(self, action_segmentations, len_states) -> [float, int]:
-        """ determine tau for final cause for why and whatif negative question. factual action is mentioned"""
+        """ Determine tau for final cause for why and whatif negative question. factual action is mentioned. """
         tau_final = -1
         seg_inx = -1
         action_matched = False
