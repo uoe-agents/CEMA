@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 
 import logging
 import igp2 as ip
-from xavi.matching import ActionMatching, ActionData
+from xavi.matching import ActionMatching, ActionSegment
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ class Query:
         t_action: The start timestep of the action in question.
         tau: The number of timesteps to rollback from the present for counterfactual generation.
     """
+
     type: QueryType
     t_query: int = None
     action: str = None
@@ -40,7 +41,6 @@ class Query:
 
     def __post_init__(self):
         self.type = QueryType(self.type)
-        self.__matching = ActionMatching()
 
     def get_tau(self, observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]]):
         """ Calculate tau and the start time step of the queried action.
@@ -49,13 +49,17 @@ class Query:
         Args:
             Observations of the environment up to current time step.
         """
+        if self.tau is not None:
+            pass  # If user gave fixed tau then we shouldn't override that.
+
+        # saving tau for final cause and efficient cause
         agent_id = self.agent_id
         if self.type == QueryType.WHAT_IF:
             agent_id = self.agent_id
 
         trajectory = observations[agent_id][0]
         len_states = len(trajectory.states)
-        action_segmentations = self.__matching.action_segmentation(trajectory)
+        action_segmentations = ActionMatching().action_segmentation(trajectory)
         if self.type == QueryType.WHY:
             # tau for efficient cause
             t_action, tau = self.determine_tau_factual(action_segmentations, len_states, True)
@@ -72,8 +76,8 @@ class Query:
 
         elif self.type == QueryType.WHAT:
             tau = 0
+            # TODO (mid): Assumes query parsing can extract reference time point.
             t_action = self.t_action
-
         else:
             raise ValueError(f"Unknown query type {self.type}.")
 
@@ -85,7 +89,10 @@ class Query:
         self.tau = tau
         self.t_action = t_action
 
-    def determine_tau_factual(self, action_segmentations: [ActionData], len_states: int, rollback: bool) -> [int, int]:
+    def determine_tau_factual(self,
+                              action_segmentations: List[ActionSegment],
+                              len_states: int,
+                              rollback: bool) -> (int, int):
         """ determine t_action for final causes, tau for efficient cause for why and whatif negative question.
         Args:
             action_segmentations: the segmented action of the observed trajectory.
@@ -114,7 +121,10 @@ class Query:
 
         return t_action, tau
 
-    def determine_tau_counterfactual(self, action_segmentations: [ActionData], len_states: int, rollback: bool) -> [int, int]:
+    def determine_tau_counterfactual(self,
+                                     action_segmentations: List[ActionSegment],
+                                     len_states: int,
+                                     rollback: bool) -> (int, int):
         """ determine t_action for final causes, tau for efficient cause for whynot and whatif positive question.
         Args:
             action_segmentations: the segmented action of the observed trajectory.
