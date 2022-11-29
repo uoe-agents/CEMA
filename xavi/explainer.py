@@ -5,13 +5,14 @@ import pandas as pd
 import logging
 
 import igp2 as ip
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 from dataclasses import dataclass
 from sklearn.linear_model import LogisticRegression
 
 from xavi.features import Features
-from xavi.util import fill_missing_actions, truncate_observations, Observations
-from xavi.matching import ActionMatching
+from xavi.util import fill_missing_actions, truncate_observations, \
+    to_state_trajectory, Observations
+from xavi.matching import ActionMatching, ActionGroup
 from xavi.query import Query, QueryType
 
 logger = logging.getLogger(__name__)
@@ -61,25 +62,28 @@ class XAVIAgent(ip.MCTSAgent):
         self.__previous_dataset = None
         self.__t_dataset = None
         self.__user_query = None
+        self.__current_t = None
 
-    def explain_actions(self, user_query: Query):
+    def explain_actions(self, user_query: Query) -> Any:  # TODO: Replace return value once we know what it is.
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
 
         Args:
             user_query: The parsed query of the user.
         """
         self.__user_query = user_query
+        self.__current_t = self.observations[self.agent_id][0].states[-1].time
+
+        # Determine timing information of the query.
         self.query.get_tau(self.observations)
-        current_t = self.observations[self.agent_id][0].states[-1].time
 
         if self.query.type == QueryType.WHAT:
             return self.__explain_what()
 
         # Generate new or update existing dataset.
         if self.__previous_dataset is None or \
-                current_t != self.__t_dataset:
+                self.__current_t != self.__t_dataset:
             self.__get_counterfactuals()
-            self.__t_dataset = current_t
+            self.__t_dataset = self.__current_t
 
         assert self.__previous_dataset is not None, f"No counterfactual data set present."
 
@@ -93,24 +97,54 @@ class XAVIAgent(ip.MCTSAgent):
 
         # TODO: Convert to NL explanations through language templates.
 
-    def __explain_what(self):
-        """ Generate an explanation to a what query.
-        Involves looking up the trajectory segment at T and returning a feature set of it. """
+    def __explain_what(self) -> ActionGroup:
+        """ Generate an explanation to a what query. Involves looking up the trajectory segment at T and
+        returning a feature set of it. We assume for the future that non-egos follow their MAP-prediction for
+        goal and trajectory.
+
+        Returns:
+            A action group of the executed action at the user given time point.
+        """
         if self.query.agent_id is None:
             logger.warning(f"No Agent ID given for what-query. Falling back to ego ID.")
             self.query.agent_id = self.agent_id
 
-        # 1. Find current action, start t, and end t of it.
-        # 2. If user query points before start T then past time
-        # 3. If user query points after start t but before predicted end of current maneuver then present time
-        # 4. If user query points after end t of current maneuver then future time.
-        # TODO: Merge observed and predicted trajectory for vehicle. For non-egos need to decide which predicted
-        #  trajectory to use for this explanation.
+        # Use observations until current time
+        trajectory = ip.StateTrajectory(self.fps)
+        trajectory.extend(self.observations[self.query.agent_id][0], reload_path=False)
 
-        trajectory = None
+        map_preds = {aid: p.map_prediction() for aid, p in self.goal_probabilities.items()}
+        if self.query.agent_id == self.agent_id:
+            optimal_rollouts = self.mcts.results.optimal_rollouts
+            matching_rollout = None
+            for rollout in optimal_rollouts:
+                for aid, map_pred in map_preds.items():
+                    if rollout.samples[aid] != map_pred: break
+                else:
+                    matching_rollout = rollout
+                    break
+            last_node = matching_rollout.tree[matching_rollout.trace[:-1]]
+            agent = last_node.run_results[-1].agents[self.query.agent_id]
+            sim_trajectory = agent.trajectory_cl
+        else:
+            goal, sim_trajectory = map_preds[self.query.agent_id]
+            plan = self.goal_probabilities[self.query.agent_id].trajectory_to_plan(goal, sim_trajectory)
+            sim_trajectory = to_state_trajectory(sim_trajectory, plan, self.fps)
+
+        # Truncate trajectory to time step nearest to the final observation of the agent
+        last_point = self.observations[self.query.agent_id][0].path[-1]
+        closest_idx = np.argmin(np.linalg.norm(sim_trajectory.path - last_point, axis=1))
+        sim_trajectory = sim_trajectory.slice(closest_idx, None)
+        trajectory.extend(sim_trajectory, reload_path=True)
+
         start_t = self.query.t_action
-        start_man = self.observations[self.query.agent_id][0].states[start_t].macro_action
-        end_t = start_t
+        if start_t >= len(trajectory):
+            logger.warning(f"Total trajectory for Agent {self.query.agent_id} is not "
+                           f"long enough for query! Falling back to final timestep.")
+            start_t = -1
+        segments = self.__matching.action_segmentation(trajectory)
+        grouped_segments = ActionGroup.group_by_maneuver(segments)
+        return [seg for seg in grouped_segments if seg.start <= start_t <= seg.end][0]
 
     def __final_causes(self) -> pd.DataFrame:
         """ Generate final causes for the queried action.
