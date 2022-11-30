@@ -43,7 +43,7 @@ def truncate_observations(observations: Observations, tau: int) -> (Observations
             truncated_obs[agent_id] = (observation[0].slice(0, len_states - tau), frame)
             previous_frame[agent_id] = observation[0].states[len_states - tau - 1]
         else:
-            logger.warning(f"Tau ({tau}) >= number of observations ({len_states}.)")
+            logger.warning(f"Agent {agent_id}: tau({tau}) >= number of observations({len_states}.)")
     return truncated_obs, previous_frame
 
 

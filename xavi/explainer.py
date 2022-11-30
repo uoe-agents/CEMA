@@ -63,9 +63,9 @@ class XAVIAgent(ip.MCTSAgent):
         self.__user_query = None
         self.__current_t = None
 
-        self.__past_queries = []
+        self.__previous_queries = []
 
-    def explain_actions(self, user_query: Query) -> Any:  # TODO: Replace return value once we know what it is.
+    def explain_actions(self, user_query: Query) -> Any:  # TODO (high): Replace return value once we know what it is.
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
 
         Args:
@@ -76,6 +76,7 @@ class XAVIAgent(ip.MCTSAgent):
 
         # Determine timing information of the query.
         self.query.get_tau(self.observations)
+        logger.info(f"Running explanation for {self.query}.")
 
         if self.query.type == QueryType.WHAT:
             return self.__explain_what()
@@ -95,7 +96,7 @@ class XAVIAgent(ip.MCTSAgent):
 
         # TODO: Convert to NL explanations through language templates.
 
-        self.__past_queries.append(self.__user_query)
+        self.__previous_queries.append(self.__user_query)
 
     def __explain_what(self) -> ActionGroup:
         """ Generate an explanation to a what query. Involves looking up the trajectory segment at T and
@@ -113,6 +114,7 @@ class XAVIAgent(ip.MCTSAgent):
         trajectory = ip.StateTrajectory(self.fps)
         trajectory.extend(self.observations[self.query.agent_id][0], reload_path=False)
 
+        # Find simulated trajectory that matches best with observations and predictions
         map_preds = {aid: p.map_prediction() for aid, p in self.goal_probabilities.items()}
         if self.query.agent_id == self.agent_id:
             optimal_rollouts = self.mcts.results.optimal_rollouts
@@ -292,7 +294,8 @@ class XAVIAgent(ip.MCTSAgent):
              observations: The observations that preceded the planning step.
          """
         dataset = {}
-
+        import matplotlib.pyplot as plt
+        ip.plot_map(self.__scenario_map, markings=True)
         for m, rollout in enumerate(mcts_results):
             trajectories = {}
             r = []
@@ -317,6 +320,9 @@ class XAVIAgent(ip.MCTSAgent):
                 trajectory.extend(sim_trajectory, reload_path=True)
                 trajectories[agent_id] = trajectory
 
+                if agent_id == 1:
+                    plt.plot(*list(zip(*trajectory.path)))
+
             # save reward for each component
             for last_action, reward_value, in last_node.reward_results.items():
                 if last_action == rollout.trace[-1]:
@@ -328,6 +334,7 @@ class XAVIAgent(ip.MCTSAgent):
             data_set_m = Item(trajectories, y, r)
             dataset[m] = data_set_m
 
+        plt.show()
         logger.debug('Dataset generation done.')
         return dataset
 

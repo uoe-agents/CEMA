@@ -1,27 +1,27 @@
 [
   {
-    "type": "what",
-    "agent_id": 0,
-    "t_action": 30,
-    "t_query": 60
-  },
-  {
     "type": "why",
     "agent_id": 0,
     "action": "ChangeLaneLeft",
-    "t_query": 60
+    "t_query": 75
+  },
+  {
+    "type": "what",
+    "agent_id": 0,
+    "t_action": 30,
+    "t_query": 75
   },
   {
     "type": "whynot",
     "agent_id": 0,
     "action": "GoStraight",
-    "t_query": 60
+    "t_query": 75
   },
   {
     "type": "whatif",
     "agent_id": 1,
     "action": "ChangeLaneRight",
     "negative": true,
-    "t_query": 60
+    "t_query": 75
   }
 ]

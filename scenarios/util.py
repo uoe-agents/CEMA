@@ -30,6 +30,7 @@ def setup_xavi_logging():
     root_logger.setLevel(logging.DEBUG)
     logging.getLogger("igp2.velocitysmoother").setLevel(logging.INFO)
     logging.getLogger("matplotlib").setLevel(logging.INFO)
+    logging.getLogger("PIL").setLevel(logging.INFO)
     console_handler = logging.StreamHandler(stream=sys.stdout)
     console_handler.setFormatter(log_formatter)
     root_logger.addHandler(console_handler)

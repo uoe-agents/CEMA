@@ -41,6 +41,7 @@ class Query:
 
     def __post_init__(self):
         self.type = QueryType(self.type)
+        self.__matching = ActionMatching()
 
     def get_tau(self, observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]]):
         """ Calculate tau and the start time step of the queried action.
@@ -55,7 +56,7 @@ class Query:
 
         trajectory = observations[agent_id][0]
         len_states = len(trajectory.states)
-        action_segmentations = ActionMatching().action_segmentation(trajectory)
+        action_segmentations = self.__matching.action_segmentation(trajectory)
         if self.type == QueryType.WHY:
             # tau for efficient cause
             t_action, tau = self.determine_tau_factual(action_segmentations, len_states, True)
@@ -78,7 +79,7 @@ class Query:
             raise ValueError(f"Unknown query type {self.type}.")
 
         assert tau >= 0, f"Tau cannot be negative."
-        if tau == len_states:
+        if tau == len_states - 1:
             logger.warning(f"Rollback to the start of an entire observation.")
 
         if self.tau is None:
@@ -120,7 +121,7 @@ class Query:
             # TODO (high): One extra segment is usually very short. Could go back 2 segments or enforce a minimum limit.
             previous_inx = max(0, n_segments - segment_inx - 1)
             previous_segment = action_segmentations[previous_inx]
-            tau = len_states - previous_segment.times[0]
+            tau = min(len_states - 1, len_states - previous_segment.times[0])
 
         return t_action, tau
 

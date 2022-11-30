@@ -49,12 +49,12 @@
       },
       "mcts": {
         "t_update": 2.0,
-        "n_simulations": 10,
+        "n_simulations": 20,
         "store_results": "all",
         "reward_factors": {
           "time": 1.0,
           "jerk": 0.0,
-          "angular_velocity": -0.1,
+          "angular_velocity": -0.5,
           "curvature": 0.0
         }
       },
