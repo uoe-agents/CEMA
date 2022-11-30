@@ -49,10 +49,6 @@ class Query:
         Args:
             Observations of the environment up to current time step.
         """
-        if self.tau is not None:
-            pass  # If user gave fixed tau then we shouldn't override that.
-
-        # saving tau for final cause and efficient cause
         agent_id = self.agent_id
         if self.type == QueryType.WHAT_IF:
             agent_id = self.agent_id
@@ -83,10 +79,10 @@ class Query:
 
         assert tau >= 0, f"Tau cannot be negative."
         if tau == len_states:
-            logger.warning(f"Rollback to the start of an entire observation, "
-                           f"cannot generate past causes for efficient explanations.")
+            logger.warning(f"Rollback to the start of an entire observation.")
 
-        self.tau = tau
+        if self.tau is None:
+            self.tau = tau  # If user gave fixed tau then we shouldn't override that.
         self.t_action = t_action
 
     def determine_tau_factual(self,
@@ -103,20 +99,27 @@ class Query:
             t_action: the timestep when the factual action starts
             tau: the timesteps to rollback
         """
-        seg_inx = -1
-        t_action = -1
         tau = -1
         action_matched = False
+        n_segments = len(action_segmentations)
         for i, action in enumerate(action_segmentations[::-1]):
             if self.action in action.actions:
                 action_matched = True
-            if action_matched and self.action not in action.actions:
+            elif action_matched:
                 t_action = action.times[-1] + 1
-                seg_inx = i
+                segment_inx = i
                 break
+        else:
+            if action_matched:
+                t_action = 0
+                segment_inx = n_segments - 1
+            else:
+                raise ValueError(f"Could not match action {self.action} to trajectory.")
 
-        if rollback and seg_inx >= 0:
-            previous_segment = action_segmentations[len(action_segmentations) - seg_inx - 1]
+        if rollback and segment_inx >= 0:
+            # TODO (high): One extra segment is usually very short. Could go back 2 segments or enforce a minimum limit.
+            previous_inx = max(0, n_segments - segment_inx - 1)
+            previous_segment = action_segmentations[previous_inx]
             tau = len_states - previous_segment.times[0]
 
         return t_action, tau

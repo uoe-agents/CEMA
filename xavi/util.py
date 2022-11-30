@@ -1,8 +1,12 @@
 import itertools
+from copy import copy
 from typing import List, Tuple, Dict
 from collections import Counter
 import igp2 as ip
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 Observations = Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]]
 
@@ -37,7 +41,9 @@ def truncate_observations(observations: Observations, tau: int) -> (Observations
         len_states = len(observation[0].states)
         if len_states > tau:
             truncated_obs[agent_id] = (observation[0].slice(0, len_states - tau), frame)
-            previous_frame[agent_id] = observation[0].states[len_states - tau]
+            previous_frame[agent_id] = observation[0].states[len_states - tau - 1]
+        else:
+            logger.warning(f"Tau ({tau}) >= number of observations ({len_states}.)")
     return truncated_obs, previous_frame
 
 
@@ -53,6 +59,16 @@ def fill_missing_actions(trajectory: ip.StateTrajectory, plan: List[ip.MacroActi
     for state in trajectory:
         nearest_idx = np.argmin(np.linalg.norm(points - state.position, axis=1))
         state.macro_action, state.maneuver = ma_man_list[nearest_idx]
+
+
+def fix_initial_state(trajectory: ip.StateTrajectory):
+    """ The initial frame is often missing macro and maneuver information due to the planning flow of IGP2.
+    This function fills in the missing information using the second state. """
+    if len(trajectory.states) > 1 and \
+            trajectory.states[0].time == 0 and \
+            trajectory.states[0].macro_action == trajectory.states[0].maneuver is None:
+        trajectory.states[0].macro_action = copy(trajectory.states[1].macro_action)
+        trajectory.states[0].maneuver = copy(trajectory.states[1].maneuver)
 
 
 def most_common(lst: list):

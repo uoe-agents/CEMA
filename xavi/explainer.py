@@ -60,9 +60,10 @@ class XAVIAgent(ip.MCTSAgent):
 
         self.__previous_observations = None
         self.__previous_dataset = None
-        self.__t_dataset = None
         self.__user_query = None
         self.__current_t = None
+
+        self.__past_queries = []
 
     def explain_actions(self, user_query: Query) -> Any:  # TODO: Replace return value once we know what it is.
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
@@ -80,10 +81,7 @@ class XAVIAgent(ip.MCTSAgent):
             return self.__explain_what()
 
         # Generate new or update existing dataset.
-        if self.__previous_dataset is None or \
-                self.__current_t != self.__t_dataset:
-            self.__get_counterfactuals()
-            self.__t_dataset = self.__current_t
+        self.__get_counterfactuals()
 
         assert self.__previous_dataset is not None, f"No counterfactual data set present."
 
@@ -97,13 +95,15 @@ class XAVIAgent(ip.MCTSAgent):
 
         # TODO: Convert to NL explanations through language templates.
 
+        self.__past_queries.append(self.__user_query)
+
     def __explain_what(self) -> ActionGroup:
         """ Generate an explanation to a what query. Involves looking up the trajectory segment at T and
         returning a feature set of it. We assume for the future that non-egos follow their MAP-prediction for
         goal and trajectory.
 
         Returns:
-            A action group of the executed action at the user given time point.
+            An action group of the executed action at the user given time point.
         """
         if self.query.agent_id is None:
             logger.warning(f"No Agent ID given for what-query. Falling back to ego ID.")
@@ -163,17 +163,19 @@ class XAVIAgent(ip.MCTSAgent):
 
         diffs = {}
         for component in self._reward.COMPONENTS:
-            factor = self._reward.factors[component]
-            r_qp = [item.reward[component] for item in query_present.values()
+            factor = self._reward.factors.get(component, 1.0)
+            r_qp = [factor * item.reward[component] for item in query_present.values()
                     if item.reward[component] is not None]
-            r_qp = factor * np.sum(r_qp) / len(r_qp) if r_qp else np.nan
-            r_qnp = [item.reward[component] for item in query_not_present.values()
+            r_qp = np.sum(r_qp) / len(r_qp) if r_qp else np.nan
+            r_qnp = [factor * item.reward[component] for item in query_not_present.values()
                      if item.reward[component] is not None]
-            r_qnp = factor * np.sum(r_qnp) / len(r_qnp) if r_qnp else np.nan
-            abs_diff = r_qp - r_qnp
-            diffs[component] = (abs_diff, abs_diff / r_qnp)
+            r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else np.nan
+            diff = r_qp - r_qnp
+            rel_diff = diff / r_qnp
+            diffs[component] = (diff if not np.isnan(diff) else 0.0,
+                                rel_diff if not np.isnan(rel_diff) else 0.0)
         df = pd.DataFrame.from_dict(diffs, orient="index", columns=["absolute", "relative"])
-        return df.sort_values(ascending=False, by="absolute")
+        return df.sort_values(ascending=False, by="absolute", key=abs)
 
     def __efficient_causes(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """ Generate efficient causes for the queried action.
@@ -300,7 +302,8 @@ class XAVIAgent(ip.MCTSAgent):
             # save trajectories of each agent
             for agent_id, agent in last_node.run_results[-1].agents.items():
                 trajectory = ip.StateTrajectory(self.fps)
-                trajectory.extend(observations[agent_id][0], reload_path=False)
+                observed_trajectory = observations[agent_id][0]
+                trajectory.extend(observed_trajectory, reload_path=False)
                 sim_trajectory = agent.trajectory_cl.slice(1, None)
 
                 # Retrieve maneuvers and macro actions for non-ego vehicles
@@ -308,8 +311,7 @@ class XAVIAgent(ip.MCTSAgent):
                     plan = self.cf_goals_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
                     fill_missing_actions(sim_trajectory, plan)
 
-                if (self.query.type in ["why", "whynot"] and agent_id == self.agent_id) or \
-                        (self.query.type == "whatif" and agent_id == self.query.agent_id):
+                if agent_id == self.query.agent_id:
                     trajectory_queried_agent = sim_trajectory
 
                 trajectory.extend(sim_trajectory, reload_path=True)

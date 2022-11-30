@@ -3,6 +3,8 @@ import igp2 as ip
 from dataclasses import dataclass
 from typing import List, Dict
 
+from xavi.util import fix_initial_state
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,6 +55,8 @@ class ActionMatching:
                           'GoStraightJunction'
                           'GiveWay',
                           'GoStraight']
+        self.__trajectory = None
+        self.__segmentation = None
         self.__eps = eps
 
     def action_segmentation(self, trajectory: ip.StateTrajectory) -> List[ActionSegment]:
@@ -61,6 +65,11 @@ class ActionMatching:
         Args:
             trajectory: Trajectory to segment.
         """
+        if self.__segmentation is not None and self.__trajectory == trajectory:
+            return self.__segmentation
+
+        fix_initial_state(trajectory)
+        self.__trajectory = trajectory
 
         action_sequences = []
         for inx in range(len(trajectory.times)):
@@ -98,17 +107,19 @@ class ActionMatching:
 
         # aggregate same actions during a period
         action_segmentations = []
-        times = []
+        actions, times = [], []
+        start_time = int(trajectory.states[0].time)
         previous_actions = action_sequences[0]
-        for inx, actions in enumerate(action_sequences, int(trajectory.states[0].time)):
+        for inx, actions in enumerate(action_sequences, start_time):
             if previous_actions != actions:
                 action_segmentations.append(ActionSegment(times, previous_actions))
                 times = []
                 previous_actions = actions
             times.append(inx)
-            if inx == len(action_sequences) - 1:
-                action_segmentations.append(ActionSegment(times, actions))
+        else:
+            action_segmentations.append(ActionSegment(times, actions))
 
+        self.__segmentation = action_segmentations
         return action_segmentations
 
     def action_matching(self, action: str, trajectory: ip.StateTrajectory) -> bool:
@@ -160,3 +171,13 @@ class ActionMatching:
     def action_library(self) -> List[str]:
         """ The available actions for a query. """
         return self.__actions
+
+    @property
+    def segmentation(self) -> List[ActionSegment]:
+        """ The most recently calculated action segmentation. """
+        return self.__segmentation
+
+    @property
+    def trajectory(self) -> ip.StateTrajectory:
+        """ The most recently passed trajectory for segmentation. """
+        return self.__trajectory
