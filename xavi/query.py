@@ -65,21 +65,21 @@ class Query:
             t_action, tau = self.determine_tau_counterfactual(action_segmentations, len_states, True)
 
         elif self.type == QueryType.WHAT_IF:
-            tau = 0
+            tau = len_states - 1
             if self.negative:
                 t_action, _ = self.determine_tau_factual(action_segmentations, len_states, False)
             else:
                 t_action, _ = self.determine_tau_counterfactual(action_segmentations, len_states, False)
 
         elif self.type == QueryType.WHAT:
-            tau = 0
+            tau = len_states - 1
             # TODO (mid): Assumes query parsing can extract reference time point.
             t_action = self.t_action
         else:
             raise ValueError(f"Unknown query type {self.type}.")
 
         assert tau >= 0, f"Tau cannot be negative."
-        if tau == len_states - 1:
+        if tau == 0:
             logger.warning(f"Rollback to the start of an entire observation.")
 
         if self.tau is None:
@@ -121,7 +121,7 @@ class Query:
             # TODO (high): One extra segment is usually very short. Could go back 2 segments or enforce a minimum limit.
             previous_inx = max(0, n_segments - segment_inx - 1)
             previous_segment = action_segmentations[previous_inx]
-            tau = min(len_states - 1, len_states - previous_segment.times[0])
+            tau = max(1, previous_segment.times[0])
 
         return t_action, tau
 

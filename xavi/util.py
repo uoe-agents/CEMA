@@ -28,7 +28,7 @@ def to_state_trajectory(
 
 
 def truncate_observations(observations: Observations, tau: int) -> (Observations, Dict[int, ip.AgentState]):
-    """ Truncate all observations from the end with tau timesteps.
+    """ Truncate all observations from the end down to timestep tau.
 
      Args:
          observations: The observations to truncate.
@@ -38,12 +38,11 @@ def truncate_observations(observations: Observations, tau: int) -> (Observations
     previous_frame = {}
     for agent_id, observation in observations.items():
         frame = observation[1]
-        len_states = len(observation[0].states)
-        if len_states > tau:
-            truncated_obs[agent_id] = (observation[0].slice(0, len_states - tau), frame)
-            previous_frame[agent_id] = observation[0].states[len_states - tau - 1]
+        if tau > 0:
+            truncated_obs[agent_id] = (observation[0].slice(0, tau), frame)
+            previous_frame[agent_id] = observation[0].states[tau - 1]
         else:
-            logger.warning(f"Agent {agent_id}: tau({tau}) >= number of observations({len_states}.)")
+            raise ValueError(f"Agent {agent_id}: tau({tau}) <= 0.")
     return truncated_obs, previous_frame
 
 

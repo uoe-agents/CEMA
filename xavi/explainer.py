@@ -53,6 +53,7 @@ class XAVIAgent(ip.MCTSAgent):
         self.__previous_mcts = ip.MCTS(scenario_map=kwargs["scenario_map"],
                                        n_simulations=kwargs.get("cf_n_simulations", cf_n_simulations),
                                        max_depth=kwargs.get("cf_max_depth", cf_max_depth),
+                                       reward=self.mcts.reward,
                                        store_results="all")
         self.__features = Features()
         self.__matching = ActionMatching()
@@ -190,7 +191,7 @@ class XAVIAgent(ip.MCTSAgent):
         for m, item in self.cf_dataset.items():
             trajectories_past, trajectories_future = {}, {}
             for aid, traj in item.trajectories.items():
-                trajectories_past[aid] = traj.slice(0, self.query.t_action)
+                trajectories_past[aid] = traj.slice(self.query.tau, self.query.t_action)
                 trajectories_future[aid] = traj.slice(self.query.t_action, None)
             xs_past.append(self.__features.to_features(self.agent_id, trajectories_past))
             xs_future.append(self.__features.to_features(self.agent_id, trajectories_future))
