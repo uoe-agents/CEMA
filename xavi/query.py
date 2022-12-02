@@ -48,7 +48,7 @@ class Query:
         Storing results in fields tau, and t_action.
 
         Args:
-            Observations of the environment up to current time step.
+            observations: Trajectories observed (and possibly extended with future predictions) of the environment.
         """
         agent_id = self.agent_id
         if self.type == QueryType.WHAT_IF:

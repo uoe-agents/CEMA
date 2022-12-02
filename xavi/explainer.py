@@ -1,18 +1,17 @@
-import pickle
-
 import numpy as np
 import pandas as pd
 import logging
 
 import igp2 as ip
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass
+
 from sklearn.linear_model import LogisticRegression
 
 from xavi.features import Features
 from xavi.util import fill_missing_actions, truncate_observations, \
-    to_state_trajectory, Observations
-from xavi.matching import ActionMatching, ActionGroup
+    to_state_trajectory, find_join_index, Observations
+from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
 
 logger = logging.getLogger(__name__)
@@ -49,22 +48,33 @@ class XAVIAgent(ip.MCTSAgent):
         super(XAVIAgent, self).__init__(**kwargs)
 
         self.__n_trajectories = cf_n_trajectories
-        self.__previous_goal_probabilities = None
-        self.__previous_mcts = ip.MCTS(scenario_map=kwargs["scenario_map"],
-                                       n_simulations=kwargs.get("cf_n_simulations", cf_n_simulations),
-                                       max_depth=kwargs.get("cf_max_depth", cf_max_depth),
-                                       reward=self.mcts.reward,
-                                       store_results="all")
-        self.__features = Features()
-        self.__matching = ActionMatching()
         self.__scenario_map = kwargs["scenario_map"]
 
-        self.__previous_observations = None
-        self.__previous_dataset = None
+        self.__cf_n_simulations = kwargs.get("cf_n_simulations", cf_n_simulations)
+        self.__cf_max_depth = kwargs.get("cf_max_depth", cf_max_depth)
+        self.__cf_goal_probabilities_dict = {"tau": None, "t_action": None}
+        self.__cf_observations_dict = {"tau": None, "t_action": None}
+        self.__cf_dataset_dict = {"tau": None, "t_action": None}
+        self.__cf_mcts_dict = {
+            "tau": ip.MCTS(scenario_map=self.__scenario_map,
+                           n_simulations=self.__cf_n_simulations,
+                           max_depth=self.__cf_max_depth,
+                           reward=self.mcts.reward,
+                           store_results="all"),
+            "t_action": ip.MCTS(scenario_map=self.__scenario_map,
+                                n_simulations=self.__cf_n_simulations,
+                                max_depth=self.__cf_max_depth,
+                                reward=self.mcts.reward,
+                                store_results="all"),
+        }
+
+        self.__features = Features()
+        self.__matching = ActionMatching()
+        self.__previous_queries = []
         self.__user_query = None
         self.__current_t = None
-
-        self.__previous_queries = []
+        self.__observations_segments = None
+        self.__total_trajectories = None
 
     def explain_actions(self, user_query: Query) -> Any:  # TODO (high): Replace return value once we know what it is.
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
@@ -74,30 +84,80 @@ class XAVIAgent(ip.MCTSAgent):
         """
         self.__user_query = user_query
         self.__current_t = self.observations[self.agent_id][0].states[-1].time
+        if self.__observations_segments is None or user_query.t_query != self.__current_t:
+            self.__observations_segments = {}
+            for aid, obs in self.observations.items():
+                self.__observations_segments[aid] = self.__matching.action_segmentation(obs[0])
+        if self.__total_trajectories is None or user_query.t_query != self.__current_t:
+            self.__total_trajectories = self.__get_total_trajectories()
 
         # Determine timing information of the query.
-        self.query.get_tau(self.observations)
+        self.query.get_tau(self.total_observations)
         logger.info(f"Running explanation for {self.query}.")
 
         if self.query.type == QueryType.WHAT:
             return self.__explain_what()
+        elif self.query.type == QueryType.WHY:
+            # Generate new or update existing dataset.
+            self.__get_counterfactuals(["tau", "t_action"])
 
-        # Generate new or update existing dataset.
-        self.__get_counterfactuals()
+            assert self.__cf_dataset_dict["t_action"] is not None, f"Missing counterfactual dataset."
 
-        assert self.__previous_dataset is not None, f"No counterfactual data set present."
+            # If t_action < t_current_action: Past time; Need tau and t_action
+            # If t_action in t_current_action: Current time; Need tau and t_action
+            # If t_action > t_current_action: Future time; Only t_current_action
 
-        final_causes = self.__final_causes()
+            final_causes = self.__final_causes()
+            past_causes, future_causes = self.__efficient_causes()
 
         if self.query.type == QueryType.WHAT_IF:
             # TODO: Determine most likely action under counterfactual condition.
             pass
 
-        past_causes, future_causes = self.__efficient_causes()
-
         # TODO: Convert to NL explanations through language templates.
 
         self.__previous_queries.append(self.__user_query)
+
+    def __get_total_trajectories(self) -> Observations:
+        """ Return the optimal predicted trajectories for all agents. This would be the optimal MCTS plan for
+        the ego and the MAP predictions for non-ego agents.
+
+         Returns:
+             Optimal predicted trajectories and their initial state as Observations.
+         """
+        # Use observations until current time
+        ret = {}
+        map_predictions = {aid: p.map_prediction() for aid, p in self.goal_probabilities.items()}
+
+        for agent_id in self.observations:
+            trajectory = ip.StateTrajectory(self.fps)
+            trajectory.extend(self.observations[agent_id][0], reload_path=False)
+
+            # Find simulated trajectory that matches best with observations and predictions
+            if agent_id == self.agent_id:
+                optimal_rollouts = self.mcts.results.optimal_rollouts
+                matching_rollout = None
+                for rollout in optimal_rollouts:
+                    for aid, prediction in map_predictions.items():
+                        if rollout.samples[aid] != prediction: break
+                    else:
+                        matching_rollout = rollout
+                        break
+                last_node = matching_rollout.tree[matching_rollout.trace[:-1]]
+                agent = last_node.run_results[-1].agents[agent_id]
+                sim_trajectory = agent.trajectory_cl
+            else:
+                goal, sim_trajectory = map_predictions[agent_id]
+                plan = self.goal_probabilities[agent_id].trajectory_to_plan(goal, sim_trajectory)
+                sim_trajectory = to_state_trajectory(sim_trajectory, plan, self.fps)
+
+            # Truncate trajectory to time step nearest to the final observation of the agent
+            join_index = find_join_index(self.__scenario_map, trajectory, sim_trajectory)
+            sim_trajectory = sim_trajectory.slice(int(join_index), None)
+
+            trajectory.extend(sim_trajectory, reload_path=True, reset_times=True)
+            ret[agent_id] = (trajectory, sim_trajectory.states[0])
+        return ret
 
     def __explain_what(self) -> ActionGroup:
         """ Generate an explanation to a what query. Involves looking up the trajectory segment at T and
@@ -111,35 +171,7 @@ class XAVIAgent(ip.MCTSAgent):
             logger.warning(f"No Agent ID given for what-query. Falling back to ego ID.")
             self.query.agent_id = self.agent_id
 
-        # Use observations until current time
-        trajectory = ip.StateTrajectory(self.fps)
-        trajectory.extend(self.observations[self.query.agent_id][0], reload_path=False)
-
-        # Find simulated trajectory that matches best with observations and predictions
-        map_preds = {aid: p.map_prediction() for aid, p in self.goal_probabilities.items()}
-        if self.query.agent_id == self.agent_id:
-            optimal_rollouts = self.mcts.results.optimal_rollouts
-            matching_rollout = None
-            for rollout in optimal_rollouts:
-                for aid, map_pred in map_preds.items():
-                    if rollout.samples[aid] != map_pred: break
-                else:
-                    matching_rollout = rollout
-                    break
-            last_node = matching_rollout.tree[matching_rollout.trace[:-1]]
-            agent = last_node.run_results[-1].agents[self.query.agent_id]
-            sim_trajectory = agent.trajectory_cl
-        else:
-            goal, sim_trajectory = map_preds[self.query.agent_id]
-            plan = self.goal_probabilities[self.query.agent_id].trajectory_to_plan(goal, sim_trajectory)
-            sim_trajectory = to_state_trajectory(sim_trajectory, plan, self.fps)
-
-        # Truncate trajectory to time step nearest to the final observation of the agent
-        last_point = self.observations[self.query.agent_id][0].path[-1]
-        closest_idx = np.argmin(np.linalg.norm(sim_trajectory.path - last_point, axis=1))
-        sim_trajectory = sim_trajectory.slice(closest_idx, None)
-        trajectory.extend(sim_trajectory, reload_path=True)
-
+        trajectory = self.total_observations[self.query.agent_id][0]
         start_t = self.query.t_action
         if start_t >= len(trajectory):
             logger.warning(f"Total trajectory for Agent {self.query.agent_id} is not "
@@ -157,7 +189,7 @@ class XAVIAgent(ip.MCTSAgent):
         """
         query_present = {}
         query_not_present = {}
-        for mid, item in self.cf_dataset.items():
+        for mid, item in self.cf_datasets["t_action"].items():
             # TODO: Filter for trajectories that match the observations between tau and t_action_start.
             if item.action_present:
                 query_present[mid] = item
@@ -169,12 +201,12 @@ class XAVIAgent(ip.MCTSAgent):
             factor = self._reward.factors.get(component, 1.0)
             r_qp = [factor * item.reward[component] for item in query_present.values()
                     if item.reward[component] is not None]
-            r_qp = np.sum(r_qp) / len(r_qp) if r_qp else np.nan
+            r_qp = np.sum(r_qp) / len(r_qp) if r_qp else 0.0
             r_qnp = [factor * item.reward[component] for item in query_not_present.values()
                      if item.reward[component] is not None]
-            r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else np.nan
+            r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else 0.0
             diff = r_qp - r_qnp
-            rel_diff = diff / r_qnp
+            rel_diff = diff / np.abs(r_qnp)
             diffs[component] = (diff if not np.isnan(diff) else 0.0,
                                 rel_diff if not np.isnan(rel_diff) else 0.0)
         df = pd.DataFrame.from_dict(diffs, orient="index", columns=["absolute", "relative"])
@@ -188,15 +220,20 @@ class XAVIAgent(ip.MCTSAgent):
         """
         xs_past, ys_past = [], []
         xs_future, ys_future = [], []
-        for m, item in self.cf_dataset.items():
+        tau_dataset = self.cf_datasets["tau"]
+        t_action_dataset = self.cf_datasets["t_action"]
+        for m in range(self.__cf_n_simulations):
             trajectories_past, trajectories_future = {}, {}
-            for aid, traj in item.trajectories.items():
+            item_past = tau_dataset[m]
+            for aid, traj in tau_dataset[m].trajectories.items():
                 trajectories_past[aid] = traj.slice(self.query.tau, self.query.t_action)
+            item_future = t_action_dataset[m]
+            for aid, traj in t_action_dataset[m].trajectories.items():
                 trajectories_future[aid] = traj.slice(self.query.t_action, None)
             xs_past.append(self.__features.to_features(self.agent_id, trajectories_past))
             xs_future.append(self.__features.to_features(self.agent_id, trajectories_future))
-            ys_past.append(item.action_present)
-            ys_future.append(item.action_present)
+            ys_past.append(item_past.action_present)
+            ys_future.append(item_future.action_present)
         X_past, y_past = self.__features.binarise(xs_past, ys_past)
         X_future, y_future = self.__features.binarise(xs_future, ys_future)
         model_past = LogisticRegression().fit(X_past, y_past)
@@ -216,34 +253,55 @@ class XAVIAgent(ip.MCTSAgent):
 
     # ---------Counterfactual rollout generation---------------
 
-    def __get_counterfactuals(self):
-        """ Get observations from tau time steps before, and call MCTS from that joint state."""
+    def __get_counterfactuals(self, times: List[str]):
+        """ Get observations from tau time steps before, and call MCTS from that joint state.
+
+        Args:
+            times: The time reference points at which timestep to run MCTS from. Either tau or t_action for now.
+        """
         logger.info("Generating counterfactual rollouts.")
 
-        self.__previous_observations, previous_frame = \
-            truncate_observations(self.observations, self.query.tau)
+        for time_reference in times:
+            self.__generate_counterfactuals_from_time(time_reference)
 
+    def __generate_counterfactuals_from_time(self, time_reference: str):
+        """ Generate a counterfactual dataset from the time reference point.
+
+         Args:
+             time_reference: Either tau or t_action.
+         """
+        t = getattr(self.query, time_reference)
+        truncated_observations, previous_frame = truncate_observations(self.observations, t)
+        self.__cf_observations_dict[time_reference] = truncated_observations
+
+        logger.debug(f"Generating counterfactuals at {time_reference} ({t})")
         if previous_frame:
-            previous_observation = ip.Observation(previous_frame, self.__scenario_map)
-            previous_goals = self.get_goals(previous_observation)
-            self.__generate_rollouts(previous_observation, previous_goals)
-            self.__previous_dataset = self.__get_dataset(
-                self.__previous_mcts.results, self.__previous_observations)
+            observation = ip.Observation(previous_frame, self.__scenario_map)
+            goals = self.get_goals(observation)
+            goal_probabilities = {aid: ip.GoalsProbabilities(goals)
+                                  for aid in previous_frame.keys() if aid != self.agent_id}
+            mcts = self.__cf_mcts_dict[time_reference]
+
+            self.__generate_rollouts(previous_frame,
+                                     truncated_observations,
+                                     goal_probabilities,
+                                     mcts)
+            self.__cf_goal_probabilities_dict[time_reference] = goal_probabilities
+            self.__cf_dataset_dict[time_reference] = self.__get_dataset(
+                mcts.results, goal_probabilities, truncated_observations)
 
     def __generate_rollouts(self,
-                            previous_observation: ip.Observation,
-                            previous_goals: List[ip.Goal]):
+                            frame: Dict[int, ip.AgentState],
+                            observations: Observations,
+                            goal_probabilities: Dict[int, ip.GoalsProbabilities],
+                            mcts: ip.MCTS):
         """ Runs MCTS to generate a new sequence of macro actions to execute using previous observations.
 
         Args:
-            previous_observation: Observation of the env tau time steps back.
-            previous_goals: Possible goals from the state tau time steps back.
+            frame: Observation of the env tau time steps back.
+            observations: Dictionary of observation history.
+            goal_probabilities: Dictionary of predictions for each non-ego agent.
         """
-        frame = previous_observation.frame
-        agents_metadata = {aid: state.metadata for aid, state in frame.items()}
-        self.__previous_goal_probabilities = \
-            {aid: ip.GoalsProbabilities(previous_goals)
-             for aid in frame.keys() if aid != self.agent_id}
         visible_region = ip.Circle(frame[self.agent_id].position, self.view_radius)
 
         # Increase number of trajectories to generate
@@ -255,12 +313,12 @@ class XAVIAgent(ip.MCTSAgent):
                 continue
 
             # Generate all possible trajectories for non-egos from tau time steps back
-            gps = self.__previous_goal_probabilities[agent_id]
+            gps = goal_probabilities[agent_id]
             self._goal_recognition.update_goals_probabilities(
                 goals_probabilities=gps,
-                observed_trajectory=self.__previous_observations[agent_id][0],
+                observed_trajectory=observations[agent_id][0],
                 agent_id=agent_id,
-                frame_ini=self.__previous_observations[agent_id][1],
+                frame_ini=observations[agent_id][1],
                 frame=frame,
                 visible_region=visible_region)
 
@@ -277,21 +335,24 @@ class XAVIAgent(ip.MCTSAgent):
         self._goal_recognition._n_trajectories = n_trajectories
 
         # Run MCTS search for counterfactual simulations while storing run results
-        self.__previous_mcts.search(
+        agents_metadata = {aid: state.metadata for aid, state in frame.items()}
+        mcts.search(
             agent_id=self.agent_id,
             goal=self.goal,
             frame=frame,
             meta=agents_metadata,
-            predictions=self.__previous_goal_probabilities)
+            predictions=goal_probabilities)
 
     def __get_dataset(self,
                       mcts_results: ip.AllMCTSResult,
+                      goal_probabilities: Dict[int, ip.GoalsProbabilities],
                       observations: Observations) \
             -> Dict[int, Item]:
         """ Return dataset recording states, boolean feature, and reward
 
          Args:
              mcts_results: MCTS results class to convert to a dataset.
+             goal_probabilities: Predictions for non-ego vehicles.
              observations: The observations that preceded the planning step.
          """
         dataset = {}
@@ -312,7 +373,7 @@ class XAVIAgent(ip.MCTSAgent):
 
                 # Retrieve maneuvers and macro actions for non-ego vehicles
                 if agent_id != self.agent_id:
-                    plan = self.cf_goals_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
+                    plan = goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
                     fill_missing_actions(sim_trajectory, plan)
 
                 if agent_id == self.query.agent_id:
@@ -342,16 +403,31 @@ class XAVIAgent(ip.MCTSAgent):
     # -------------Field access properties-------------------
 
     @property
-    def cf_dataset(self) -> Dict[int, Item]:
-        """ The most recently generated set of counterfactual features with the key being its index. """
-        return self.__previous_dataset
+    def cf_datasets(self) -> Dict[str, Optional[Dict[int, Item]]]:
+        """ The most recently generated set of counterfactuals rolled back to tau. """
+        return self.__cf_dataset_dict
+
+    @property
+    def cf_goals_probabilities(self) -> Dict[str, Optional[Dict[int, ip.GoalsProbabilities]]]:
+        """ The goal and trajectory probabilities inferred from tau time steps ago. """
+        return self.__cf_goal_probabilities_dict
+
+    @property
+    def cf_n_simulations(self) -> int:
+        """ The number of rollouts to perform in counterfactual MCTS. """
+        return self.__cf_n_simulations
+
+    @property
+    def total_observations(self) -> Observations:
+        """ Returns the factual observations extended with the most optimal predicted trajectory for all agents. """
+        return self.__total_trajectories
+
+    @property
+    def observation_segmentations(self) -> Dict[int, List[ActionSegment]]:
+        """ Segmentations of the observed trajectories for each vehicle. """
+        return self.__observations_segments
 
     @property
     def query(self) -> Query:
         """ The most recently asked user query. """
         return self.__user_query
-
-    @property
-    def cf_goals_probabilities(self) -> Dict[int, ip.GoalsProbabilities]:
-        """ The goal and trajectory probabilities inferred from tau time steps ago. """
-        return self.__previous_goal_probabilities
