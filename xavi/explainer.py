@@ -112,47 +112,7 @@ class XAVIAgent(ip.MCTSAgent):
             past_causes, future_causes = self.__efficient_causes()
 
         elif self.query.type == QueryType.WHAT_IF:
-            # TODO: Determine most likely action under counterfactual condition.
-            # generate a new dataset, output the most likely action
-            mcts_results_label = []
-            self.__generate_counterfactuals_from_time("t_action")
-            for key, tra in self.cf_datasets["t_action"].items():
-                if self.query.negative and not tra.action_present:
-                    mcts_results_label.append(self.__mcts_resampled.results.mcts_results[key])
-                elif not self.query.negative and tra.action_present:
-                    mcts_results_label.append(self.__mcts_resampled.results.mcts_results[key])
-            # find the maximum q value and the corresponding action
-            q_max = float('-inf')
-            tra_optimal = None
-            for m, rollout in enumerate(mcts_results_label):
-                last_node = rollout.tree[rollout.trace[:-1]]
-                if last_node.run_results[-1].q_values.max() > q_max:
-                    q_max = last_node.run_results[-1].q_values.max()
-                    agent = last_node.run_results[-1].agents[self.agent_id]
-                    tra_optimal = agent.trajectory_cl
-                    action = last_node.actions_names[-1]
-                    reward_counter = last_node.reward_results[action]
-            segments = self.__matching.action_segmentation(tra_optimal)
-            grouped_segments = ActionGroup.group_by_maneuver(segments)
-            maneuver = [seg for seg in grouped_segments if seg.start <= self.query.t_action <= seg.end][0]
-
-            # determine final cause, compare initial optimal maneuver and counter optimal maneuver
-            map_predictions = {aid: p.map_prediction() for aid, p in self.cf_goals_probabilities["t_action"].items()}
-            optimal_rollouts = self.__mcts_resampled.results.optimal_rollouts
-            matching_rollout = None
-            for rollout in optimal_rollouts:
-                for aid, prediction in map_predictions.items():
-                    if rollout.samples[aid] != prediction: break
-                else:
-                    matching_rollout = rollout
-                    break
-            last_node = matching_rollout.tree[matching_rollout.trace[:-1]]
-            action = last_node.actions_names[-1]
-            reward_init = last_node.reward_results[action]
-
-            # TODO: compare reward counter and reward init
-
-            return maneuver
+            self.__explain_whatif()
 
         # TODO: Convert to NL explanations through language templates.
 
@@ -293,6 +253,73 @@ class XAVIAgent(ip.MCTSAgent):
         return coefs_past, coefs_future
 
     # ---------Counterfactual rollout generation---------------
+
+    def __explain_whatif(self) -> [ActionGroup, pd.DataFrame]:
+        """ Generate an explanation to a whatif query. Labeling trajectories in query and finding optimal one among them.
+        comparing the optimal one with factual optimal one regarding their reward components
+
+        Returns:
+            An action group of the executed action at the user given time point.
+            A fina cause to explain that action
+        """
+        # generate a new dataset, output the most likely action
+        mcts_results_label = []
+        self.__generate_counterfactuals_from_time("t_action")
+        for key, tra in self.cf_datasets["t_action"].items():
+            if self.query.negative and not tra.action_present:
+                mcts_results_label.append(self.__mcts_resampled.results.mcts_results[key])
+            elif not self.query.negative and tra.action_present:
+                mcts_results_label.append(self.__mcts_resampled.results.mcts_results[key])
+        # find the maximum q value and the corresponding action
+        q_max = float('-inf')
+        last_node_optimal = None
+        rollout_optimal = None
+        for m, rollout in enumerate(mcts_results_label):
+            last_node = rollout.tree[rollout.trace[:-1]]
+            if last_node.run_results[-1].q_values.max() > q_max:
+                q_max = last_node.run_results[-1].q_values.max()
+                last_node_optimal = last_node
+                rollout_optimal = rollout
+
+        agent = last_node_optimal.run_results[-1].agents[self.agent_id]
+        tra_optimal = agent.trajectory_cl
+        # save reward for each component
+        r_counter = None
+        for last_action, reward_value, in last_node_optimal.reward_results.items():
+            if last_action == rollout_optimal.trace[-1]:
+                r_counter = reward_value[-1].reward_components
+
+        segments = self.__matching.action_segmentation(tra_optimal)
+        grouped_segments = ActionGroup.group_by_maneuver(segments)
+        maneuver = [seg for seg in grouped_segments if seg.start <= self.query.t_action <= seg.end][0]
+
+        # determine the actual optimal maneuver and reward
+        map_predictions = {aid: p.map_prediction() for aid, p in self.cf_goals_probabilities["t_action"].items()}
+        optimal_rollouts = self.__mcts_resampled.results.optimal_rollouts
+        matching_rollout = None
+        for rollout in optimal_rollouts:
+            for aid, prediction in map_predictions.items():
+                if rollout.samples[aid] != prediction: break
+            else:
+                matching_rollout = rollout
+                break
+        last_node = matching_rollout.tree[matching_rollout.trace[:-1]]
+        # save reward for each component
+        r_init = None
+        for last_action, reward_value, in last_node.reward_results.items():
+            if last_action == matching_rollout.trace[-1]:
+                r_init = reward_value[-1].reward_components
+        # compare reward initial and reward counter
+        diffs = {}
+        for component in self._reward.COMPONENTS:
+            factor = self._reward.factors.get(component, 1.0)
+            r_c = factor * r_counter[component] if r_init[component] is not None else 0.0
+            r_i = factor * r_init[component] if r_init[component] is not None else 0.0
+            diff = r_c - r_i
+            diffs[component] = diff if not np.isnan(diff) else 0.0
+        df = pd.DataFrame.from_dict(diffs, orient="index", columns=["absolute"])
+        df.sort_values(ascending=False, by="absolute", key=abs)
+        return maneuver, df
 
     def __get_counterfactuals(self, times: List[str]):
         """ Get observations from tau time steps before, and call MCTS from that joint state.
