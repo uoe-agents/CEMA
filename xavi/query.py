@@ -112,16 +112,23 @@ class Query:
                 break
         else:
             if action_matched:
-                t_action = 0
+                t_action = 1
                 segment_inx = n_segments - 1
             else:
                 raise ValueError(f"Could not match action {self.action} to trajectory.")
 
         if rollback and segment_inx >= 0:
-            # TODO (high): One extra segment is usually very short. Could go back 2 segments or enforce a minimum limit.
+            # in case One extra segment is too short. lower limit is defined.
+            lower_limit = 1 # unit: second
+            upper_limit = 5
             previous_inx = max(0, n_segments - segment_inx - 1)
             previous_segment = action_segmentations[previous_inx]
-            tau = max(1, previous_segment.times[0])
+            tau = previous_segment.times[0]
+            if t_action - tau < lower_limit/0.05:
+                tau = int(t_action - lower_limit / 0.05)
+            elif t_action - tau > upper_limit/0.05:
+                tau = int(t_action - upper_limit / 0.05)
+            tau = max(1, tau)
 
         return t_action, tau
 
