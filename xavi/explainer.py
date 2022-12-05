@@ -75,6 +75,7 @@ class XAVIAgent(ip.MCTSAgent):
         self.__current_t = None
         self.__observations_segments = None
         self.__total_trajectories = None
+        self.__mcts_resampled = None
 
     def explain_actions(self, user_query: Query) -> Any:  # TODO (high): Replace return value once we know what it is.
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
@@ -110,20 +111,60 @@ class XAVIAgent(ip.MCTSAgent):
             final_causes = self.__final_causes()
             past_causes, future_causes = self.__efficient_causes()
 
-        if self.query.type == QueryType.WHAT_IF:
+        elif self.query.type == QueryType.WHAT_IF:
             # TODO: Determine most likely action under counterfactual condition.
-            pass
+            # generate a new dataset, output the most likely action
+            mcts_results_label = []
+            self.__generate_counterfactuals_from_time("t_action")
+            for key, tra in self.cf_datasets["t_action"].items():
+                if self.query.negative and not tra.action_present:
+                    mcts_results_label.append(self.__mcts_resampled.results.mcts_results[key])
+                elif not self.query.negative and tra.action_present:
+                    mcts_results_label.append(self.__mcts_resampled.results.mcts_results[key])
+            # find the maximum q value and the corresponding action
+            q_max = float('-inf')
+            tra_optimal = None
+            for m, rollout in enumerate(mcts_results_label):
+                last_node = rollout.tree[rollout.trace[:-1]]
+                if last_node.run_results[-1].q_values.max() > q_max:
+                    q_max = last_node.run_results[-1].q_values.max()
+                    agent = last_node.run_results[-1].agents[self.agent_id]
+                    tra_optimal = agent.trajectory_cl
+                    action = last_node.actions_names[-1]
+                    reward_counter = last_node.reward_results[action]
+            segments = self.__matching.action_segmentation(tra_optimal)
+            grouped_segments = ActionGroup.group_by_maneuver(segments)
+            maneuver = [seg for seg in grouped_segments if seg.start <= self.query.t_action <= seg.end][0]
+
+            # determine final cause, compare initial optimal maneuver and counter optimal maneuver
+            map_predictions = {aid: p.map_prediction() for aid, p in self.cf_goals_probabilities["t_action"].items()}
+            optimal_rollouts = self.__mcts_resampled.results.optimal_rollouts
+            matching_rollout = None
+            for rollout in optimal_rollouts:
+                for aid, prediction in map_predictions.items():
+                    if rollout.samples[aid] != prediction: break
+                else:
+                    matching_rollout = rollout
+                    break
+            last_node = matching_rollout.tree[matching_rollout.trace[:-1]]
+            action = last_node.actions_names[-1]
+            reward_init = last_node.reward_results[action]
+
+            # TODO: compare reward counter and reward init
+
+            return maneuver
 
         # TODO: Convert to NL explanations through language templates.
 
         self.__previous_queries.append(self.__user_query)
 
-    def __get_total_trajectories(self) -> Observations:
+    def __get_total_trajectories(self) -> [Observations, List]:
         """ Return the optimal predicted trajectories for all agents. This would be the optimal MCTS plan for
         the ego and the MAP predictions for non-ego agents.
 
          Returns:
              Optimal predicted trajectories and their initial state as Observations.
+             The reward
          """
         # Use observations until current time
         ret = {}
@@ -289,6 +330,7 @@ class XAVIAgent(ip.MCTSAgent):
             self.__cf_goal_probabilities_dict[time_reference] = goal_probabilities
             self.__cf_dataset_dict[time_reference] = self.__get_dataset(
                 mcts.results, goal_probabilities, truncated_observations)
+            self.__mcts_resampled = mcts
 
     def __generate_rollouts(self,
                             frame: Dict[int, ip.AgentState],
