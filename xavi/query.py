@@ -119,7 +119,8 @@ class Query:
 
         if rollback and segment_inx >= 0:
             # in case One extra segment is too short. lower limit is defined.
-            lower_limit = 1 # unit: second
+            # TODO (high): Move hardcoded values to parameters; Pass FPS to class instead of hardcoding 0.05.
+            lower_limit = 1  # unit: second
             upper_limit = 5
             previous_inx = max(0, n_segments - segment_inx - 1)
             previous_segment = action_segmentations[previous_inx]
