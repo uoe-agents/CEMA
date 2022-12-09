@@ -4,6 +4,8 @@ from typing import Tuple, Dict, List
 
 import logging
 import igp2 as ip
+import numpy as np
+
 from xavi.matching import ActionMatching, ActionSegment
 
 logger = logging.getLogger(__name__)
@@ -39,16 +41,22 @@ class Query:
     t_action: int = None
     tau: int = None
 
+    fps: int = 20
+    tau_limits: np.ndarray = np.array([1, 5])
+
     def __post_init__(self):
         self.type = QueryType(self.type)
         self.__matching = ActionMatching()
 
-    def get_tau(self, observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]]):
+    def get_tau(self,
+                observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]],
+                rollouts: ip.AllMCTSResult):
         """ Calculate tau and the start time step of the queried action.
         Storing results in fields tau, and t_action.
 
         Args:
             observations: Trajectories observed (and possibly extended with future predictions) of the environment.
+            rollouts: The actual MCTS rollouts of the agent.
         """
         agent_id = self.agent_id
         if self.type == QueryType.WHAT_IF:
@@ -58,18 +66,17 @@ class Query:
         len_states = len(trajectory.states)
         action_segmentations = self.__matching.action_segmentation(trajectory)
         if self.type == QueryType.WHY:
-            # tau for efficient cause
-            t_action, tau = self.determine_tau_factual(action_segmentations, len_states, True)
+            t_action, tau = self.__get_tau_factual(action_segmentations, True)
 
         elif self.type == QueryType.WHY_NOT:
-            t_action, tau = self.determine_tau_counterfactual(action_segmentations, len_states, True)
+            t_action, tau = self.__get_tau_counterfactual(action_segmentations, len_states, True)
 
         elif self.type == QueryType.WHAT_IF:
             tau = len_states - 1
             if self.negative:
-                t_action, _ = self.determine_tau_factual(action_segmentations, len_states, False)
+                t_action, _ = self.__get_tau_factual(action_segmentations, False)
             else:
-                t_action, _ = self.determine_tau_counterfactual(action_segmentations, len_states, False)
+                t_action, _ = self.__get_tau_counterfactual(action_segmentations, len_states, False)
 
         elif self.type == QueryType.WHAT:
             tau = len_states - 1
@@ -78,7 +85,7 @@ class Query:
         else:
             raise ValueError(f"Unknown query type {self.type}.")
 
-        assert tau >= 0, f"Tau cannot be negative."
+        assert tau is not None and tau >= 0, f"Tau cannot be None or negative."
         if tau == 0:
             logger.warning(f"Rollback to the start of an entire observation.")
 
@@ -86,14 +93,12 @@ class Query:
             self.tau = tau  # If user gave fixed tau then we shouldn't override that.
         self.t_action = t_action
 
-    def determine_tau_factual(self,
-                              action_segmentations: List[ActionSegment],
-                              len_states: int,
-                              rollback: bool) -> (int, int):
+    def __get_tau_factual(self,
+                          action_segmentations: List[ActionSegment],
+                          rollback: bool) -> (int, int):
         """ determine t_action for final causes, tau for efficient cause for why and whatif negative question.
         Args:
             action_segmentations: the segmented action of the observed trajectory.
-            len_states: the length of observation
             rollback: if rollback is needed
 
         Returns:
@@ -118,25 +123,25 @@ class Query:
                 raise ValueError(f"Could not match action {self.action} to trajectory.")
 
         if rollback and segment_inx >= 0:
-            # in case One extra segment is too short. lower limit is defined.
-            # TODO (high): Move hardcoded values to parameters; Pass FPS to class instead of hardcoding 0.05.
-            lower_limit = 1  # unit: second
-            upper_limit = 5
+            # In case one extra segment is too short, then lower limit is used.
+            lower_limit, upper_limit = self.tau_limits * self.fps
             previous_inx = max(0, n_segments - segment_inx - 1)
             previous_segment = action_segmentations[previous_inx]
             tau = previous_segment.times[0]
-            if t_action - tau < lower_limit/0.05:
-                tau = int(t_action - lower_limit / 0.05)
-            elif t_action - tau > upper_limit/0.05:
-                tau = int(t_action - upper_limit / 0.05)
+
+            if t_action - tau < lower_limit:
+                tau = int(t_action - lower_limit)
+            elif t_action - tau > upper_limit:
+                tau = int(t_action - upper_limit)
+
             tau = max(1, tau)
 
         return t_action, tau
 
-    def determine_tau_counterfactual(self,
-                                     action_segmentations: List[ActionSegment],
-                                     len_states: int,
-                                     rollback: bool) -> (int, int):
+    def __get_tau_counterfactual(self,
+                                 action_segmentations: List[ActionSegment],
+                                 len_states: int,
+                                 rollback: bool) -> (int, int):
         """ determine t_action for final causes, tau for efficient cause for whynot and whatif positive question.
         Args:
             action_segmentations: the segmented action of the observed trajectory.
@@ -171,4 +176,3 @@ class Query:
             tau = len_states - previous_segment.times[0]
 
         return t_action, tau
-

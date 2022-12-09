@@ -3,7 +3,7 @@ import pandas as pd
 import logging
 
 import igp2 as ip
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
 from sklearn.linear_model import LogisticRegression
@@ -35,6 +35,7 @@ class XAVIAgent(ip.MCTSAgent):
                  cf_n_trajectories: int = 3,
                  cf_n_simulations: int = 15,
                  cf_max_depth: int = 5,
+                 tau_limits: Tuple[float, float] = (1., 5.),
                  **kwargs):
         """ Create a new XAVIAgent.
 
@@ -43,6 +44,7 @@ class XAVIAgent(ip.MCTSAgent):
             cf_n_trajectories: Number of maximum trajectories to generate with A*.
             cf_n_simulations: Number of MCTS simulations to run for counterfactual generation.
             cf_d_max: Maximum MCTS search depth for counterfactual simulations.
+            tau_limits: Lower and upper bounds on the distance of tau from t_action.
 
         Keyword Args: See arguments of parent-class MCTSAgent.
         """
@@ -50,6 +52,7 @@ class XAVIAgent(ip.MCTSAgent):
         super(XAVIAgent, self).__init__(**kwargs)
 
         self.__n_trajectories = cf_n_trajectories
+        self.__tau_limits = np.ndarray(tau_limits)
         self.__scenario_map = kwargs["scenario_map"]
 
         self.__cf_n_simulations = kwargs.get("cf_n_simulations", cf_n_simulations)
@@ -87,6 +90,9 @@ class XAVIAgent(ip.MCTSAgent):
         Returns: A natural language explanation of the query.
         """
         self.__user_query = user_query
+        self.__user_query.fps = self.fps
+        self.__user_query.tau_limits = self.tau_limits
+
         self.__current_t = self.observations[self.agent_id][0].states[-1].time
         if self.__observations_segments is None or user_query.t_query != self.__current_t:
             self.__observations_segments = {}
@@ -96,7 +102,7 @@ class XAVIAgent(ip.MCTSAgent):
             self.__total_trajectories = self.__get_total_trajectories()
 
         # Determine timing information of the query.
-        self.query.get_tau(self.total_observations)
+        self.query.get_tau(self.total_observations, self.mcts.results)
         logger.info(f"Running explanation for {self.query}.")
 
         if self.query.type == QueryType.WHAT:
@@ -142,7 +148,8 @@ class XAVIAgent(ip.MCTSAgent):
 
     def __efficient_causes(self,
                            tau_dataset: List[Item] = None,
-                           t_action_dataset: List[Item] = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
+                           t_action_dataset: List[Item] = None) \
+            -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
         """ Generate efficient causes for the queried action.
 
         Args:
@@ -155,7 +162,7 @@ class XAVIAgent(ip.MCTSAgent):
         xs_past, ys_past = [], []
         xs_future, ys_future = [], []
         if tau_dataset is None and t_action_dataset is None:
-            return pd.DataFrame(), pd.DataFrame()
+            return None, None
         if tau_dataset is None:
             tau_dataset = t_action_dataset
 
@@ -215,16 +222,19 @@ class XAVIAgent(ip.MCTSAgent):
         Returns: The final and past and future efficient causes for the query.
         """
         logger.info("Generating a why or why-not explanation.")
-        # TODO (high) Generate new or update existing dataset.
-        #  If t_action < t_current_action: Past time; Need tau and t_action
-        #  If t_action in t_current_action: Current time; Need tau and t_action
-        #  If t_action > t_current_action: Future time; Only t_current_action
-        self.__get_counterfactuals(["tau", "t_action"])
-        assert self.__cf_dataset_dict["t_action"] is not None, f"Missing counterfactual dataset."
+        if self.query.t_action > self.__current_t:
+            self.__get_counterfactuals(["t_action"])
+            tau = None
+        else:
+            self.__get_counterfactuals(["tau", "t_action"])
+            tau = list(self.cf_datasets["tau"].values())
 
-        query_present, query_not_present = split_by_query(self.cf_datasets["t_action"].values())
+        assert self.__cf_dataset_dict["t_action"] is not None, f"Missing counterfactual dataset."
+        t_action = list(self.cf_datasets["t_action"].values())
+
+        query_present, query_not_present = split_by_query(t_action)
         final_causes = self.__final_causes(query_present, query_not_present)
-        efficient_causes = self.__efficient_causes()
+        efficient_causes = self.__efficient_causes(tau, t_action)
 
         return final_causes, efficient_causes
 
@@ -240,7 +250,7 @@ class XAVIAgent(ip.MCTSAgent):
         # Generate a new dataset, output the most likely action. Split dataset by the cf action.
         logger.info("Generating what-if explanation.")
         self.__get_counterfactuals(["t_action"])
-        cf_items, f_items = split_by_query(self.cf_datasets["t_action"].values())
+        cf_items, f_items = split_by_query(list(self.cf_datasets["t_action"].values()))
 
         # Find the maximum q-value and the corresponding action sequence of the ego for ea
         cf_optimal_rollout = find_optimal_rollout_in_subset(cf_items)
@@ -496,6 +506,11 @@ class XAVIAgent(ip.MCTSAgent):
     def observation_segmentations(self) -> Dict[int, List[ActionSegment]]:
         """ Segmentations of the observed trajectories for each vehicle. """
         return self.__observations_segments
+
+    @property
+    def tau_limits(self) -> np.ndarray:
+        """ The lower and upper bound of the distance of tau from t_action. """
+        return self.__tau_limits
 
     @property
     def query(self) -> Query:
