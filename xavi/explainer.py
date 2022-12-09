@@ -289,7 +289,7 @@ class XAVIAgent(ip.MCTSAgent):
         """
         logger.info("Generating counterfactual rollouts.")
 
-        previous_query = self.__previous_queries[-1]
+        previous_query = self.__previous_queries[-1] if self.__previous_queries else None
         if not any([self.cf_datasets[t] is None for t in times]) and \
                 previous_query and \
                 previous_query.t_query == self.query.t_query and \
