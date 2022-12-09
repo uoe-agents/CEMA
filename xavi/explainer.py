@@ -93,7 +93,7 @@ class XAVIAgent(ip.MCTSAgent):
         self.__user_query.fps = self.fps
         self.__user_query.tau_limits = self.tau_limits
 
-        self.__current_t = self.observations[self.agent_id][0].states[-1].time
+        self.__current_t = int(self.observations[self.agent_id][0].states[-1].time)
         if self.__observations_segments is None or user_query.t_query != self.__current_t:
             self.__observations_segments = {}
             for aid, obs in self.observations.items():
@@ -102,7 +102,7 @@ class XAVIAgent(ip.MCTSAgent):
             self.__total_trajectories = self.__get_total_trajectories()
 
         # Determine timing information of the query.
-        self.query.get_tau(self.total_observations, self.mcts.results)
+        self.query.get_tau(self.__current_t, self.total_observations, self.mcts.results)
         logger.info(f"Running explanation for {self.query}.")
 
         if self.query.type == QueryType.WHAT:

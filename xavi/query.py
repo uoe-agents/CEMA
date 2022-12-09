@@ -31,6 +31,7 @@ class Query:
         negative: If true then the query will be matched against all trajectories that are NOT equal to action.
         t_action: The start timestep of the action in question.
         tau: The number of timesteps to rollback from the present for counterfactual generation.
+        tense: Past, future, or present. Indicates the time of the query.
     """
 
     type: QueryType
@@ -40,21 +41,28 @@ class Query:
     negative: bool = None
     t_action: int = None
     tau: int = None
+    tense: str = None
 
     fps: int = 20
     tau_limits: np.ndarray = np.array([1, 5])
 
     def __post_init__(self):
-        self.type = QueryType(self.type)
         self.__matching = ActionMatching()
 
+        # Perform value checks
+        self.type = QueryType(self.type)
+        assert self.action in self.__matching.action_library, f"Unknown action {self.action}."
+        assert self.tense in ["past", "present", "future", None], f"Unknown tense {self.tense}."
+
     def get_tau(self,
+                current_t: int,
                 observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]],
                 rollouts: ip.AllMCTSResult):
         """ Calculate tau and the start time step of the queried action.
         Storing results in fields tau, and t_action.
 
         Args:
+            current_t: The current timestep of the simulation
             observations: Trajectories observed (and possibly extended with future predictions) of the environment.
             rollouts: The actual MCTS rollouts of the agent.
         """
@@ -62,24 +70,29 @@ class Query:
         if self.type == QueryType.WHAT_IF:
             agent_id = self.agent_id
 
+        # Obtain relevant trajectory slice and segment it
         trajectory = observations[agent_id][0]
-        len_states = len(trajectory.states)
+        if self.tense in ["past", "present"]:
+            trajectory = trajectory.slice(0, current_t)
+        elif self.tense == "future":
+            trajectory = trajectory.slice(current_t, None)
+        elif self.tense is None:
+            logger.warning(f"Query time was not given. Falling back to observed trajectory.")
+            trajectory = trajectory.slice(0, current_t)
+        len_states = len(trajectory)
         action_segmentations = self.__matching.action_segmentation(trajectory)
+
+        tau = len_states - 1
         if self.type == QueryType.WHY:
             t_action, tau = self.__get_tau_factual(action_segmentations, True)
-
         elif self.type == QueryType.WHY_NOT:
             t_action, tau = self.__get_tau_counterfactual(action_segmentations, len_states, True)
-
         elif self.type == QueryType.WHAT_IF:
-            tau = len_states - 1
             if self.negative:
                 t_action, _ = self.__get_tau_factual(action_segmentations, False)
             else:
                 t_action, _ = self.__get_tau_counterfactual(action_segmentations, len_states, False)
-
         elif self.type == QueryType.WHAT:
-            tau = len_states - 1
             # TODO (mid): Assumes query parsing can extract reference time point.
             t_action = self.t_action
         else:
