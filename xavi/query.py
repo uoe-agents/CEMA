@@ -51,7 +51,8 @@ class Query:
 
         # Perform value checks
         self.type = QueryType(self.type)
-        assert self.action in self.__matching.action_library, f"Unknown action {self.action}."
+        if self.action is not None:
+            assert self.action in self.__matching.action_library, f"Unknown action {self.action}."
         assert self.tense in ["past", "present", "future", None], f"Unknown tense {self.tense}."
 
     def get_tau(self,

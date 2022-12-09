@@ -52,7 +52,7 @@ class XAVIAgent(ip.MCTSAgent):
         super(XAVIAgent, self).__init__(**kwargs)
 
         self.__n_trajectories = cf_n_trajectories
-        self.__tau_limits = np.ndarray(tau_limits)
+        self.__tau_limits = np.array(tau_limits)
         self.__scenario_map = kwargs["scenario_map"]
 
         self.__cf_n_simulations = kwargs.get("cf_n_simulations", cf_n_simulations)
@@ -289,7 +289,15 @@ class XAVIAgent(ip.MCTSAgent):
         """
         logger.info("Generating counterfactual rollouts.")
 
-        # TODO (mid): Add check for repetition so we don't create a new dataset if it is not needed.
+        previous_query = self.__previous_queries[-1]
+        if not any([self.cf_datasets[t] is None for t in times]) and \
+                previous_query and \
+                previous_query.t_query == self.query.t_query and \
+                previous_query.type == self.query.type:
+            if "t_action" in times:
+                times.remove("t_action")
+            if previous_query.tense == self.query.tense:
+                times = []
 
         for time_reference in times:
             self.__generate_counterfactuals_from_time(time_reference)

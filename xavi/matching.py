@@ -52,7 +52,7 @@ class ActionMatching:
                           'ChangeLaneRight',
                           'TurnLeft',
                           'TurnRight',
-                          'GoStraightJunction'
+                          'GoStraightJunction',
                           'GiveWay',
                           'GoStraight']
         self.__trajectory = None
