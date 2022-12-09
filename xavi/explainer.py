@@ -14,6 +14,7 @@ from xavi.util import fill_missing_actions, truncate_observations, \
     find_optimal_rollout_in_subset, split_by_query
 from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
+from xavi.language import LanguageTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,8 @@ class XAVIAgent(ip.MCTSAgent):
 
         self.__features = Features()
         self.__matching = ActionMatching()
+        self.__language = LanguageTemplate()
+
         self.__previous_queries = []
         self.__user_query = None
         self.__current_t = None
@@ -106,17 +109,20 @@ class XAVIAgent(ip.MCTSAgent):
         logger.info(f"Running explanation for {self.query}.")
 
         if self.query.type == QueryType.WHAT:
-            self.__explain_what()
+            causes = self.__explain_what()
         elif self.query.type in [QueryType.WHY, QueryType.WHY_NOT]:
-            self.__explain_why()
+            causes = self.__explain_why()
         elif self.query.type == QueryType.WHAT_IF:
-            self.__explain_whatif()
+            causes = self.__explain_whatif()
         else:
             raise ValueError(f"Unknown query type: {self.query.type}")
 
         # TODO (high): Convert to NL explanations through language templates.
+        sentence = self.__language.convert_to_sentence(causes)
 
         self.__previous_queries.append(self.__user_query)
+        
+        return sentence
 
     def __final_causes(self, ref_items: List[Item], alt_items: List[Item]) -> pd.DataFrame:
         """ Generate final causes for the queried action.
