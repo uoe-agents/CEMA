@@ -58,41 +58,32 @@ class Query:
     def get_tau(self,
                 current_t: int,
                 observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]],
-                rollouts: ip.AllMCTSResult):
+                rollouts_buffer: List[ip.AllMCTSResult]):
         """ Calculate tau and the start time step of the queried action.
         Storing results in fields tau, and t_action.
 
         Args:
             current_t: The current timestep of the simulation
             observations: Trajectories observed (and possibly extended with future predictions) of the environment.
-            rollouts: The actual MCTS rollouts of the agent.
+            rollouts_buffer: The actual MCTS rollouts of the agent.
         """
         agent_id = self.agent_id
         if self.type == QueryType.WHAT_IF:
             agent_id = self.agent_id
 
-        # Obtain relevant trajectory slice and segment it
         trajectory = observations[agent_id][0]
-        if self.tense in ["past", "present"]:
-            trajectory = trajectory.slice(0, current_t)
-        elif self.tense == "future":
-            trajectory = trajectory.slice(current_t, None)
-        elif self.tense is None:
-            logger.warning(f"Query time was not given. Falling back to observed trajectory.")
-            trajectory = trajectory.slice(0, current_t)
-        len_states = len(trajectory)
-        action_segmentations = self.__matching.action_segmentation(trajectory)
+        action_segmentations = self.__slice_trajectory(trajectory, current_t)
 
-        tau = len_states - 1
-        if self.type == QueryType.WHY:
-            t_action, tau = self.__get_tau_factual(action_segmentations, True)
-        elif self.type == QueryType.WHY_NOT:
-            t_action, tau = self.__get_tau_counterfactual(action_segmentations, len_states, True)
+        if self.type == QueryType.WHAT_IF and not self.negative or self.type == QueryType.WHY_NOT:
+            action_segmentations = self.__determine_matched_rollout(rollouts_buffer, action_segmentations, agent_id, current_t)
+
+        tau = len(trajectory) - 1
+        if self.type == QueryType.WHY or self.type == QueryType.WHY_NOT:
+            t_action, tau = self.__get_t_tau(action_segmentations, True)
+
         elif self.type == QueryType.WHAT_IF:
-            if self.negative:
-                t_action, _ = self.__get_tau_factual(action_segmentations, False)
-            else:
-                t_action, _ = self.__get_tau_counterfactual(action_segmentations, len_states, False)
+            t_action, _ = self.__get_t_tau(action_segmentations, False)
+
         elif self.type == QueryType.WHAT:
             # TODO (mid): Assumes query parsing can extract reference time point.
             t_action = self.t_action
@@ -107,10 +98,10 @@ class Query:
             self.tau = tau  # If user gave fixed tau then we shouldn't override that.
         self.t_action = t_action
 
-    def __get_tau_factual(self,
-                          action_segmentations: List[ActionSegment],
-                          rollback: bool) -> (int, int):
-        """ determine t_action for final causes, tau for efficient cause for why and whatif negative question.
+    def __get_t_tau(self,
+                    action_segmentations: List[ActionSegment],
+                    rollback: bool) -> (int, int):
+        """ determine t_action for final causes, tau for efficient cause.
         Args:
             action_segmentations: the segmented action of the observed trajectory.
             rollback: if rollback is needed
@@ -131,7 +122,7 @@ class Query:
                 break
         else:
             if action_matched:
-                t_action = 1
+                t_action = action_segmentations[0].times[0]  # t at the beginning
                 segment_inx = n_segments - 1
             else:
                 raise ValueError(f"Could not match action {self.action} to trajectory.")
@@ -152,14 +143,86 @@ class Query:
 
         return t_action, tau
 
+    def __determine_matched_rollout(self, rollouts_buffer: List[ip.AllMCTSResult],
+                                    observation_segmentations: List[ActionSegment],
+                                    agent_id: int,
+                                    current_t: int) -> List[ActionSegment]:
+        """ determine the action segmentation that matches the query.
+        Args:
+            rollouts_buffer: all previous rollouts from MCTS.
+            observation_segmentations: the action segmentation using observation (factual actions)
+            agent_id: the agent id in query
+            current_t: current time, unit:s
+
+        Returns:
+            action_segmentations: the action segmentation of a rollout matched with the query
+        """
+        action_statistic = {}
+        for rollouts in rollouts_buffer[::-1]:
+            # get the start and end time of a rollout, all rollouts have the same time, so chose only one
+            last_node = rollouts.mcts_results[0].leaf
+            trajectory = last_node.run_result.agents[agent_id].trajectory_cl
+            action_segmentations = self.__slice_trajectory(trajectory, current_t)
+            for seg in observation_segmentations:
+                for time in seg.times:
+                    if action_segmentations[0].times[0] <= time <= action_segmentations[-1].times[-1]:
+                        for action in seg.actions:
+                            if action not in action_statistic:
+                                action_statistic[action] = 1
+                            else:
+                                action_statistic[action] = action_statistic[action] + 1
+            common_action = max(action_statistic, key=action_statistic.get)
+
+            # find matched rollout
+            for rollout in rollouts.mcts_results:
+                last_node = rollout.leaf
+                trajectory = last_node.run_result.agents[agent_id].trajectory_cl
+                action_segmentations = self.__slice_trajectory(trajectory, current_t)
+                # skip the rollout includes the common action
+                if self.__is_action_exist(action_segmentations, common_action):
+                    continue
+
+                if self.__is_action_exist(action_segmentations, self.action):
+                    return action_segmentations
+
+        return []
+
+    @staticmethod
+    def __is_action_exist(action_segmentations, action):
+        """ determine if an action exists in the rollout"""
+        for seg in action_segmentations[::-1]:
+            if action in seg.actions:
+                return True
+        return False
+
+    def __slice_trajectory(self, trajectory, current_t) -> List[ActionSegment]:
+        # Obtain relevant trajectory slice and segment it
+        """ Obtain relevant trajectory slice and segment it.
+        Args:
+            trajectory: the agent trajectory.
+            current_t: the current time
+
+        Returns:
+            action_segmentations: the segmented actions
+        """
+        current_inx = current_t - trajectory[0].time + 1
+        if self.tense in ["past", "present"]:
+            trajectory = trajectory.slice(0, current_inx)
+        elif self.tense == "future":
+            trajectory = trajectory.slice(current_inx, None)
+        elif self.tense is None:
+            logger.warning(f"Query time was not given. Falling back to observed trajectory.")
+            trajectory = trajectory.slice(0, current_inx)
+
+        action_segmentations = self.__matching.action_segmentation(trajectory)
+        return action_segmentations
+
     def __get_tau_counterfactual(self,
                                  action_segmentations: List[ActionSegment],
-                                 len_states: int,
                                  rollback: bool) -> (int, int):
         """ determine t_action for final causes, tau for efficient cause for whynot and whatif positive question.
         Args:
             action_segmentations: the segmented action of the observed trajectory.
-            len_states: the length of observation
             rollback: if rollback is needed
 
         Returns:
@@ -187,6 +250,6 @@ class Query:
         logger.info(f'factual action found is {matched_action}')
         if rollback and seg_inx >= 0:
             previous_segment = action_segmentations[len(action_segmentations) - seg_inx - 1]
-            tau = len_states - previous_segment.times[0]
+            tau = previous_segment.times[0]
 
         return t_action, tau

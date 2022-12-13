@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import logging
-
+from copy import deepcopy
 import igp2 as ip
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
@@ -83,6 +83,11 @@ class XAVIAgent(ip.MCTSAgent):
         self.__current_t = None
         self.__observations_segments = None
         self.__total_trajectories = None
+        self.__mcts_results_buffer = []
+
+    def update_plan(self, observation: ip.Observation):
+        super(XAVIAgent, self).update_plan(observation)
+        self.__mcts_results_buffer.append(self.mcts.results)
 
     def explain_actions(self, user_query: Query) -> str:
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
@@ -105,7 +110,7 @@ class XAVIAgent(ip.MCTSAgent):
             self.__total_trajectories = self.__get_total_trajectories()
 
         # Determine timing information of the query.
-        self.query.get_tau(self.__current_t, self.total_observations, self.mcts.results)
+        self.query.get_tau(self.__current_t, self.total_observations, self.__mcts_results_buffer)
         logger.info(f"Running explanation for {self.query}.")
 
         if self.query.type == QueryType.WHAT:
