@@ -42,6 +42,7 @@ class Query:
     t_action: int = None
     tau: int = None
     tense: str = None
+    common_action: str = None
 
     fps: int = 20
     tau_limits: np.ndarray = np.array([1, 5])
@@ -72,7 +73,7 @@ class Query:
             agent_id = self.agent_id
 
         trajectory = observations[agent_id][0]
-        action_segmentations = self.__slice_trajectory(trajectory, current_t)
+        action_segmentations = self.slice_trajectory(trajectory, current_t)
 
         if self.type == QueryType.WHAT_IF and not self.negative or self.type == QueryType.WHY_NOT:
             action_segmentations = self.__determine_matched_rollout(rollouts_buffer, action_segmentations, agent_id, current_t)
@@ -162,7 +163,7 @@ class Query:
             # get the start and end time of a rollout, all rollouts have the same time, so chose only one
             last_node = rollouts.mcts_results[0].leaf
             trajectory = last_node.run_result.agents[agent_id].trajectory_cl
-            action_segmentations = self.__slice_trajectory(trajectory, current_t)
+            action_segmentations = self.slice_trajectory(trajectory, current_t)
             for seg in observation_segmentations:
                 for time in seg.times:
                     if action_segmentations[0].times[0] <= time <= action_segmentations[-1].times[-1]:
@@ -171,15 +172,15 @@ class Query:
                                 action_statistic[action] = 1
                             else:
                                 action_statistic[action] = action_statistic[action] + 1
-            common_action = max(action_statistic, key=action_statistic.get)
+            self.common_action = max(action_statistic, key=action_statistic.get)
 
             # find matched rollout
             for rollout in rollouts.mcts_results:
                 last_node = rollout.leaf
                 trajectory = last_node.run_result.agents[agent_id].trajectory_cl
-                action_segmentations = self.__slice_trajectory(trajectory, current_t)
+                action_segmentations = self.slice_trajectory(trajectory, current_t)
                 # skip the rollout includes the common action
-                if self.__is_action_exist(action_segmentations, common_action):
+                if self.__is_action_exist(action_segmentations, self.common_action):
                     continue
 
                 if self.__is_action_exist(action_segmentations, self.action):
@@ -187,15 +188,7 @@ class Query:
 
         return []
 
-    @staticmethod
-    def __is_action_exist(action_segmentations, action):
-        """ determine if an action exists in the rollout"""
-        for seg in action_segmentations[::-1]:
-            if action in seg.actions:
-                return True
-        return False
-
-    def __slice_trajectory(self, trajectory, current_t) -> List[ActionSegment]:
+    def slice_trajectory(self, trajectory, current_t) -> List[ActionSegment]:
         # Obtain relevant trajectory slice and segment it
         """ Obtain relevant trajectory slice and segment it.
         Args:
@@ -216,6 +209,14 @@ class Query:
 
         action_segmentations = self.__matching.action_segmentation(trajectory)
         return action_segmentations
+
+    @staticmethod
+    def __is_action_exist(action_segmentations, action):
+        """ determine if an action exists in the rollout"""
+        for seg in action_segmentations[::-1]:
+            if action in seg.actions:
+                return True
+        return False
 
     def __get_tau_counterfactual(self,
                                  action_segmentations: List[ActionSegment],

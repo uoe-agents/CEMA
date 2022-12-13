@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import logging
-from copy import deepcopy
 import igp2 as ip
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
@@ -149,7 +148,7 @@ class XAVIAgent(ip.MCTSAgent):
                      if item.reward[component] is not None]
             r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else 0.0
             diff = r_qp - r_qnp
-            rel_diff = diff / np.abs(r_qnp)
+            rel_diff = diff / np.abs(r_qnp) if r_qnp else 0.0
             diffs[component] = (r_qp, r_qnp,
                                 diff if not np.isnan(diff) else 0.0,
                                 rel_diff if not np.isnan(rel_diff) else 0.0)
@@ -440,8 +439,9 @@ class XAVIAgent(ip.MCTSAgent):
                 if last_action == rollout.trace[-1]:
                     r = reward_value[-1].reward_components
 
-            # Determine outcome
-            y = self.__matching.action_matching(self.query.action, trajectory_queried_agent)
+            # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
+            sliced_trajectory = self.query.slice_trajectory(trajectory_queried_agent, self.__current_t)
+            y = self.__matching.action_matching(self.query.action, sliced_trajectory, self.query.common_action)
             if self.query.negative:
                 y = not y
 

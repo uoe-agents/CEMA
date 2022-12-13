@@ -122,23 +122,29 @@ class ActionMatching:
         self.__segmentation = action_segmentations
         return action_segmentations
 
-    def action_matching(self, action: str, trajectory: ip.StateTrajectory) -> bool:
+    def action_matching(self, action: str, action_segmentations: List[ActionSegment], common_action: str) -> bool:
         """ Match user queried action with trajectories from MCTS.
 
         Args:
             action: the user queried action.
-            trajectory: the rollout trajectories
-
+            action_segmentations: the action segmentation of a trajectory
+            common_action: the most frequent action for whynot and whatif positive query
         Returns:
             True if action was matched with trajectory
         """
         if action not in self.__actions:
             raise Exception('User action does not exist in action library.')
-        action_segmentations = self.action_segmentation(trajectory)
+
+        action_found = False
         for action_segmentation in action_segmentations:
+            if common_action is not None and common_action in action_segmentation.actions:
+                return False
             if action in action_segmentation.actions:
-                return True
-        return False
+                action_found = True
+        if action_found:
+            return True
+        else:
+            return False
 
     @staticmethod
     def find_counter_actions(action: str) -> List[str]:
