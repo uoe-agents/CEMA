@@ -1,7 +1,7 @@
 import itertools
 from copy import copy
 from typing import List, Tuple, Dict
-from collections import Counter
+from collections import Counter, defaultdict
 import igp2 as ip
 import numpy as np
 import logging
@@ -150,20 +150,23 @@ def get_coefficient_significance(data: pd.DataFrame,
     return coefs
 
 
-def find_optimal_rollout_in_subset(subset: List["Item"]) -> "Item":
-    """ Find the most optimal action from a subset of MTCS rollouts.
+def find_optimal_rollout_in_subset(subset: List["Item"],
+                                   reward_factors: Dict[str, float]) -> "Item":
+    """ Find the most optimal action from a subset of MTCS rollouts based on average rewards.
 
     Returns: The rollout with the maximum q-value at the selected leaf node.
     """
-    q_max = float('-inf')
-    cf_optimal_rollout = None
+    rollouts = defaultdict(list)
     for m, item in enumerate(subset):
         rollout = item.rollout
-        last_node = rollout.tree[rollout.trace[:-1]]
-        if last_node.q_values.max() > q_max:
-            q_max = last_node.q_values.max()
-            cf_optimal_rollout = rollout
-    return cf_optimal_rollout
+        sum_reward = 0.0
+        for component, factor in reward_factors.items():
+            reward = item.reward[component] if item.reward[component] is not None else 0.0
+            sum_reward += factor * reward
+        rollouts[rollout.trace].append((rollout, sum_reward))
+    means = {trace: np.mean(list(zip(*items))[1]) for trace, items in rollouts.items()}
+    max_mean_trace = max(means, key=means.get)
+    return max(rollouts[max_mean_trace], key=lambda x: x[1])[0]
 
 
 def split_by_query(dataset: List["Item"]) -> (List["Item"], List["Item"]):
