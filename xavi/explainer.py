@@ -86,6 +86,16 @@ class XAVIAgent(ip.MCTSAgent):
 
     def update_plan(self, observation: ip.Observation):
         super(XAVIAgent, self).update_plan(observation)
+
+        # Retrieve maneuvers and macro actions for non-ego vehicles
+        for rollout in self.mcts.results:
+            last_node = rollout.leaf
+            for agent_id, agent in last_node.run_result.agents.items():
+                if agent_id == self.agent_id:
+                    continue
+                plan = self.goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
+                fill_missing_actions(agent.trajectory_cl, plan)
+                agent.trajectory_cl.calculate_path_and_velocity()
         self.__mcts_results_buffer.append(self.mcts.results)
 
     def explain_actions(self, user_query: Query) -> str:
@@ -173,32 +183,34 @@ class XAVIAgent(ip.MCTSAgent):
         xs_future, ys_future = [], []
         if tau_dataset is None and t_action_dataset is None:
             return None, None
-        if tau_dataset is None:
-            tau_dataset = t_action_dataset
 
         # Get past and future datasets by truncate trajectories to relevant length and getting features
-        for m in range(self.__cf_n_simulations):
-            trajectories_past, trajectories_future = {}, {}
-            item_past = tau_dataset[m]
-            for aid, traj in tau_dataset[m].trajectories.items():
-                trajectories_past[aid] = traj.slice(self.query.tau, self.query.t_action)
-            item_future = t_action_dataset[m]
-            for aid, traj in t_action_dataset[m].trajectories.items():
+        if tau_dataset is not None:
+            for item_past in tau_dataset:
+                trajectories_past = {}
+                for aid, traj in item_past.trajectories.items():
+                    trajectories_past[aid] = traj.slice(self.query.tau, self.query.t_action)
+                xs_past.append(self.__features.to_features(self.agent_id, trajectories_past))
+                ys_past.append(item_past.query_present)
+        for item_future in t_action_dataset:
+            trajectories_future = {}
+            for aid, traj in item_future.trajectories.items():
                 trajectories_future[aid] = traj.slice(self.query.t_action, None)
-            xs_past.append(self.__features.to_features(self.agent_id, trajectories_past))
             xs_future.append(self.__features.to_features(self.agent_id, trajectories_future))
-            ys_past.append(item_past.query_present)
             ys_future.append(item_future.query_present)
 
         # Run a logistic regression classifier
-        X_past, y_past = self.__features.binarise(xs_past, ys_past)
+        coefs_past = None
+        if tau_dataset is not None:
+            X_past, y_past = self.__features.binarise(xs_past, ys_past)
+            model_past = LogisticRegression().fit(X_past, y_past)
+            coefs_past = get_coefficient_significance(X_past, y_past, model_past)
+
         X_future, y_future = self.__features.binarise(xs_future, ys_future)
-        model_past = LogisticRegression().fit(X_past, y_past)
         model_future = LogisticRegression().fit(X_future, y_future)
+        coefs_future = get_coefficient_significance(X_future, y_future, model_future)
 
         # Get coefficients using K-fold cross validation
-        coefs_past = get_coefficient_significance(X_past, y_past, model_past)
-        coefs_future = get_coefficient_significance(X_future, y_future, model_future)
         return coefs_past, coefs_future
 
     # ---------Explanation generation functions---------------
@@ -263,8 +275,8 @@ class XAVIAgent(ip.MCTSAgent):
         cf_items, f_items = split_by_query(list(self.cf_datasets["t_action"].values()))
 
         # Find the maximum q-value and the corresponding action sequence of the ego for ea
-        cf_optimal_rollout = find_optimal_rollout_in_subset(cf_items)
-        f_optimal_rollout = find_optimal_rollout_in_subset(f_items)
+        cf_optimal_rollout = find_optimal_rollout_in_subset(cf_items, self._reward.factors)
+        f_optimal_rollout = find_optimal_rollout_in_subset(f_items, self._reward.factors)
 
         # Retrieve ego's action plan in the counterfactual case
         cf_ego_agent = cf_optimal_rollout.leaf.run_result.agents[self.agent_id]
@@ -272,12 +284,11 @@ class XAVIAgent(ip.MCTSAgent):
         observed_segments = self.__matching.action_segmentation(cf_optimal_trajectory)
         observed_grouped_segments = ActionGroup.group_by_maneuver(observed_segments)
         cf_action_group = [g for g in observed_grouped_segments
-                                 if g.start <= self.query.t_action <= g.end][0]
+                           if g.start <= self.query.t_action <= g.end][0]
 
         # Check if the change in the non-ego action did not change the observed ego actions
         if cf_optimal_rollout.trace == self.mcts.results.optimal_trace:
             logger.info("Ego actions remain the same even in counterfactual case.")
-            return cf_action_group, None, (None, None)
 
         # Determine the actual optimal maneuver and rewards
         f_optimal_items = [it for it in f_items if it.rollout.trace == f_optimal_rollout.trace]
@@ -404,8 +415,6 @@ class XAVIAgent(ip.MCTSAgent):
              observations: The observations that preceded the planning step.
          """
         dataset = {}
-        import matplotlib.pyplot as plt
-        ip.plot_map(self.__scenario_map, markings=True)
         for m, rollout in enumerate(mcts_results):
             trajectories = {}
             r = []
@@ -430,25 +439,20 @@ class XAVIAgent(ip.MCTSAgent):
                 trajectory.extend(sim_trajectory, reload_path=True)
                 trajectories[agent_id] = trajectory
 
-                # TODO (mid): Remove plotting code here.
-                if agent_id == 1:
-                    plt.plot(*list(zip(*trajectory.path)))
-
             # save reward for each component
             for last_action, reward_value, in last_node.reward_results.items():
                 if last_action == rollout.trace[-1]:
                     r = reward_value[-1].reward_components
 
             # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
-            sliced_trajectory = self.query.slice_trajectory(trajectory_queried_agent, self.__current_t)
-            y = self.__matching.action_matching(self.query.action, sliced_trajectory, self.query.common_action)
+            sliced_trajectory = self.query.slice_segment_trajectory(trajectory_queried_agent, self.__current_t)
+            y = self.__matching.action_matching(self.query.action, sliced_trajectory, self.query.longest_action)
             if self.query.negative:
                 y = not y
 
             data_set_m = Item(trajectories, y, r, rollout)
             dataset[m] = data_set_m
 
-        plt.show()
         logger.debug('Dataset generation done.')
         return dataset
 
