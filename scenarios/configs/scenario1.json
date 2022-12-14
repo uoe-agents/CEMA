@@ -54,7 +54,7 @@
         "reward_factors": {
           "time": 1.0,
           "jerk": -0.2,
-          "angular_velocity": -0.05,
+          "angular_velocity": -0.01,
           "curvature": 0.0
         }
       },

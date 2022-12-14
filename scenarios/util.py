@@ -43,7 +43,7 @@ def load_config(args):
         path = args.config_path
     else:
         raise ValueError("No scenario was specified!")
-    return json.load(open(path, "r"), object_hook=lambda d: DotMap(**d))
+    return json.load(open(path, "r"))
 
 
 def parse_query(args) -> List[Query]:
@@ -69,9 +69,9 @@ def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:
         A new randomly generated frame
     """
     ret = {}
-    for agent in config.agents:
-        spawn_box = ip.Box(**agent.spawn.box)
-        spawn_vel = agent.spawn.velocity
+    for agent in config["agents"]:
+        spawn_box = ip.Box(**agent["spawn"]["box"])
+        spawn_vel = agent["spawn"]["velocity"]
 
         poly = Polygon(spawn_box.boundary)
         best_lane = None
@@ -98,10 +98,10 @@ def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:
         vel = min(vel, ip.Maneuver.MAX_SPEED)
         spawn_velocity = vel * np.array([np.cos(spawn_heading), np.sin(spawn_heading)])
 
-        agent_metadata = ip.AgentMetadata(**agent.metadata) if "metadata" in agent \
+        agent_metadata = ip.AgentMetadata(**agent["metadata"]) if "metadata" in agent \
             else ip.AgentMetadata(**ip.AgentMetadata.CAR_DEFAULT)
 
-        ret[agent.id] = ip.AgentState(time=0,
+        ret[agent["id"]] = ip.AgentState(time=0,
                                       position=spawn_position,
                                       velocity=spawn_velocity,
                                       acceleration=np.array([0.0, 0.0]),

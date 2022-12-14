@@ -16,17 +16,17 @@ if __name__ == '__main__':
     config = load_config(args)
     queries = parse_query(args)
 
-    scenario_map = ip.Map.parse_from_opendrive(config.scenario.map_path)
+    scenario_map = ip.Map.parse_from_opendrive(config["scenario"]["map_path"])
 
     # Get run parameters
-    seed = args.seed if args.seed else config.scenario.seed if "seed" in config.scenario else 21
-    fps = args.fps if args.fps else config.scenario.fps if "fps" in config.scenario else 20
+    seed = args.seed if args.seed else config["scenario"]["seed"] if "seed" in config["scenario"] else 21
+    fps = args.fps if args.fps else config["scenario"]["fps"] if "fps" in config["scenario"] else 20
 
     random.seed(seed)
     np.random.seed(seed)
     np.seterr(divide="ignore")
 
-    ip.Maneuver.MAX_SPEED = config.scenario.max_speed
+    ip.Maneuver.MAX_SPEED = config["scenario"]["max_speed"]
 
     frame = generate_random_frame(scenario_map, config)
 
@@ -35,33 +35,33 @@ if __name__ == '__main__':
     agents = {}
 
     xavi_agent = None
-    for agent in config.agents:
-        base_agent = {"agent_id": agent.id, "initial_state": frame[agent.id],
-                      "goal": ip.BoxGoal(ip.Box(**agent.goal.box)), "fps": fps}
-        if agent.type == "MCTSAgent":
+    for agent in config["agents"]:
+        base_agent = {"agent_id": agent["id"], "initial_state": frame[agent["id"]],
+                      "goal": ip.BoxGoal(ip.Box(**agent["goal"]["box"])), "fps": fps}
+        if agent["type"] == "MCTSAgent":
             agent = ip.MCTSAgent(scenario_map=scenario_map,
-                                 cost_factors=agent.cost_factors,
-                                 view_radius=agent.view_radius,
-                                 kinematic=agent.kinematic,
+                                 cost_factors=agent["cost_factors"],
+                                 view_radius=agent["view_radius"],
+                                 kinematic=agent["kinematic"],
                                  **base_agent,
-                                 **agent.mcts)
-        elif agent.type == "XAVIAgent":
+                                 **agent["mcts"])
+        elif agent["type"] == "XAVIAgent":
             agent = xavi.XAVIAgent(scenario_map=scenario_map,
-                                   cost_factors=agent.cost_factors,
-                                   view_radius=agent.view_radius,
-                                   kinematic=agent.kinematic,
+                                   cost_factors=agent["cost_factors"],
+                                   view_radius=agent["view_radius"],
+                                   kinematic=agent["kinematic"],
                                    **base_agent,
-                                   **agent.explainer,
-                                   **agent.mcts)
+                                   **agent["explainer"],
+                                   **agent["mcts"])
             xavi_agent = agent
-        elif agent.type == "TrafficAgent":
+        elif agent["type"] == "TrafficAgent":
             agent = ip.TrafficAgent(**base_agent)
 
         simulation.add_agent(agent)
 
     # Execute simulation for fixed number of time steps
     explanation_generated = False
-    for t in range(config.scenario.max_steps):
+    for t in range(config["scenario"]["max_steps"]):
         simulation.step()
         # if t % 20 == 0:
         #     xavi.plot_simulation(simulation, debug=False)
