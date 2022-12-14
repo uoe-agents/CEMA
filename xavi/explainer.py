@@ -310,16 +310,6 @@ class XAVIAgent(ip.MCTSAgent):
         """
         logger.info("Generating counterfactual rollouts.")
 
-        previous_query = self.__previous_queries[-1] if self.__previous_queries else None
-        if not any([self.cf_datasets[t] is None for t in times]) and \
-                previous_query and \
-                previous_query.t_query == self.query.t_query and \
-                previous_query.type == self.query.type:
-            if "t_action" in times:
-                times.remove("t_action")
-            if previous_query.tense == self.query.tense:
-                times = []
-
         for time_reference in times:
             self.__generate_counterfactuals_from_time(time_reference)
 
@@ -335,17 +325,22 @@ class XAVIAgent(ip.MCTSAgent):
 
         logger.debug(f"Generating counterfactuals at {time_reference} ({t})")
         if previous_frame:
-            observation = ip.Observation(previous_frame, self.__scenario_map)
-            goals = self.get_goals(observation)
-            goal_probabilities = {aid: ip.GoalsProbabilities(goals)
-                                  for aid in previous_frame.keys() if aid != self.agent_id}
             mcts = self.__cf_mcts_dict[time_reference]
+            goal_probabilities = self.__cf_goal_probabilities_dict[time_reference]
 
-            self.__generate_rollouts(previous_frame,
-                                     truncated_observations,
-                                     goal_probabilities,
-                                     mcts)
-            self.__cf_goal_probabilities_dict[time_reference] = goal_probabilities
+            previous_query = self.__previous_queries[-1] if self.__previous_queries else None
+            if self.cf_datasets[time_reference] is None or not previous_query or \
+                    previous_query.t_query != self.query.t_query or \
+                    previous_query.type != self.query.type:
+                observation = ip.Observation(previous_frame, self.__scenario_map)
+                goals = self.get_goals(observation)
+                goal_probabilities = {aid: ip.GoalsProbabilities(goals)
+                                      for aid in previous_frame.keys() if aid != self.agent_id}
+                self.__generate_rollouts(previous_frame,
+                                         truncated_observations,
+                                         goal_probabilities,
+                                         mcts)
+                self.__cf_goal_probabilities_dict[time_reference] = goal_probabilities
             self.__cf_dataset_dict[time_reference] = self.__get_dataset(
                 mcts.results, goal_probabilities, truncated_observations)
 

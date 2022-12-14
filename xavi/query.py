@@ -170,7 +170,7 @@ class Query:
                     for time in seg.times:
                         if not (start_t <= time <= end_t):
                             continue
-                        key = tuple(seg.actions)  # to handle act
+                        key = tuple(seg.actions)  # to handle multiple actions
                         if key not in action_statistic:
                             action_statistic[key] = 1
                         else:

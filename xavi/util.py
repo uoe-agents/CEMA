@@ -44,7 +44,7 @@ def truncate_observations(observations: Observations, tau: int) -> (Observations
         frame = observation[1]
         if tau > 0:
             truncated_obs[agent_id] = (observation[0].slice(0, tau), frame)
-            previous_frame[agent_id] = observation[0].states[tau - 1]
+            previous_frame[agent_id] = observation[0].states[min(len(observation[0]), tau) - 1]
         else:
             raise ValueError(f"Agent {agent_id}: tau({tau}) <= 0.")
     return truncated_obs, previous_frame
@@ -144,6 +144,7 @@ def get_coefficient_significance(data: pd.DataFrame,
         [
             np.squeeze(est.coef_) * data.iloc[train_idx].std(axis=0)
             for est, (train_idx, _) in zip(cv_model["estimator"], cv.split(data, labels))
+            if hasattr(est, "coef_")
         ],
         columns=data.columns,
     )
