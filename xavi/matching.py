@@ -138,13 +138,14 @@ class ActionMatching:
         if action not in ActionMatching.action_library:
             raise Exception('User action does not exist in action library.')
 
+        action_found = False
         for action_segmentation in action_segmentations:
             if longest_action is not None and \
                     longest_action == tuple(action_segmentation.actions):
                 return False  # For whynot and positive whatif questions, factual actions are not relevant
             if action in action_segmentation.actions:
-                return True
-        return False
+                action_found = True
+        return action_found
 
     @staticmethod
     def action_exists(action_segmentations: List[ActionSegment],
