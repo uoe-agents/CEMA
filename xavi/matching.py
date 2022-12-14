@@ -1,7 +1,7 @@
 import logging
 import igp2 as ip
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Tuple, Union
 
 from xavi.util import fix_initial_state
 
@@ -43,18 +43,18 @@ class ActionGroup:
 
 class ActionMatching:
     """ Determines if the action asked by a user is present in a trajectory. """
+    action_library = ['SlowDown',
+                      'Accelerate',
+                      'Stop',
+                      'ChangeLaneLeft',
+                      'ChangeLaneRight',
+                      'TurnLeft',
+                      'TurnRight',
+                      'GoStraightJunction',
+                      'GiveWay',
+                      'GoStraight']
 
     def __init__(self, eps: float = 0.1):
-        self.__actions = ['SlowDown',
-                          'Accelerate',
-                          'Stop',
-                          'ChangeLaneLeft',
-                          'ChangeLaneRight',
-                          'TurnLeft',
-                          'TurnRight',
-                          'GoStraightJunction',
-                          'GiveWay',
-                          'GoStraight']
         self.__trajectory = None
         self.__segmentation = None
         self.__eps = eps
@@ -122,29 +122,40 @@ class ActionMatching:
         self.__segmentation = action_segmentations
         return action_segmentations
 
-    def action_matching(self, action: str, action_segmentations: List[ActionSegment], common_action: str) -> bool:
+    @staticmethod
+    def action_matching(action: str,
+                        action_segmentations: List[ActionSegment],
+                        longest_action: Tuple[str, ...] = None) -> bool:
         """ Match user queried action with trajectories from MCTS.
 
         Args:
             action: the user queried action.
             action_segmentations: the action segmentation of a trajectory
-            common_action: the most frequent action for whynot and whatif positive query
+            longest_action: the most frequent action(s) for whynot and whatif positive query
         Returns:
             True if action was matched with trajectory
         """
-        if action not in self.__actions:
+        if action not in ActionMatching.action_library:
             raise Exception('User action does not exist in action library.')
 
-        action_found = False
         for action_segmentation in action_segmentations:
-            if common_action is not None and common_action in action_segmentation.actions:
-                return False
+            if longest_action is not None and \
+                    longest_action == tuple(action_segmentation.actions):
+                return False  # For whynot and positive whatif questions, factual actions are not relevant
             if action in action_segmentation.actions:
-                action_found = True
-        if action_found:
-            return True
-        else:
-            return False
+                return True
+        return False
+
+    @staticmethod
+    def action_exists(action_segmentations: List[ActionSegment],
+                      action: Union[str, Tuple[str, ...]]) -> bool:
+        """ determine if an action exists in the action segmentation """
+        for seg in action_segmentations[::-1]:
+            key = tuple(seg.actions)
+            if isinstance(action, str) and action in key or \
+                    isinstance(action, tuple) and action == key:
+                return True
+        return False
 
     @staticmethod
     def find_counter_actions(action: str) -> List[str]:
@@ -172,11 +183,6 @@ class ActionMatching:
             raise Exception('No counter action is found!')
 
         return counter_actions
-
-    @property
-    def action_library(self) -> List[str]:
-        """ The available actions for a query. """
-        return self.__actions
 
     @property
     def segmentation(self) -> List[ActionSegment]:
