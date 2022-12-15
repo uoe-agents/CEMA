@@ -3,6 +3,7 @@ import sys
 import os
 from typing import Dict, List
 
+import logging
 import igp2 as ip
 import numpy as np
 import argparse
@@ -10,6 +11,8 @@ import json
 from shapely.geometry import Polygon
 
 from xavi import Query
+
+logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,16 +50,17 @@ def load_config(args):
 
 def parse_query(args) -> List[Query]:
     """ Returns a list of parsed queries. """
-    if "scenario" in args:
-        path = os.path.join("scenarios", "queries", f"query_scenario{args.scenario}.json")
-    elif "query_path" in args:
+    if "query_path" in args:
         path = args.query_path
+    elif "scenario" in args:
+        path = os.path.join("scenarios", "queries", f"query_scenario{args.scenario}.json")
     else:
         raise ValueError("No query was specified!")
     try:
         queries = json.load(open(path, "r"))
         return [Query(**query_dict) for query_dict in queries]
     except FileNotFoundError as e:
+        logger.exception(str(e), exc_info=e)
         return []
 
 

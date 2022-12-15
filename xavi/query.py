@@ -204,10 +204,14 @@ class Query:
         past_limit, future_limit = self.time_limits * self.fps
         current_inx = int(current_t - trajectory[0].time + 1)
         start_inx = max(0, current_inx - past_limit)
-        if self.tense in ["past", "present"]:
+        end_inx = min(len(trajectory), current_inx + future_limit)
+        if self.tense == "past" or \
+                self.tense == "present" and self.t_action is None:
             trajectory = trajectory.slice(start_inx, current_inx)
+        elif self.tense == "present":
+            t_action_inx = int(self.t_action - trajectory[0].time + 1)
+            trajectory = trajectory.slice(t_action_inx, end_inx)
         elif self.tense == "future":
-            end_inx = min(len(trajectory), current_inx + future_limit)
             trajectory = trajectory.slice(current_inx, end_inx)
         elif self.tense is None:
             logger.warning(f"Query time was not given. Falling back to observed trajectory.")
