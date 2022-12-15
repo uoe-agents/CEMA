@@ -61,7 +61,8 @@
       "explainer": {
         "cf_n_simulations": 25,
         "cf_max_depth": 5,
-        "tau_limits": [1.0, 5.0]
+        "tau_limits": [1.0, 5.0],
+        "time_limits": [5.0, 5.0]
       },
       "view_radius": 500,
       "kinematic": true

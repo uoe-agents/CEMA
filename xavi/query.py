@@ -46,7 +46,8 @@ class Query:
     __longest_action: Tuple[str, ...] = None
 
     fps: int = 20
-    tau_limits: np.ndarray = np.array([1, 5])
+    tau_limits: np.ndarray = np.array([1, 5])  # The minimum and maximum length of tau in seconds
+    time_limits = np.array([5, 5])  # Maximum lengths of the trajectories, both in past and future, in seconds.
 
     def __post_init__(self):
         self.__matching = ActionMatching()
@@ -184,7 +185,7 @@ class Query:
                     continue
                 if ActionMatching.action_exists(segmentation, self.action):
                     return segmentation
-        return []
+        raise ValueError(f"The queried action {self.action} is not a counterfactual!")
 
     def slice_segment_trajectory(self,
                                  trajectory: ip.StateTrajectory,
@@ -198,14 +199,17 @@ class Query:
         Returns:
             action_segmentations: the segmented actions
         """
+        past_limit, future_limit = self.time_limits * self.fps
         current_inx = int(current_t - trajectory[0].time + 1)
+        start_inx = max(0, current_inx - past_limit)
         if self.tense in ["past", "present"]:
-            trajectory = trajectory.slice(0, current_inx)
+            trajectory = trajectory.slice(start_inx, current_inx)
         elif self.tense == "future":
-            trajectory = trajectory.slice(current_inx, None)
+            end_inx = min(len(trajectory), current_inx + future_limit)
+            trajectory = trajectory.slice(current_inx, end_inx)
         elif self.tense is None:
             logger.warning(f"Query time was not given. Falling back to observed trajectory.")
-            trajectory = trajectory.slice(0, current_inx)
+            trajectory = trajectory.slice(start_inx, current_inx)
 
         action_segmentations = self.__matching.action_segmentation(trajectory)
         return action_segmentations

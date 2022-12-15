@@ -36,6 +36,7 @@ class XAVIAgent(ip.MCTSAgent):
                  cf_n_simulations: int = 15,
                  cf_max_depth: int = 5,
                  tau_limits: Tuple[float, float] = (1., 5.),
+                 time_limits: Tuple[float, float] = (5., 5.),
                  **kwargs):
         """ Create a new XAVIAgent.
 
@@ -45,6 +46,7 @@ class XAVIAgent(ip.MCTSAgent):
             cf_n_simulations: Number of MCTS simulations to run for counterfactual generation.
             cf_d_max: Maximum MCTS search depth for counterfactual simulations.
             tau_limits: Lower and upper bounds on the distance of tau from t_action.
+            time_limits: The maximal amount of time to look back in the past and future.
 
         Keyword Args: See arguments of parent-class MCTSAgent.
         """
@@ -53,6 +55,7 @@ class XAVIAgent(ip.MCTSAgent):
 
         self.__n_trajectories = cf_n_trajectories
         self.__tau_limits = np.array(tau_limits)
+        self.__time_limits = np.array(time_limits)
         self.__scenario_map = kwargs["scenario_map"]
 
         self.__cf_n_simulations = kwargs.get("cf_n_simulations", cf_n_simulations)
@@ -96,6 +99,7 @@ class XAVIAgent(ip.MCTSAgent):
                 plan = self.goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
                 fill_missing_actions(agent.trajectory_cl, plan)
                 agent.trajectory_cl.calculate_path_and_velocity()
+
         self.__mcts_results_buffer.append(self.mcts.results)
 
     def explain_actions(self, user_query: Query) -> str:
@@ -115,11 +119,15 @@ class XAVIAgent(ip.MCTSAgent):
             self.__observations_segments = {}
             for aid, obs in self.observations.items():
                 self.__observations_segments[aid] = self.__matching.action_segmentation(obs[0])
-        if self.__total_trajectories is None or user_query.t_query != self.__current_t:
-            self.__total_trajectories = self.__get_total_trajectories()
+        self.__total_trajectories = self.__get_total_trajectories()
 
         # Determine timing information of the query.
-        self.query.get_tau(self.__current_t, self.total_observations, self.__mcts_results_buffer)
+        try:
+            self.query.get_tau(self.__current_t, self.total_observations, self.__mcts_results_buffer)
+        except ValueError as ve:
+            logger.exception(str(ve), exc_info=ve)
+            return str(ve)
+
         logger.info(f"Running explanation for {self.query}.")
 
         if self.query.type == QueryType.WHAT:
