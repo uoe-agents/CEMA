@@ -223,7 +223,7 @@ class XAVIAgent(ip.MCTSAgent):
 
     # ---------Explanation generation functions---------------
 
-    def __explain_what(self) -> ActionGroup:
+    def __explain_what(self) -> List[ActionGroup]:
         """ Generate an explanation to a what query. Involves looking up the trajectory segment at T and
         returning a feature set of it. We assume for the future that non-egos follow their MAP-prediction for
         goal and trajectory.
@@ -237,14 +237,17 @@ class XAVIAgent(ip.MCTSAgent):
             self.query.agent_id = self.agent_id
 
         trajectory = self.total_observations[self.query.agent_id][0]
+        segments = self.__matching.action_segmentation(trajectory)
+        grouped_segments = ActionGroup.group_by_maneuver(segments)
+        if self.query.t_action is None:
+            return grouped_segments
+
         start_t = self.query.t_action
         if start_t >= len(trajectory):
             logger.warning(f"Total trajectory for Agent {self.query.agent_id} is not "
                            f"long enough for query! Falling back to final timestep.")
             start_t = len(trajectory) - 1
-        segments = self.__matching.action_segmentation(trajectory)
-        grouped_segments = ActionGroup.group_by_maneuver(segments)
-        return [seg for seg in grouped_segments if seg.start <= start_t <= seg.end][0]
+        return [seg for seg in grouped_segments if seg.start <= start_t <= seg.end]
 
     def __explain_why(self) -> (pd.DataFrame, (pd.DataFrame, pd.DataFrame)):
         """ Generate a why explanation.

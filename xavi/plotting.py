@@ -28,6 +28,7 @@ def plot_simulation(simulation: Simulation, axes: plt.Axes = None, debug: bool =
         fig, axes = plt.subplots(1, 2, figsize=(15, 5))
     else:
         fig = plt.gcf()
+    fig.suptitle(f"T={simulation.t}")
 
     color_map_ego = plt.cm.get_cmap('Reds')
     color_map_non_ego = plt.cm.get_cmap('Blues')

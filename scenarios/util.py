@@ -53,8 +53,11 @@ def parse_query(args) -> List[Query]:
         path = args.query_path
     else:
         raise ValueError("No query was specified!")
-    queries = json.load(open(path, "r"))
-    return [Query(**query_dict) for query_dict in queries]
+    try:
+        queries = json.load(open(path, "r"))
+        return [Query(**query_dict) for query_dict in queries]
+    except FileNotFoundError as e:
+        return []
 
 
 def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:
