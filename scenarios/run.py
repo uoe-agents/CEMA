@@ -67,7 +67,7 @@ if __name__ == '__main__':
         #     xavi.plot_simulation(simulation, debug=False)
         #     plt.show()
         for query in queries:
-            if t > 0 and t % query.t_query == 0:  # Use 60 for S1; 75 for S2
+            if t > 0 and t == query.t_query:  # Use 60 for S1; 75 for S2
                 xavi_agent.explain_actions(query)
         #         explanation_generated = True
         #
