@@ -179,11 +179,13 @@ class Query:
                 segmentations.append(action_segmentations)
             self.__longest_action = max(action_statistic, key=action_statistic.get)
 
+            longest_action_exist = False
             for segmentation in segmentations:
                 # skip the rollout that includes the longest action
                 if ActionMatching.action_exists(segmentation, self.__longest_action):
+                    longest_action_exist = True
                     continue
-                if ActionMatching.action_exists(segmentation, self.action):
+                if ActionMatching.action_exists(segmentation, self.action) and longest_action_exist:
                     return segmentation
         raise ValueError(f"The queried action {self.action} is not a counterfactual!")
 
