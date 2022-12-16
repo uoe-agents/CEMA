@@ -50,9 +50,9 @@ def load_config(args):
 
 def parse_query(args) -> List[Query]:
     """ Returns a list of parsed queries. """
-    if "query_path" in args:
+    if args.query_path is not None:
         path = args.query_path
-    elif "scenario" in args:
+    elif args.scenario is not None:
         path = os.path.join("scenarios", "queries", f"query_scenario{args.scenario}.json")
     else:
         raise ValueError("No query was specified!")

@@ -176,18 +176,14 @@ class Query:
                             action_statistic[key] = 1
                         else:
                             action_statistic[key] += 1
-                segmentations.append(action_segmentations)
-                # substract the action if repeated to remove common action, code need optimized
-                for action_seg in action_segmentations:
-                    for seg in observation_segmentations:
-                        for time in seg.times:
-                            if time > action_seg.times[-1]:
-                                break
-                            elif time < action_seg.times[0]:
-                                continue
-                            key = tuple(seg.actions)
-                            if key == tuple(action_seg.actions):
+                        # substract the action if repeated to remove common action
+                        for action_seg in action_segmentations:
+                            if time in action_seg.times and key == tuple(action_seg.actions):
                                 action_statistic[key] -= 1
+                                break
+
+                segmentations.append(action_segmentations)
+
             self.__longest_action = max(action_statistic, key=action_statistic.get)
 
             longest_action_exist = False

@@ -50,7 +50,7 @@
       },
       "mcts": {
         "t_update": 2.0,
-        "n_simulations": 5,
+        "n_simulations": 15,
         "store_results": "all",
         "reward_factors": {
           "time": 1.0,
