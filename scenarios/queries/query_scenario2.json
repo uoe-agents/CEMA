@@ -23,7 +23,24 @@
     "agent_id": 1,
     "action": "GoStraightJunction",
     "t_query": 60,
-    "tense": "future"
+    "tense": "future",
+    "negative": false
+  },
+  {
+    "type": "whatif",
+    "agent_id": 1,
+    "action": "Stop",
+    "t_query": 180,
+    "tense": "past",
+    "negative": true
+  },
+  {
+    "type": "whatif",
+    "agent_id": 1,
+    "action": "Stop",
+    "t_query": 80,
+    "tense": "future",
+    "negative": true
   },
   {
     "type": "whynot",

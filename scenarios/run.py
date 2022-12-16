@@ -27,6 +27,7 @@ if __name__ == '__main__':
     np.seterr(divide="ignore")
 
     ip.Maneuver.MAX_SPEED = config["scenario"]["max_speed"]
+    ip.Trajectory.VELOCITY_STOP = config["scenario"]["velocity_stop"]
 
     frame = generate_random_frame(scenario_map, config)
 

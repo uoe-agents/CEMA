@@ -4,7 +4,8 @@
     "max_speed": 10.0,
     "fps": 20,
     "seed": 21,
-    "max_steps": 250
+    "max_steps": 250,
+    "velocity_stop": 0.278
   },
   "agents": [
     {
@@ -49,7 +50,7 @@
       },
       "mcts": {
         "t_update": 2.0,
-        "n_simulations": 15,
+        "n_simulations": 5,
         "store_results": "all",
         "reward_factors": {
           "time": 1.0,
