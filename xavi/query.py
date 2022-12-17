@@ -83,7 +83,7 @@ class Query:
         if self.type == QueryType.WHAT_IF and not self.negative or \
                 self.type == QueryType.WHY_NOT:
             action_segmentations = self.__determine_matched_rollout(
-                rollouts_buffer, action_segmentations, agent_id, current_t)
+                rollouts_buffer, agent_id, current_t)
 
         tau = len(trajectory) - 1
         if self.type in [QueryType.WHAT_IF, QueryType.WHY_NOT, QueryType.WHY]:
@@ -115,27 +115,37 @@ class Query:
         tau = None
         action_matched = False
         n_segments = len(action_segmentations)
-        iterator = enumerate(action_segmentations) if self.tense == "future" \
-            else enumerate(action_segmentations[::-1])
 
-        for i, action in iterator:
-            if self.action in action.actions:
-                action_matched = True
-            elif action_matched:
-                t_action = action.times[-1] + 1
-                segment_inx = i
-                break
-        else:
-            if action_matched:
-                t_action = action_segmentations[0].times[0]  # t at the beginning
-                segment_inx = n_segments - 1
+        if self.tense == "future":
+            for i, action in enumerate(action_segmentations):
+                if self.action in action.actions:
+                    t_action = action.times[0]
+                    segment_inx = i
+                    break
             else:
                 raise ValueError(f"Could not match action {self.action} to trajectory.")
+        else:
+            for i, action in enumerate(reversed(action_segmentations)):
+                if self.action in action.actions:
+                    action_matched = True
+                elif action_matched:
+                    t_action = action.times[-1] + 1
+                    segment_inx = i
+                    break
+            else:
+                if action_matched:
+                    t_action = action_segmentations[0].times[0]  # t at the beginning
+                    segment_inx = n_segments - 1
+                else:
+                    raise ValueError(f"Could not match action {self.action} to trajectory.")
 
         if rollback and segment_inx >= 0:
             # In case one extra segment is too short, then lower limit is used.
             lower_limit, upper_limit = self.tau_limits * self.fps
-            previous_inx = max(0, n_segments - segment_inx - 1)
+            if self.tense == "future":
+                previous_inx = max(0, segment_inx - 1)
+            else:
+                previous_inx = max(0, n_segments - segment_inx - 1)
             previous_segment = action_segmentations[previous_inx]
             tau = previous_segment.times[0]
 
