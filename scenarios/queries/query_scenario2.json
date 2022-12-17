@@ -32,7 +32,7 @@
     "type": "whatif",
     "agent_id": 1,
     "action": "TurnLeft",
-    "t_query": 180,
+    "t_query": 220,
     "tense": "past",
     "negative": true
   },
