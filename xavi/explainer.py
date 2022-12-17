@@ -255,7 +255,7 @@ class XAVIAgent(ip.MCTSAgent):
         Returns: The final and past and future efficient causes for the query.
         """
         logger.info("Generating a why or why-not explanation.")
-        if self.query.t_action > self.__current_t:
+        if self.query.tau is None:
             self.__get_counterfactuals(["t_action"])
             tau = None
         else:
@@ -452,7 +452,7 @@ class XAVIAgent(ip.MCTSAgent):
 
             # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
             sliced_trajectory = self.query.slice_segment_trajectory(trajectory_queried_agent, self.__current_t)
-            y = self.__matching.action_matching(self.query.action, sliced_trajectory, self.query.longest_action)
+            y = self.__matching.action_matching(self.query.action, sliced_trajectory, self.query.factual)
             if self.query.negative:
                 y = not y
 
