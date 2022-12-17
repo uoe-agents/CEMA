@@ -63,13 +63,15 @@ class Query:
 
     def get_tau(self,
                 current_t: int,
-                observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]]):
+                observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]],
+                rollouts_buffer: List[ip.AllMCTSResult]):
         """ Calculate tau and the start time step of the queried action.
         Storing results in fields tau, and t_action.
 
         Args:
             current_t: The current timestep of the simulation
             observations: Trajectories observed (and possibly extended with future predictions) of the environment.
+            rollouts_buffer: The actual MCTS rollouts of the agent.
         """
         agent_id = self.agent_id
         if self.type == QueryType.WHAT_IF:
@@ -77,14 +79,15 @@ class Query:
 
         trajectory = observations[agent_id][0]
         action_segmentations = self.slice_segment_trajectory(trajectory, current_t)
-        factual_action = self.action
+
         if self.type == QueryType.WHAT_IF and not self.negative or \
                 self.type == QueryType.WHY_NOT:
-            factual_action = self.factual
+            action_segmentations = self.__determine_matched_rollout(
+                rollouts_buffer, agent_id, current_t)
 
         tau = len(trajectory) - 1
         if self.type in [QueryType.WHAT_IF, QueryType.WHY_NOT, QueryType.WHY]:
-            t_action, tau = self.__get_t_tau(action_segmentations, self.type != QueryType.WHAT_IF, factual_action)
+            t_action, tau = self.__get_t_tau(action_segmentations, self.type != QueryType.WHAT_IF)
         elif self.type == QueryType.WHAT:
             t_action = self.t_action
         else:
@@ -99,13 +102,12 @@ class Query:
 
     def __get_t_tau(self,
                     action_segmentations: List[ActionSegment],
-                    rollback: bool,
-                    factual_action: str) -> (int, int):
+                    rollback: bool) -> (int, int):
         """ determine t_action for final causes, tau for efficient cause.
         Args:
             action_segmentations: the segmented action of the observed trajectory.
             rollback: if rollback is needed
-            factual_action: the factual action in query
+
         Returns:
             t_action: the timestep when the factual action starts
             tau: the timesteps to rollback
@@ -116,15 +118,15 @@ class Query:
 
         if self.tense == "future":
             for i, action in enumerate(action_segmentations):
-                if factual_action in action.actions:
+                if self.action in action.actions:
                     t_action = action.times[0]
                     segment_inx = i
                     break
             else:
-                raise ValueError(f"Could not match action {factual_action} to trajectory.")
+                raise ValueError(f"Could not match action {self.action} to trajectory.")
         else:
             for i, action in enumerate(reversed(action_segmentations)):
-                if factual_action in action.actions:
+                if self.action in action.actions:
                     action_matched = True
                 elif action_matched:
                     t_action = action.times[-1] + 1
@@ -135,7 +137,7 @@ class Query:
                     t_action = action_segmentations[0].times[0]  # t at the beginning
                     segment_inx = n_segments - 1
                 else:
-                    raise ValueError(f"Could not match action {factual_action} to trajectory.")
+                    raise ValueError(f"Could not match action {self.action} to trajectory.")
 
         if rollback and segment_inx >= 0:
             # In case one extra segment is too short, then lower limit is used.
