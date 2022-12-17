@@ -123,7 +123,7 @@ class XAVIAgent(ip.MCTSAgent):
 
         # Determine timing information of the query.
         try:
-            self.query.get_tau(self.__current_t, self.total_observations, self.__mcts_results_buffer)
+            self.query.get_tau(self.__current_t, self.total_observations)
         except ValueError as ve:
             logger.exception(str(ve), exc_info=ve)
             return str(ve)
