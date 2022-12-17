@@ -16,7 +16,8 @@
     "agent_id": 0,
     "action": "TurnLeft",
     "t_query": 35,
-    "tense": "future"
+    "tense": "future",
+    "factual": "TurnRight"
   },
   {
     "type": "whatif",
@@ -24,7 +25,8 @@
     "action": "GoStraightJunction",
     "t_query": 60,
     "tense": "future",
-    "negative": false
+    "negative": false,
+    "factual": "Stop"
   },
   {
     "type": "whatif",
@@ -47,7 +49,8 @@
     "agent_id": 0,
     "action": "Stop",
     "t_query": 90,
-    "tense": "present"
+    "tense": "present",
+    "factual": "TurnRight"
   },
   {
     "type": "why",
