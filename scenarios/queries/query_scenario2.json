@@ -31,7 +31,7 @@
   {
     "type": "whatif",
     "agent_id": 1,
-    "action": "Stop",
+    "action": "TurnLeft",
     "t_query": 180,
     "tense": "past",
     "negative": true
@@ -39,7 +39,7 @@
   {
     "type": "whatif",
     "agent_id": 1,
-    "action": "Stop",
+    "action": "TurnLeft",
     "t_query": 80,
     "tense": "future",
     "negative": true
