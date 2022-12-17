@@ -25,21 +25,24 @@
     "agent_id": 0,
     "action": "GoStraight",
     "t_query": 75,
-    "tense": "past"
+    "tense": "past",
+    "factual": "ChangeLaneLeft"
   },
   {
     "type": "whynot",
     "agent_id": 0,
     "action": "GoStraight",
     "t_query": 45,
-    "tense": "present"
+    "tense": "present",
+    "factual": "ChangeLaneLeft"
   },
   {
     "type": "whynot",
     "agent_id": 0,
     "action": "GoStraight",
     "t_query": 20,
-    "tense": "future"
+    "tense": "future",
+    "factual": "ChangeLaneLeft"
   },
   {
     "type": "whatif",
@@ -55,7 +58,8 @@
     "action": "GoStraight",
     "negative": false,
     "t_query": 15,
-    "tense": "present"
+    "tense": "present",
+    "factual": "ChangeLaneRight"
   },
   {
     "type": "whatif",

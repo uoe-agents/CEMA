@@ -125,13 +125,13 @@ class ActionMatching:
     @staticmethod
     def action_matching(action: str,
                         action_segmentations: List[ActionSegment],
-                        longest_action: Tuple[str, ...] = None) -> bool:
+                        factual: Union[str, Tuple[str, ...]] = None) -> bool:
         """ Match user queried action with trajectories from MCTS.
 
         Args:
             action: the user queried action.
             action_segmentations: the action segmentation of a trajectory
-            longest_action: the most frequent action(s) for whynot and whatif positive query
+            factual: the most frequent action(s) for whynot and whatif positive query
         Returns:
             True if action was matched with trajectory
         """
@@ -140,8 +140,9 @@ class ActionMatching:
 
         action_found = False
         for action_segmentation in action_segmentations:
-            if longest_action is not None and \
-                    longest_action == tuple(action_segmentation.actions):
+            if factual is not None and \
+                    (factual == action_segmentation.actions or
+                     factual in action_segmentation.actions):
                 return False  # For whynot and positive whatif questions, factual actions are not relevant
             if action in action_segmentation.actions:
                 action_found = True

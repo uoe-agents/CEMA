@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Tuple, Dict, List, Optional
+from typing import Tuple, Dict, List, Optional, Union
 
 import logging
 import igp2 as ip
@@ -32,6 +32,7 @@ class Query:
         t_action: The start timestep of the action in question.
         tau: The number of timesteps to rollback from the present for counterfactual generation.
         tense: Past, future, or present. Indicates the time of the query.
+        factual: The factual action of the agent. Useful for whynot and positive what-if queries.
     """
 
     type: QueryType
@@ -42,8 +43,7 @@ class Query:
     t_action: int = None
     tau: int = None
     tense: str = None
-
-    __longest_action: Tuple[str, ...] = None
+    factual: str = None
 
     fps: int = 20
     tau_limits: np.ndarray = np.array([1, 5])  # The minimum and maximum length of tau in seconds
@@ -51,11 +51,14 @@ class Query:
 
     def __post_init__(self):
         self.__matching = ActionMatching()
-
-        # Perform value checks
+        if self.negative is None:
+            self.negative = False
         self.type = QueryType(self.type)
         if self.action is not None:
             assert self.action in self.__matching.action_library, f"Unknown action {self.action}."
+            if self.factual is not None:
+                assert self.factual != self.action, f"Factual {self.factual} cannot " \
+                                                    f"be the same as the action {self.action}."
         assert self.tense in ["past", "present", "future", None], f"Unknown tense {self.tense}."
 
     def get_tau(self,
@@ -159,51 +162,30 @@ class Query:
             action_segmentations: the action segmentation of a rollout matched with the query
         """
         for rollouts in rollouts_buffer[::-1]:
-            action_statistic = {}
-            segmentations = []
+            factual_action_exist = False
             for rollout in rollouts.mcts_results:
                 # get the start and end time of a rollout
                 trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
-                action_segmentations = self.slice_segment_trajectory(trajectory, current_t)
-                start_t = action_segmentations[0].times[0]
-                end_t = action_segmentations[-1].times[-1]
-                for seg in observation_segmentations:
-                    for time in seg.times:
-                        if not (start_t <= time <= end_t):
-                            continue
-                        key = tuple(seg.actions)  # to handle multiple actions
-                        if key not in action_statistic:
-                            action_statistic[key] = 1
-                        else:
-                            action_statistic[key] += 1
-                        # substract the action if repeated to remove common action
-                        for action_seg in action_segmentations:
-                            if time in action_seg.times and key == tuple(action_seg.actions):
-                                action_statistic[key] -= 1
-                                break
+                segmentation = self.slice_segment_trajectory(trajectory, current_t)
 
-                segmentations.append(action_segmentations)
-
-            self.__longest_action = max(action_statistic, key=action_statistic.get)
-
-            longest_action_exist = False
-            for segmentation in segmentations:
-                # skip the rollout that includes the longest action
-                if ActionMatching.action_exists(segmentation, self.__longest_action):
-                    longest_action_exist = True
+                # skip the rollout that includes the factual action
+                if ActionMatching.action_exists(segmentation, self.factual):
+                    factual_action_exist = True
                     continue
-                if ActionMatching.action_exists(segmentation, self.action) and longest_action_exist:
+                if ActionMatching.action_exists(segmentation, self.action) and factual_action_exist:
                     return segmentation
         raise ValueError(f"The queried action {self.action} is not a counterfactual!")
 
     def slice_segment_trajectory(self,
                                  trajectory: ip.StateTrajectory,
-                                 current_t: int) -> List[ActionSegment]:
+                                 current_t: int,
+                                 segment: bool = True) -> Union[ip.StateTrajectory, List[ActionSegment]]:
         # Obtain relevant trajectory slice and segment it
         """ Obtain relevant trajectory slice and segment it.
         Args:
             trajectory: the agent trajectory.
             current_t: the current time
+            segment: If true, then return a segmentation
 
         Returns:
             action_segmentations: the segmented actions
@@ -224,11 +206,6 @@ class Query:
             logger.warning(f"Query time was not given. Falling back to observed trajectory.")
             trajectory = trajectory.slice(start_inx, current_inx)
 
-        action_segmentations = self.__matching.action_segmentation(trajectory)
-        return action_segmentations
-
-    @property
-    def longest_action(self) -> Optional[Tuple[str, ...]]:
-        """ Used for whynot and positive whatif queries.
-        Contains the longest factual action(s) of the specified agent. """
-        return self.__longest_action
+        if segment:
+            return self.__matching.action_segmentation(trajectory)
+        return trajectory

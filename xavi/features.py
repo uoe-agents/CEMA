@@ -34,7 +34,7 @@ class Features:
                 continue
 
             # Agent acceleration as the weighted sum of acceleration with temporal difference
-            if len(trajectory) == 0:
+            if len(trajectory) <= 1:
                 acceleration = np.nan
             else:
                 acceleration = np.dot(trajectory.timesteps, trajectory.acceleration)
