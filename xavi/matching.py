@@ -150,9 +150,11 @@ class ActionMatching:
 
     @staticmethod
     def action_exists(action_segmentations: List[ActionSegment],
-                      action: Union[str, Tuple[str, ...]]) -> bool:
+                      action: Union[str, Tuple[str, ...]],
+                      tense: str = "past") -> bool:
         """ determine if an action exists in the action segmentation """
-        for seg in action_segmentations[::-1]:
+        iterator = action_segmentations if tense == "future" else reversed(action_segmentations)
+        for seg in iterator:
             key = tuple(seg.actions)
             if isinstance(action, str) and action in key or \
                     isinstance(action, tuple) and action == key:

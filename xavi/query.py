@@ -115,7 +115,10 @@ class Query:
         tau = None
         action_matched = False
         n_segments = len(action_segmentations)
-        for i, action in enumerate(action_segmentations[::-1]):
+        iterator = enumerate(action_segmentations) if self.tense == "future" \
+            else enumerate(action_segmentations[::-1])
+
+        for i, action in iterator:
             if self.action in action.actions:
                 action_matched = True
             elif action_matched:
@@ -148,13 +151,11 @@ class Query:
 
     def __determine_matched_rollout(self,
                                     rollouts_buffer: List[ip.AllMCTSResult],
-                                    observation_segmentations: List[ActionSegment],
                                     agent_id: int,
                                     current_t: int) -> List[ActionSegment]:
         """ determine the action segmentation of the rollout that matches the query for whynot and what-if questions.
         Args:
             rollouts_buffer: all previous rollouts from MCTS.
-            observation_segmentations: the action segmentation using observation (factual actions)
             agent_id: the agent id in query
             current_t: current time, unit:s
 
@@ -169,10 +170,11 @@ class Query:
                 segmentation = self.slice_segment_trajectory(trajectory, current_t)
 
                 # skip the rollout that includes the factual action
-                if ActionMatching.action_exists(segmentation, self.factual):
+                if ActionMatching.action_exists(segmentation, self.factual, self.tense):
                     factual_action_exist = True
                     continue
-                if ActionMatching.action_exists(segmentation, self.action) and factual_action_exist:
+                if ActionMatching.action_exists(segmentation, self.action, self.tense) \
+                        and factual_action_exist:
                     return segmentation
         raise ValueError(f"The queried action {self.action} is not a counterfactual!")
 
