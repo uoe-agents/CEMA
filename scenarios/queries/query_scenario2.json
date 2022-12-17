@@ -15,18 +15,18 @@
     "type": "whynot",
     "agent_id": 0,
     "action": "TurnLeft",
-    "t_query": 35,
+    "t_query": 45,
     "tense": "future",
     "factual": "TurnRight"
   },
   {
     "type": "whatif",
     "agent_id": 1,
-    "action": "GoStraightJunction",
+    "action": "TurnRight",
     "t_query": 60,
     "tense": "future",
     "negative": false,
-    "factual": "Stop"
+    "factual": "TurnLeft"
   },
   {
     "type": "whatif",
