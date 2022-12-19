@@ -105,6 +105,9 @@ class ActionMatching:
 
             action_sequences.append(action)
 
+        # Fix other turning actions appearing due to variable angular velocity.
+        ActionMatching.__fix_turning_actions(action_sequences)
+
         # aggregate same actions during a period
         action_segmentations = []
         actions, times = [], []
@@ -121,6 +124,32 @@ class ActionMatching:
 
         self.__segmentation = action_segmentations
         return action_segmentations
+
+    @staticmethod
+    def __fix_turning_actions(action_sequence: List[List[str]]):
+        counts = {}
+        start_inx, end_inx = None, None
+        turn_found = False
+        for t, actions in enumerate(action_sequence):
+            high_level_action = actions[-1]  # TODO (low): Relies on last action being high-level
+            if high_level_action in ["TurnLeft", "TurnRight", "GoStraightJunction"]:
+                if not turn_found:
+                    start_inx = t
+                    turn_found = True
+                if high_level_action not in counts:
+                    counts[high_level_action] = 0
+                counts[high_level_action] += 1
+            elif turn_found:
+                end_inx = t
+                break  # TODO (low): Assumes only one Exit in the segmentation.
+
+        if len(counts) < 2:
+            return
+
+        most_frequent = max(counts, key=counts.get)
+        for actions in action_sequence[start_inx:end_inx]:
+            if actions[-1] != most_frequent:
+                actions[-1] = most_frequent
 
     @staticmethod
     def action_matching(action: str,
