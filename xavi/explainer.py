@@ -171,7 +171,7 @@ class XAVIAgent(ip.MCTSAgent):
             diffs[component] = (r_qp, r_qnp,
                                 diff if not np.isnan(diff) else 0.0,
                                 rel_diff if not np.isnan(rel_diff) else 0.0)
-        columns = ["query_present", "query_not_present", "absolute", "relative"]
+        columns = ["reference", "alternative", "absolute", "relative"]
         df = pd.DataFrame.from_dict(diffs, orient="index", columns=columns)
         return df.sort_values(ascending=False, by="absolute", key=abs)
 

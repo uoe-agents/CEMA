@@ -24,7 +24,7 @@
     "agent_id": 1,
     "action": "TurnRight",
     "t_query": 60,
-    "tense": "future",
+    "tense": "past",
     "negative": false,
     "factual": "TurnLeft"
   },
