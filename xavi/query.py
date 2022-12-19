@@ -64,7 +64,7 @@ class Query:
     def get_tau(self,
                 current_t: int,
                 observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]],
-                rollouts_buffer: List[ip.AllMCTSResult]):
+                rollouts_buffer: List[Tuple[int, ip.AllMCTSResult]]):
         """ Calculate tau and the start time step of the queried action.
         Storing results in fields tau, and t_action.
 
@@ -160,7 +160,7 @@ class Query:
         return t_action, tau
 
     def __determine_matched_rollout(self,
-                                    rollouts_buffer: List[ip.AllMCTSResult],
+                                    rollouts_buffer: List[Tuple[int, ip.AllMCTSResult]],
                                     agent_id: int,
                                     current_t: int) -> List[ActionSegment]:
         """ determine the action segmentation of the rollout that matches the query for whynot and what-if questions.
@@ -172,12 +172,12 @@ class Query:
         Returns:
             action_segmentations: the action segmentation of a rollout matched with the query
         """
-        for rollouts in rollouts_buffer[::-1]:
+        for start_t, rollouts in rollouts_buffer[::-1]:
             factual_action_exist = False
             for rollout in rollouts.mcts_results:
                 # get the start and end time of a rollout
                 trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
-                segmentation = self.slice_segment_trajectory(trajectory, current_t)
+                segmentation = self.slice_segment_trajectory(trajectory, start_t)
 
                 # skip the rollout that includes the factual action
                 if ActionMatching.action_exists(segmentation, self.factual, self.tense):

@@ -100,7 +100,8 @@ class XAVIAgent(ip.MCTSAgent):
                 fill_missing_actions(agent.trajectory_cl, plan)
                 agent.trajectory_cl.calculate_path_and_velocity()
 
-        self.__mcts_results_buffer.append(self.mcts.results)
+        current_t = int(self.observations[self.agent_id][0].states[-1].time)
+        self.__mcts_results_buffer.append((current_t, self.mcts.results))
 
     def explain_actions(self, user_query: Query) -> str:
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
