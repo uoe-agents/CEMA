@@ -45,7 +45,7 @@
     "negative": true
   },
   {
-    "type": "whynot",
+    "type": "why",
     "agent_id": 0,
     "action": "Stop",
     "t_query": 90,
