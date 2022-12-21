@@ -5,7 +5,7 @@
     "fps": 20,
     "seed": 21,
     "max_steps": 250,
-    "velocity_stop": 0.1
+    "max_oncoming_vehicle_dist": 40
   },
   "agents": [
     {
@@ -15,7 +15,7 @@
         "box": {
           "center": [
             2.175,
-            -30.0
+            -35.0
           ],
           "length": 3.5,
           "width": 10.0,
@@ -43,7 +43,7 @@
         "acceleration": 0.0,
         "jerk": 1.0,
         "heading": 0.0,
-        "angular_velocity": 0.1,
+        "angular_velocity": 0.0,
         "angular_acceleration": 0.0,
         "curvature": 0.0,
         "safety": 0.0

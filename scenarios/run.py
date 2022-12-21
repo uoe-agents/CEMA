@@ -3,6 +3,7 @@ import igp2 as ip
 import xavi
 import numpy as np
 import random
+import matplotlib.pyplot as plt
 
 from util import generate_random_frame, setup_xavi_logging, parse_args, load_config, parse_query
 
@@ -26,8 +27,10 @@ if __name__ == '__main__':
     np.random.seed(seed)
     np.seterr(divide="ignore")
 
-    ip.Maneuver.MAX_SPEED = config["scenario"]["max_speed"]
-    ip.Trajectory.VELOCITY_STOP = config["scenario"]["velocity_stop"]
+    ip.Maneuver.MAX_SPEED = config["scenario"].get("max_speed", 10)
+    ip.Trajectory.VELOCITY_STOP = config["scenario"].get("velocity_stop", 0.1)
+    ip.SwitchLane.TARGET_SWITCH_LENGTH = config["scenario"].get("target_switch_length", 20)
+    ip.GiveWay.MAX_ONCOMING_VEHICLE_DIST = config["scenario"].get("max_oncoming_vehicle_dist", 100)
 
     frame = generate_random_frame(scenario_map, config)
 
@@ -61,17 +64,11 @@ if __name__ == '__main__':
         simulation.add_agent(agent)
 
     # Execute simulation for fixed number of time steps
-    explanation_generated = False
     for t in range(config["scenario"]["max_steps"]):
         simulation.step()
-        # if t % 20 == 0:
-        #     xavi.plot_simulation(simulation, debug=False)
-        #     plt.show()
+        if t % 20 == 0:
+            xavi.plot_simulation(simulation, debug=False)
+            plt.show()
         for query in queries:
             if t > 0 and t == query.t_query:  # Use 60 for S1; 75 for S2
                 xavi_agent.explain_actions(query)
-        #         explanation_generated = True
-        #
-        # if explanation_generated:
-        #     break
-

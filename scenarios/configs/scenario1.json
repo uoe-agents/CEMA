@@ -4,8 +4,7 @@
     "max_speed": 10.0,
     "fps": 20,
     "seed": 21,
-    "max_steps": 250,
-    "velocity_stop": 0.1
+    "max_steps": 250
   },
   "agents": [
     {
