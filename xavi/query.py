@@ -174,18 +174,23 @@ class Query:
         """
         for start_t, rollouts in rollouts_buffer[::-1]:
             factual_action_exist = False
+            # first determine if factual action exist in this rollouts
             for rollout in rollouts.mcts_results:
-                # get the start and end time of a rollout
                 trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
                 segmentation = self.slice_segment_trajectory(trajectory, current_t)
-
-                # skip the rollout that includes the factual action
                 if ActionMatching.action_exists(segmentation, self.factual, self.tense):
                     factual_action_exist = True
-                    continue
-                if ActionMatching.action_exists(segmentation, self.action, self.tense) \
-                        and factual_action_exist:
-                    return segmentation
+            if factual_action_exist:
+                for rollout in rollouts.mcts_results:
+                    trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
+                    segmentation = self.slice_segment_trajectory(trajectory, current_t)
+                    # skip the rollout that includes the factual action
+                    if ActionMatching.action_exists(segmentation, self.factual, self.tense):
+                        continue
+                    # determine if queried action exists
+                    if ActionMatching.action_exists(segmentation, self.action, self.tense) \
+                            and factual_action_exist:
+                        return segmentation
         raise ValueError(f"The queried action {self.action} is not a counterfactual!")
 
     def slice_segment_trajectory(self,

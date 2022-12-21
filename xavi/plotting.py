@@ -1,6 +1,6 @@
 import os.path
 import pickle
-from typing import Dict, List
+from typing import Dict, List, Tuple, Optional
 
 import igp2 as ip
 import matplotlib.pyplot as plt
@@ -205,29 +205,32 @@ def plot_predictions(ego_agent: ip.MCTSAgent,
 
 
 # -----------Explanation plotting functions---------------------
-def plot_dataframe(df, coefs):
+def plot_dataframe(df:pd.DataFrame, coefs:Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]):
     # plot final cause
-    plt.figure()
+    plt.figure(1)
     # plot absolute reward difference
     r_diffs = df.absolute
     rewards, widths = list(zip(*[(k, v) for (k, v) in r_diffs.items() if not np.isnan(v)]))
     plt.barh(rewards, widths, left=0, height=1.0, color=plt.cm.get_cmap("tab10").colors)
-    c_star = max(r_diffs, key=lambda k: np.abs(r_diffs[k]))
+    c_star = max(r_diffs.index, key=lambda k: np.abs(r_diffs[k]))
     r_star = r_diffs[c_star]
     plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
     plt.gcf().tight_layout()
 
-    # plot efficient cause
-    if coefs is not None:
-        plt.figure()
-        sns.stripplot(data=coefs, orient="h", palette="dark:k", alpha=0.5)
-        sns.boxplot(data=coefs, orient="h", color="cyan", saturation=0.5, whis=10)
+    # plot past and future efficient causes
+    for inx, coef in enumerate(coefs):
+        if coef is None:
+            continue
+        plt.figure(inx+2)
+        sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5)
+        sns.boxplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10)
         plt.axvline(x=0, color=".5")
         plt.xlabel("Coefficient importance")
-        plt.title("Coefficient importance and its variability")
-        plt.suptitle("Logistic model, small regularization")
-        plt.subplots_adjust(left=0.3)
-
+        if inx == 0:
+            plt.suptitle("Coefficient importance and its variability (past causes)")
+        else:
+            plt.suptitle("Coefficient importance and its variability (future causes)")
+        plt.gcf().tight_layout()
     # show the plot
     plt.show()
 
