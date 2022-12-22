@@ -94,10 +94,9 @@ class XAVIAgent(ip.MCTSAgent):
         for rollout in self.mcts.results:
             last_node = rollout.leaf
             for agent_id, agent in last_node.run_result.agents.items():
-                if agent_id == self.agent_id:
-                    continue
-                plan = self.goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
-                fill_missing_actions(agent.trajectory_cl, plan)
+                if isinstance(agent, ip.TrajectoryAgent):
+                    plan = self.goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
+                    fill_missing_actions(agent.trajectory_cl, plan)
                 agent.trajectory_cl.calculate_path_and_velocity()
 
         current_t = int(self.observations[self.agent_id][0].states[-1].time)
@@ -439,7 +438,7 @@ class XAVIAgent(ip.MCTSAgent):
                 sim_trajectory = agent.trajectory_cl.slice(1, None)
 
                 # Retrieve maneuvers and macro actions for non-ego vehicles
-                if agent_id != self.agent_id:
+                if isinstance(agent, ip.TrafficAgent):
                     plan = goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
                     fill_missing_actions(sim_trajectory, plan)
 
