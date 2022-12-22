@@ -191,6 +191,15 @@ def most_common(lst: list):
     return max(lst, key=data.get) if lst else None
 
 
+def list_startswith(list1: list, list2: list) -> bool:
+    """ Compare two lists. If the lengths are equal simply return equality using ==.
+    If lengths are unequal, then check whether the first one has the same element as the second one. """
+    len1, len2 = len(list1), len(list2)
+    if len1 >= len2:
+        return list1[:len2] == list2
+    return False
+
+
 def product_dict(**kwargs):
     """ Take a cross-product of a dictionary of lists. """
     keys = kwargs.keys()

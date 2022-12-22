@@ -10,7 +10,7 @@ from sklearn.linear_model import LogisticRegression
 from xavi.features import Features
 from xavi.util import fill_missing_actions, truncate_observations, \
     to_state_trajectory, find_join_index, Observations, get_coefficient_significance, \
-    find_optimal_rollout_in_subset, split_by_query
+    find_optimal_rollout_in_subset, split_by_query, list_startswith
 from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
 from xavi.language import LanguageTemplate
@@ -31,7 +31,7 @@ class Item:
 
 class XAVITree(ip.Tree):
     """ Overwrite the original MCTS tree to disable give-way with some chance. """
-    STOP_CHANCE = 0.75
+    STOP_CHANCE = 1.0
 
     def select_action(self, node: ip.Node) -> ip.MCTSAction:
         action = super(XAVITree, self).select_action(node)
@@ -43,6 +43,7 @@ class XAVITree(ip.Tree):
 
 class XAVIAction(ip.MCTSAction):
     """Overwrite MCTSAction to exclude give-way stop from planning trace. """
+
     def __repr__(self) -> str:
         stop_val = None
         if "stop" in self.ma_args:
@@ -89,23 +90,17 @@ class XAVIAgent(ip.MCTSAgent):
         self.__cf_goal_probabilities_dict = {"tau": None, "t_action": None}
         self.__cf_observations_dict = {"tau": None, "t_action": None}
         self.__cf_dataset_dict = {"tau": None, "t_action": None}
+        mcts_params = {"scenario_map": self.__scenario_map,
+                       "n_simulations": self.__cf_n_simulations,
+                       "max_depth": self.__cf_max_depth,
+                       "reward": self.mcts.reward,
+                       "store_results": "all",
+                       "tree_type": XAVITree,
+                       "action_type": XAVIAction,
+                       "trajectory_agents": False}
         self.__cf_mcts_dict = {
-            "tau": ip.MCTS(scenario_map=self.__scenario_map,
-                           n_simulations=self.__cf_n_simulations,
-                           max_depth=self.__cf_max_depth,
-                           reward=self.mcts.reward,
-                           store_results="all",
-                           tree_type=XAVITree,
-                           action_type=XAVIAction,
-                           trajectory_agents=False),
-            "t_action": ip.MCTS(scenario_map=self.__scenario_map,
-                                n_simulations=self.__cf_n_simulations,
-                                max_depth=self.__cf_max_depth,
-                                reward=self.mcts.reward,
-                                store_results="all",
-                                tree_type=XAVITree,
-                                action_type=XAVIAction,
-                                trajectory_agents=False),
+            "tau": ip.MCTS(**mcts_params),
+            "t_action": ip.MCTS(**mcts_params),
         }
 
         self.__features = Features()
@@ -337,8 +332,10 @@ class XAVIAgent(ip.MCTSAgent):
             logger.info("Ego actions remain the same even in counterfactual case.")
 
         # Determine the actual optimal maneuver and rewards
-        f_optimal_items = [it for it in f_items if it.rollout.trace == f_optimal_rollout.trace]
-        cf_optimal_items = [it for it in cf_items if it.rollout.trace == cf_optimal_rollout.trace]
+        f_optimal_items = [it for it in f_items if
+                           list_startswith(f_optimal_rollout.trace, it.rollout.trace)]
+        cf_optimal_items = [it for it in cf_items if
+                            list_startswith(cf_optimal_rollout.trace, it.rollout.trace)]
 
         # compare reward initial and reward counter
         final_causes = self.__final_causes(f_optimal_items, cf_optimal_items)
