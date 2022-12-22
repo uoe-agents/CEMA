@@ -176,6 +176,9 @@ class Query:
             action_segmentations: the action segmentation of a rollout matched with the query
         """
         for start_t, rollouts in rollouts_buffer[::-1]:
+            if start_t == current_t:
+                continue  # Ignore rollout of current time step as no action would have been taken
+
             # first determine if factual action exist in this rollouts
             for rollout in rollouts.mcts_results:
                 trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
