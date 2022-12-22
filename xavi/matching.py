@@ -164,7 +164,8 @@ class ActionMatching:
         Returns:
             True if action was matched with trajectory
         """
-        if action not in ActionMatching.action_library:
+        if isinstance(action, str) and action not in ActionMatching.action_library or \
+                isinstance(action, list) and any([act not in ActionMatching.action_library for act in action]):
             raise Exception('User action does not exist in action library.')
 
         action_found = False
@@ -173,7 +174,8 @@ class ActionMatching:
                     (factual == action_segmentation.actions or
                      factual in action_segmentation.actions):
                 return False  # For whynot and positive whatif questions, factual actions are not relevant
-            if action in action_segmentation.actions:
+            if action in action_segmentation.actions or \
+                    action == action_segmentation.actions:
                 action_found = True
         return action_found
 
@@ -184,9 +186,7 @@ class ActionMatching:
         """ determine if an action exists in the action segmentation """
         iterator = action_segmentations if tense == "future" else reversed(action_segmentations)
         for seg in iterator:
-            key = tuple(seg.actions)
-            if isinstance(action, str) and action in key or \
-                    isinstance(action, tuple) and action == key:
+            if action in seg.actions or action == seg.actions:
                 return True
         return False
 
