@@ -28,6 +28,18 @@ class Item:
     rollout: ip.MCTSResult
 
 
+class XAVITree(ip.Tree):
+    """ Overwrite the original MCTS tree to disable give-way with some chance. """
+    STOP_CHANCE = 0.9
+
+    def select_action(self, node: ip.Node) -> ip.MCTSAction:
+        action = super(XAVITree, self).select_action(node)
+        if action.macro_action_type == ip.Exit:
+            give_way_stop = np.random.random() < 1.0 - XAVITree.STOP_CHANCE
+            action.ma_args["stop"] = give_way_stop
+        return action
+
+
 class XAVIAgent(ip.MCTSAgent):
     """ Generate new rollouts and save results after MCTS in the observation tau time before. """
 
@@ -69,12 +81,14 @@ class XAVIAgent(ip.MCTSAgent):
                            max_depth=self.__cf_max_depth,
                            reward=self.mcts.reward,
                            store_results="all",
+                           tree_type=XAVITree,
                            trajectory_agents=False),
             "t_action": ip.MCTS(scenario_map=self.__scenario_map,
                                 n_simulations=self.__cf_n_simulations,
                                 max_depth=self.__cf_max_depth,
                                 reward=self.mcts.reward,
                                 store_results="all",
+                                tree_type=XAVITree,
                                 trajectory_agents=False),
         }
 
