@@ -55,7 +55,9 @@ class Query:
             self.negative = False
         self.type = QueryType(self.type)
         if self.action is not None:
-            assert self.action in self.__matching.action_library, f"Unknown action {self.action}."
+            assert all([act in self.__matching.action_library
+                        for act in self.__matching.action_library]), \
+                f"Unknown action {self.action}."
             if self.factual is not None:
                 assert self.factual != self.action, f"Factual {self.factual} cannot " \
                                                     f"be the same as the action {self.action}."
@@ -118,7 +120,7 @@ class Query:
 
         if self.tense == "future":
             for i, action in enumerate(action_segmentations):
-                if self.action in action.actions:
+                if self.action in action.actions or self.action == action.actions:
                     t_action = action.times[0]
                     segment_inx = i
                     break
@@ -126,7 +128,7 @@ class Query:
                 raise ValueError(f"Could not match action {self.action} to trajectory.")
         else:
             for i, action in enumerate(reversed(action_segmentations)):
-                if self.action in action.actions:
+                if self.action in action.actions or self.action == action.actions:
                     action_matched = True
                 elif action_matched:
                     t_action = action.times[-1] + 1
@@ -173,25 +175,33 @@ class Query:
             action_segmentations: the action segmentation of a rollout matched with the query
         """
         for start_t, rollouts in rollouts_buffer[::-1]:
-            factual_action_exist = False
             # first determine if factual action exist in this rollouts
             for rollout in rollouts.mcts_results:
                 trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
                 segmentation = self.slice_segment_trajectory(trajectory, current_t)
                 if ActionMatching.action_exists(segmentation, self.factual, self.tense):
-                    factual_action_exist = True
-            if factual_action_exist:
-                for rollout in rollouts.mcts_results:
-                    trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
-                    segmentation = self.slice_segment_trajectory(trajectory, current_t)
-                    # skip the rollout that includes the factual action
-                    if ActionMatching.action_exists(segmentation, self.factual, self.tense):
-                        continue
-                    # determine if queried action exists
-                    if ActionMatching.action_exists(segmentation, self.action, self.tense) \
-                            and factual_action_exist:
+                    break
+            else:
+                continue
+
+            fallback = None
+            for rollout in rollouts.mcts_results:
+                trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
+                segmentation = self.slice_segment_trajectory(trajectory, current_t)
+                action_exists = ActionMatching.action_exists(segmentation, self.action, self.tense)
+                factual_exists = ActionMatching.action_exists(segmentation, self.factual, self.tense)
+                # skip the rollout that includes the factual action
+                if action_exists:
+                    if not factual_exists:
                         return segmentation
-        raise ValueError(f"The queried action {self.action} is not a counterfactual!")
+                    else:
+                        fallback = segmentation
+            if fallback is not None:
+                # If all rollouts contain the factual but some also the counterfactual,
+                #  then use that as a fallback option.
+                self.factual = None
+                return fallback
+        raise ValueError(f"The queried action {self.action} does not exist!")
 
     def slice_segment_trajectory(self,
                                  trajectory: ip.StateTrajectory,
