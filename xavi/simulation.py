@@ -66,8 +66,8 @@ class Simulation:
     def step(self):
         """ Advance simulation by one time step. """
         logger.debug(f"Simulation step {self.__t}")
-        self.__t += 1
         self.__take_actions()
+        self.__t += 1
 
     def __take_actions(self):
         new_frame = {}
@@ -75,6 +75,9 @@ class Simulation:
 
         for agent_id, agent in self.__agents.items():
             if agent is None or not agent.alive:
+                continue
+            if not agent.alive or self.__t > 0 and agent.done(observation):
+                self.remove_agent(agent_id)
                 continue
 
             new_state, action = agent.next_state(observation, return_action=True)
@@ -84,8 +87,6 @@ class Simulation:
             new_frame[agent_id] = new_state
 
             agent.alive = len(self.__scenario_map.roads_at(new_state.position)) > 0
-            if not agent.alive or agent.done(observation):
-                self.remove_agent(agent_id)
 
         self.__state = new_frame
 

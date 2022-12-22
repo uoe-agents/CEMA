@@ -52,6 +52,7 @@
         "t_update": 2.0,
         "n_simulations": 15,
         "store_results": "all",
+        "trajectory_agents": false,
         "reward_factors": {
           "time": 1.0,
           "jerk": -1.0,
