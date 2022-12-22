@@ -68,12 +68,14 @@ class XAVIAgent(ip.MCTSAgent):
                            n_simulations=self.__cf_n_simulations,
                            max_depth=self.__cf_max_depth,
                            reward=self.mcts.reward,
-                           store_results="all"),
+                           store_results="all",
+                           trajectory_agents=False),
             "t_action": ip.MCTS(scenario_map=self.__scenario_map,
                                 n_simulations=self.__cf_n_simulations,
                                 max_depth=self.__cf_max_depth,
                                 reward=self.mcts.reward,
-                                store_results="all"),
+                                store_results="all",
+                                trajectory_agents=False),
         }
 
         self.__features = Features()
