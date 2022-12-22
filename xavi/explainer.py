@@ -371,8 +371,9 @@ class XAVIAgent(ip.MCTSAgent):
                                          goal_probabilities,
                                          mcts)
                 self.__cf_goal_probabilities_dict[time_reference] = goal_probabilities
+            ref_t = self.query.t_action if time_reference == "t_action" else self.query.tau
             self.__cf_dataset_dict[time_reference] = self.__get_dataset(
-                mcts.results, goal_probabilities, truncated_observations)
+                mcts.results, goal_probabilities, truncated_observations, ref_t)
 
     def __generate_rollouts(self,
                             frame: Dict[int, ip.AgentState],
@@ -430,7 +431,8 @@ class XAVIAgent(ip.MCTSAgent):
     def __get_dataset(self,
                       mcts_results: ip.AllMCTSResult,
                       goal_probabilities: Dict[int, ip.GoalsProbabilities],
-                      observations: Observations) \
+                      observations: Observations,
+                      reference_t: int ) \
             -> Dict[int, Item]:
         """ Return dataset recording states, boolean feature, and reward
 
@@ -438,6 +440,7 @@ class XAVIAgent(ip.MCTSAgent):
              mcts_results: MCTS results class to convert to a dataset.
              goal_probabilities: Predictions for non-ego vehicles.
              observations: The observations that preceded the planning step.
+             reference_t: The time of the start of the counterfactual simulation.
          """
         dataset = {}
         for m, rollout in enumerate(mcts_results):
@@ -470,8 +473,11 @@ class XAVIAgent(ip.MCTSAgent):
                     r = reward_value[-1].reward_components
 
             # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
-            sliced_trajectory = self.query.slice_segment_trajectory(trajectory_queried_agent, self.__current_t)
-            y = self.__matching.action_matching(self.query.action, sliced_trajectory, self.query.factual)
+            sliced_trajectory = self.query.slice_segment_trajectory(
+                trajectory_queried_agent, self.__current_t, present_ref_t=reference_t)
+            query_factual = self.query.factual if not self.query.all_factual else None
+            y = self.__matching.action_matching(
+                self.query.action, sliced_trajectory, query_factual)
             if self.query.negative:
                 y = not y
 

@@ -50,6 +50,7 @@ class Query:
     time_limits = np.array([5, 5])  # Maximum lengths of the trajectories, both in past and future, in seconds.
 
     def __post_init__(self):
+        self.__all_factual = False
         self.__matching = ActionMatching()
         if self.negative is None:
             self.negative = False
@@ -199,20 +200,22 @@ class Query:
             if fallback is not None:
                 # If all rollouts contain the factual but some also the counterfactual,
                 #  then use that as a fallback option.
-                self.factual = None
+                self.__all_factual = True
                 return fallback
         raise ValueError(f"The queried action {self.action} does not exist!")
 
     def slice_segment_trajectory(self,
                                  trajectory: ip.StateTrajectory,
                                  current_t: int,
-                                 segment: bool = True) -> Union[ip.StateTrajectory, List[ActionSegment]]:
+                                 segment: bool = True,
+                                 present_ref_t: int = None) -> Union[ip.StateTrajectory, List[ActionSegment]]:
         # Obtain relevant trajectory slice and segment it
         """ Obtain relevant trajectory slice and segment it.
         Args:
             trajectory: the agent trajectory.
             current_t: the current time
             segment: If true, then return a segmentation
+            present_ref_t: The reference time for present time queries.
 
         Returns:
             action_segmentations: the segmented actions
@@ -221,12 +224,14 @@ class Query:
         current_inx = int(current_t - trajectory[0].time + 1)
         start_inx = max(0, current_inx - past_limit)
         end_inx = min(len(trajectory), current_inx + future_limit)
-        if self.tense == "past" or \
-                self.tense == "present" and self.t_action is None:
+        if self.tense == "past":
             trajectory = trajectory.slice(start_inx, current_inx)
         elif self.tense == "present":
-            t_action_inx = int(self.t_action - trajectory[0].time + 1)
-            trajectory = trajectory.slice(t_action_inx, end_inx)
+            if present_ref_t is not None:
+                t_action_inx = int(present_ref_t - trajectory[0].time + 1)
+                trajectory = trajectory.slice(t_action_inx, end_inx)
+            else:
+                trajectory = trajectory.slice(start_inx, current_inx)
         elif self.tense == "future":
             trajectory = trajectory.slice(current_inx, end_inx)
         elif self.tense is None:
@@ -236,3 +241,8 @@ class Query:
         if segment:
             return self.__matching.action_segmentation(trajectory)
         return trajectory
+
+    @property
+    def all_factual(self) -> bool:
+        """ Return whether the query factual appears in all rollouts or not. """
+        return self.__all_factual
