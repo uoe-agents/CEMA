@@ -15,6 +15,7 @@ from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
 from xavi.language import LanguageTemplate
 from xavi.plotting import plot_dataframe
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,7 +37,7 @@ class XAVITree(ip.Tree):
         action = super(XAVITree, self).select_action(node)
         if action.macro_action_type == ip.Exit:
             give_way_stop = np.random.random() < 1.0 - XAVITree.STOP_CHANCE
-            action.ma_args["stop"] = give_way_stop
+            action.ma_args["stop"] = not give_way_stop
         return action
 
 
@@ -432,7 +433,7 @@ class XAVIAgent(ip.MCTSAgent):
                       mcts_results: ip.AllMCTSResult,
                       goal_probabilities: Dict[int, ip.GoalsProbabilities],
                       observations: Observations,
-                      reference_t: int ) \
+                      reference_t: int) \
             -> Dict[int, Item]:
         """ Return dataset recording states, boolean feature, and reward
 
