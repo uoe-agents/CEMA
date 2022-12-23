@@ -223,18 +223,21 @@ class XAVIAgent(ip.MCTSAgent):
             return None, None
 
         # Get past and future datasets by truncate trajectories to relevant length and getting features
+        agent_id = self.agent_id
+        if self.query.type in [QueryType.WHY, QueryType.WHY_NOT]:
+            agent_id = self.query.agent_id
         if tau_dataset is not None:
             for item_past in tau_dataset:
                 trajectories_past = {}
                 for aid, traj in item_past.trajectories.items():
                     trajectories_past[aid] = traj.slice(self.query.tau, self.query.t_action)
-                xs_past.append(self.__features.to_features(self.agent_id, trajectories_past))
+                xs_past.append(self.__features.to_features(agent_id, trajectories_past))
                 ys_past.append(item_past.query_present)
         for item_future in t_action_dataset:
             trajectories_future = {}
             for aid, traj in item_future.trajectories.items():
                 trajectories_future[aid] = traj.slice(self.query.t_action, None)
-            xs_future.append(self.__features.to_features(self.agent_id, trajectories_future))
+            xs_future.append(self.__features.to_features(agent_id, trajectories_future))
             ys_future.append(item_future.query_present)
 
         # Run a logistic regression classifier

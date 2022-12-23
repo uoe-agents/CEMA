@@ -77,9 +77,6 @@ class Query:
             rollouts_buffer: The actual MCTS rollouts of the agent.
         """
         agent_id = self.agent_id
-        if self.type == QueryType.WHAT_IF:
-            agent_id = self.agent_id
-
         trajectory = observations[agent_id][0]
         action_segmentations = self.slice_segment_trajectory(trajectory, current_t)
 
