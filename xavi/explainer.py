@@ -104,7 +104,7 @@ class XAVIAgent(ip.MCTSAgent):
         }
 
         self.__features = Features()
-        self.__matching = ActionMatching()
+        self.__matching = ActionMatching(scenario_map=self.__scenario_map)
         self.__language = LanguageTemplate()
 
         self.__previous_queries = []
@@ -150,7 +150,9 @@ class XAVIAgent(ip.MCTSAgent):
 
         # Determine timing information of the query.
         try:
-            self.query.get_tau(self.__current_t, self.total_observations, self.__mcts_results_buffer)
+            self.query.get_tau(
+                self.__current_t, self.__scenario_map,
+                self.total_observations, self.__mcts_results_buffer)
         except ValueError as ve:
             logger.exception(str(ve), exc_info=ve)
             return str(ve)
@@ -341,7 +343,7 @@ class XAVIAgent(ip.MCTSAgent):
                             list_startswith(cf_optimal_rollout.trace, it.rollout.trace)]
 
         # compare reward initial and reward counter
-        final_causes = self.__final_causes(f_optimal_items, cf_optimal_items)
+        final_causes = self.__final_causes(cf_optimal_items, f_optimal_items)
         efficient_causes = self.__efficient_causes(None, cf_optimal_items + f_optimal_items)
 
         return cf_action_group, final_causes, efficient_causes

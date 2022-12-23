@@ -66,6 +66,7 @@ class Query:
 
     def get_tau(self,
                 current_t: int,
+                scenario_map: ip.Map,
                 observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]],
                 rollouts_buffer: List[Tuple[int, ip.AllMCTSResult]]):
         """ Calculate tau and the start time step of the queried action.
@@ -73,11 +74,13 @@ class Query:
 
         Args:
             current_t: The current timestep of the simulation
+            scenario_map: The current road layout
             observations: Trajectories observed (and possibly extended with future predictions) of the environment.
             rollouts_buffer: The actual MCTS rollouts of the agent.
         """
         agent_id = self.agent_id
         trajectory = observations[agent_id][0]
+        self.__matching.set_scenario_map(scenario_map)
         action_segmentations = self.slice_segment_trajectory(trajectory, current_t)
 
         if self.type == QueryType.WHAT_IF and not self.negative or \
