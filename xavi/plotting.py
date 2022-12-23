@@ -247,7 +247,7 @@ def plot_explanation(
     Args:
         r_diffs: Reward component differences.
         data: Input data to the logistic regression model
-        labels: Labbels indicating the presence of a query
+        labels: Labels indicating the presence of a query
         model: The logistic regression model
         save_path: If not None, then save figures to this path
         future: Whether the data relates to future trajectories.
@@ -268,7 +268,7 @@ def plot_explanation(
         plt.savefig(os.path.join(save_path, f"{'future' if future else 'past'}_final.png"))
 
     # Plot model coefficients
-    feature_names = data.columns
+    feature_names = [col[:15] for col in data.columns]
     coefs = pd.DataFrame(
         np.squeeze(model.coef_) * data.std(axis=0),
         columns=["Coefficient importance"],
