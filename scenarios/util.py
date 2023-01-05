@@ -22,6 +22,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fps", type=int, help="Framerate of the simulation.")
     parser.add_argument("--config_path", type=str, help="Path to a scenario configuration file.")
     parser.add_argument("--query_path", type=str, help="Path to load a query.")
+    parser.add_argument("--save_causes", action="store_true", default=False,
+                        help="Whether to save the causes for each query.")
+    parser.add_argument("--plot", action="store_true", default=False,
+                        help="Whether to display plots of the simulation.")
     return parser.parse_args()
 
 
@@ -58,6 +62,8 @@ def parse_query(args) -> List[Query]:
         raise ValueError("No query was specified!")
     try:
         queries = json.load(open(path, "r"))
+        if isinstance(queries, dict):
+            queries = queries[f"s{args.scenario}"]
         return [Query(**query_dict) for query_dict in queries]
     except FileNotFoundError as e:
         logger.exception(str(e), exc_info=e)

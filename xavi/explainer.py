@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import logging
 import igp2 as ip
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 
 from sklearn.linear_model import LogisticRegression
@@ -129,13 +129,13 @@ class XAVIAgent(ip.MCTSAgent):
         current_t = int(self.observations[self.agent_id][0].states[-1].time)
         self.__mcts_results_buffer.append((current_t, self.mcts.results))
 
-    def explain_actions(self, user_query: Query) -> str:
+    def explain_actions(self, user_query: Query) -> (str, Any):
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
 
         Args:
             user_query: The parsed query of the user.
 
-        Returns: A natural language explanation of the query.
+        Returns: A natural language explanation of the query, and the causes that generated the sentence.
         """
         self.__user_query = user_query
         self.__user_query.fps = self.fps
@@ -163,11 +163,11 @@ class XAVIAgent(ip.MCTSAgent):
             causes = self.__explain_what()
         elif self.query.type in [QueryType.WHY, QueryType.WHY_NOT]:
             causes = self.__explain_why()
-            plot_dataframe(causes[0], causes[1])
+            # plot_dataframe(causes[0], causes[1])
         elif self.query.type == QueryType.WHAT_IF:
             causes = self.__explain_whatif()
-            plot_dataframe(causes[1], causes[2])
-            logger.info(f"I will {causes[0]}")
+            # plot_dataframe(causes[1], causes[2])
+            # logger.info(f"I will {causes[0]}")
         else:
             raise ValueError(f"Unknown query type: {self.query.type}")
 
@@ -176,7 +176,7 @@ class XAVIAgent(ip.MCTSAgent):
 
         self.__previous_queries.append(self.__user_query)
         logger.info(f"t_action is {self.query.t_action}, tau is {self.query.tau}")
-        return sentence
+        return sentence, causes
 
     def __final_causes(self, ref_items: List[Item], alt_items: List[Item]) -> pd.DataFrame:
         """ Generate final causes for the queried action.
@@ -209,7 +209,7 @@ class XAVIAgent(ip.MCTSAgent):
     def __efficient_causes(self,
                            tau_dataset: List[Item] = None,
                            t_action_dataset: List[Item] = None) \
-            -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+            -> (Optional[pd.DataFrame], pd.DataFrame, (Optional[LogisticRegression], LogisticRegression)):
         """ Generate efficient causes for the queried action.
 
         Args:
@@ -217,7 +217,7 @@ class XAVIAgent(ip.MCTSAgent):
             t_action_dataset: Counterfactual items starting from timestep t_action.
 
         Returns:
-            Dataframes for past and future causes with causal effect size.
+            Dataframes for past and future causes with causal effect size, and optionally the linear regression models
         """
         xs_past, ys_past = [], []
         xs_future, ys_future = [], []
@@ -243,7 +243,8 @@ class XAVIAgent(ip.MCTSAgent):
             ys_future.append(item_future.query_present)
 
         # Run a logistic regression classifier
-        coefs_past = None
+        model_past, coefs_past = None, None
+        X_past, y_past = None, None
         if tau_dataset is not None:
             X_past, y_past = self.__features.binarise(xs_past, ys_past)
             model_past = LogisticRegression().fit(X_past, y_past)
@@ -254,7 +255,7 @@ class XAVIAgent(ip.MCTSAgent):
         coefs_future = get_coefficient_significance(X_future, y_future, model_future)
 
         # Get coefficients using K-fold cross validation
-        return coefs_past, coefs_future
+        return coefs_past, coefs_future, (X_past, y_past, model_past), (X_future, y_future, model_future)
 
     # ---------Explanation generation functions---------------
 
