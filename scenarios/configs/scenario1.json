@@ -49,7 +49,7 @@
       },
       "mcts": {
         "t_update": 2.0,
-        "n_simulations": 15,
+        "n_simulations": 30,
         "store_results": "all",
         "trajectory_agents": false,
         "reward_factors": {
@@ -60,7 +60,7 @@
         }
       },
       "explainer": {
-        "cf_n_simulations": 25,
+        "cf_n_simulations": 50,
         "cf_max_depth": 5,
         "tau_limits": [1.0, 5.0],
         "time_limits": [5.0, 5.0]

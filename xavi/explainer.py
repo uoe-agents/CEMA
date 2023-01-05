@@ -13,7 +13,7 @@ from xavi.util import fill_missing_actions, truncate_observations, \
     find_optimal_rollout_in_subset, split_by_query, list_startswith
 from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
-from xavi.language import LanguageTemplate
+from xavi.language import Language
 from xavi.plotting import plot_dataframe
 
 logger = logging.getLogger(__name__)
@@ -105,7 +105,7 @@ class XAVIAgent(ip.MCTSAgent):
 
         self.__features = Features()
         self.__matching = ActionMatching(scenario_map=self.__scenario_map)
-        self.__language = LanguageTemplate()
+        self.__language = Language()
 
         self.__previous_queries = []
         self.__user_query = None
@@ -172,7 +172,8 @@ class XAVIAgent(ip.MCTSAgent):
             raise ValueError(f"Unknown query type: {self.query.type}")
 
         # TODO (high): Convert to NL explanations through language templates.
-        sentence = self.__language.convert_to_sentence(causes)
+        # sentence = self.__language.convert_to_sentence(causes)
+        sentence = ""
 
         self.__previous_queries.append(self.__user_query)
         logger.info(f"t_action is {self.query.t_action}, tau is {self.query.tau}")
@@ -489,7 +490,7 @@ class XAVIAgent(ip.MCTSAgent):
             # save reward for each component
             for last_action, reward_value, in last_node.reward_results.items():
                 if last_action == rollout.trace[-1]:
-                    r = reward_value[-1].reward_components
+                    r = reward_value[-1].cost_components
 
             # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
             sliced_trajectory = self.query.slice_segment_trajectory(

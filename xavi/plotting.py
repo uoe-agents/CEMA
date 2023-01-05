@@ -205,31 +205,47 @@ def plot_predictions(ego_agent: ip.MCTSAgent,
 
 
 # -----------Explanation plotting functions---------------------
-def plot_dataframe(df:pd.DataFrame, coefs:Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]):
+def plot_dataframe(df: pd.DataFrame, coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]):
     # plot final cause
     plt.figure(1)
+
     # plot absolute reward difference
+    rewards = {"time": "Time to goal (s)",
+               "jerk": rf"Jerk (m/s^3)",
+               "angular_velocity": "Angular velocity (rad/s)",
+               "curvature": "Curvature (1/m)",
+               "coll": "Collision"}
+    y_tick_labels = [rewards[indx] for indx in df.index]
     r_diffs = df.absolute
     rewards, widths = list(zip(*[(k, v) for (k, v) in r_diffs.items() if not np.isnan(v)]))
     plt.barh(rewards, widths, left=0, height=1.0, color=plt.cm.get_cmap("tab10").colors)
     c_star = max(r_diffs.index, key=lambda k: np.abs(r_diffs[k]))
     r_star = r_diffs[c_star]
-    plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
+    # plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
+    plt.yticks(ticks=plt.yticks()[0], labels=y_tick_labels)
     plt.gcf().tight_layout()
 
     # plot past and future efficient causes
-    for inx, coef in enumerate(coefs):
+    for inx, coef in enumerate(coefs, 2):
         if coef is None:
             continue
-        plt.figure(inx+2)
+        plt.figure(inx)
         sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5)
         sns.boxplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10)
         plt.axvline(x=0, color=".5")
         plt.xlabel("Coefficient importance")
-        if inx == 0:
+        if inx == 2:
             plt.suptitle("Coefficient importance and its variability (past causes)")
         else:
             plt.suptitle("Coefficient importance and its variability (future causes)")
+        y_tick_labels = []
+        for lbl in coef.columns:
+            lbl_split = lbl.split("_")
+            if "macro" in lbl_split:
+                lbl_split.remove("macro")
+            vehicle = lbl_split[0]
+            y_tick_labels.append(f"V{vehicle} {' '.join(lbl_split[1:])}")
+        plt.yticks(ticks=plt.yticks()[0], labels=y_tick_labels)
         plt.gcf().tight_layout()
     # show the plot
     plt.show()
