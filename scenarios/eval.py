@@ -20,6 +20,7 @@ if __name__ == '__main__':
     causes = pickle.load(open(causes_file, "rb"))
 
     # Split causes according to query type
+    action_segment = None
     if query.type == xavi.QueryType.WHY or query.type == xavi.QueryType.WHY_NOT:
         final_expl, (coef_past, coef_future,
                      (X_past, y_past, m_past),
@@ -35,7 +36,7 @@ if __name__ == '__main__':
         final_expl = final_expl.drop(["term"])
 
     lang = xavi.Language()
-    s = lang.convert_to_sentence(query, final_expl, (coef_past, coef_future))
+    s = lang.convert_to_sentence(query, final_expl, (coef_past, coef_future), action_segment)
     print(s)
 
     # Generate plots
