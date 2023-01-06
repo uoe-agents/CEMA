@@ -1,5 +1,6 @@
 import os.path
 import pickle
+import re
 from typing import Dict, List, Tuple, Optional
 
 import igp2 as ip
@@ -205,48 +206,79 @@ def plot_predictions(ego_agent: ip.MCTSAgent,
 
 
 # -----------Explanation plotting functions---------------------
-def plot_dataframe(df: pd.DataFrame, coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]):
+def plot_dataframe(
+        df: pd.DataFrame,
+        coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]],
+        save_path: str = None):
     # plot final cause
-    plt.figure(1)
 
     # plot absolute reward difference
-    rewards = {"time": "Time to goal (s)",
-               "jerk": rf"Jerk (m/s^3)",
-               "angular_velocity": "Angular velocity (rad/s)",
-               "curvature": "Curvature (1/m)",
-               "coll": "Collision"}
+    fig, axs = plt.subplots(1, 3, figsize=(20, 5))
+    ax = axs[0]
+    rewards = {"time": "Time to goal\n(s)",
+               "jerk": f"Jerk\n(m/s^3)",
+               "angular_velocity": "Angular velocity\n(rad/s)",
+               "curvature": "Curvature\n(1/m)",
+               "coll": "Collision",
+               "dead": "Goal not reached"}
+    binaries = df.loc[["coll", "dead"]]
+    df = df.drop(["coll", "dead"])
     y_tick_labels = [rewards[indx] for indx in df.index]
     r_diffs = df.absolute
     rewards, widths = list(zip(*[(k, v) for (k, v) in r_diffs.items() if not np.isnan(v)]))
-    plt.barh(rewards, widths, left=0, height=1.0, color=plt.cm.get_cmap("tab10").colors)
+    ax.barh(rewards, widths, left=0, height=1.0, color=plt.cm.get_cmap("tab10").colors)
     c_star = max(r_diffs.index, key=lambda k: np.abs(r_diffs[k]))
     r_star = r_diffs[c_star]
     # plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
-    plt.yticks(ticks=plt.yticks()[0], labels=y_tick_labels)
-    plt.gcf().tight_layout()
+    ax.set_title(f"Collision: {binaries.loc['coll', 'absolute'] > 0}; "
+                 f"Goal not reached: {binaries.loc['dead', 'absolute'] > 0}")
+    ax.set_yticklabels(y_tick_labels)
 
     # plot past and future efficient causes
-    for inx, coef in enumerate(coefs, 2):
+    macro_re = re.compile(r"^(\w+)\(([^,]+)(,[^,]+)*\)$")
+    for inx, coef in enumerate(coefs, 1):
+        ax = axs[inx]
         if coef is None:
             continue
-        plt.figure(inx)
-        sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5)
-        sns.boxplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10)
-        plt.axvline(x=0, color=".5")
-        plt.xlabel("Coefficient importance")
-        if inx == 2:
-            plt.suptitle("Coefficient importance and its variability (past causes)")
+        coef = coef.reindex(sorted(coef.columns, key=lambda x: x[0]), axis=1)
+        strip = sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5, ax=ax)
+        violin = sns.violinplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10, ax=ax)
+        ax.axvline(x=0, color=".5")
+        ax.set_xlabel("Coefficient importance")
+        if inx == 1:
+            # ax.set_title("Coefficient importance and its variability (past causes)")
+            ax.set_title("Past causes")
         else:
-            plt.suptitle("Coefficient importance and its variability (future causes)")
+            ax.set_title("Present-future causes")
         y_tick_labels = []
-        for lbl in coef.columns:
+        line_pos = []
+        prev_veh = None
+        for i, lbl in enumerate(coef.columns):
             lbl_split = lbl.split("_")
             if "macro" in lbl_split:
                 lbl_split.remove("macro")
+                match = macro_re.match(lbl_split[1])
+                action = match.groups()[0]
+                params = match.groups()[1:]
+                if action == "Exit":
+                    action += " " + params[0]
+            else:
+                action = ' '.join(lbl_split[1:]).capitalize()
             vehicle = lbl_split[0]
-            y_tick_labels.append(f"V{vehicle} {' '.join(lbl_split[1:])}")
-        plt.yticks(ticks=plt.yticks()[0], labels=y_tick_labels)
-        plt.gcf().tight_layout()
+            if prev_veh is None:
+                prev_veh = vehicle
+            elif prev_veh != vehicle:
+                line_pos.append(i)
+                prev_veh = vehicle
+            y_tick_labels.append(f"{action} (V{vehicle})")
+        ax.set_yticklabels(y_tick_labels)
+        # else:
+        #     ax.set_yticklabels([])
+        for pos in line_pos:
+            ax.axhline(pos - 0.5)
+    fig.tight_layout()
+    if save_path is not None:
+        fig.savefig(os.path.join(save_path, f"attributions.pdf"))
     # show the plot
     plt.show()
 

@@ -429,12 +429,7 @@ class XAVIAgent(ip.MCTSAgent):
 
             # Set the probabilities equal for each goal and trajectory
             #  to make sure we can sample all counterfactual scenarios
-            n_reachable = sum(map(lambda x: len(x) > 0, gps.trajectories_probabilities.values()))
-            for goal, traj_prob in gps.trajectories_probabilities.items():
-                traj_len = len(traj_prob)
-                if traj_len > 0:
-                    gps.goals_probabilities[goal] = 1 / n_reachable
-                    gps.trajectories_probabilities[goal] = [1 / traj_len for _ in range(traj_len)]
+            gps.add_smoothing(0.1)
 
         # Reset the number of trajectories for goal generation
         self._goal_recognition._n_trajectories = n_trajectories

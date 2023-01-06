@@ -32,12 +32,12 @@ if __name__ == '__main__':
         pass
 
     if final_expl is not None:
-        final_expl = final_expl.drop(["term", "dead"])
+        final_expl = final_expl.drop(["term"])
 
     lang = xavi.Language()
     s = lang.convert_to_sentence(query, final_expl, (coef_past, coef_future))
     print(s)
 
     # Generate plots
-    plot_dataframe(final_expl, (coef_past, coef_future))
+    plot_dataframe(final_expl, (coef_past, coef_future), save_path=f"output/scenario_{scenario}")
     plt.show()
