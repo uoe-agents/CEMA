@@ -5,6 +5,7 @@ import pandas as pd
 import simplenlg as nlg
 
 from xavi.query import Query
+from xavi.matching import ActionGroup
 
 
 class Language:
@@ -17,16 +18,23 @@ class Language:
     def convert_to_sentence(self,
                             query: Query,
                             final_causes: pd.DataFrame,
-                            efficient_causes: Tuple[pd.DataFrame, ...]) -> (str, str):
+                            efficient_causes: Tuple[pd.DataFrame, ...],
+                            action_group: ActionGroup) -> (str, str):
         """ Convert a set of causal attributions to a natural language reply.
 
         Args:
             query: The query being answered.
             final_causes: Causal attributions for the final explanation.
             efficient_causes: Causal attributions for the efficient explanations.
+            action_group: The action to be executed by the vehicle.
 
         Returns:
         """
+        # Associative explanation
+        if action_group is not None:
+            associative_sentence = self.__factory.createClause()
+
+
         # Generate final explanation
         cause_type = final_causes.index[0]
         cause_verb, cause_object = self.__reward_to_text(

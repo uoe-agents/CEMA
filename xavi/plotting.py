@@ -240,9 +240,11 @@ def plot_dataframe(
         ax = axs[inx]
         if coef is None:
             continue
-        coef = coef.reindex(sorted(coef.columns, key=lambda x: x[0]), axis=1)
-        strip = sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5, ax=ax)
-        violin = sns.violinplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10, ax=ax)
+        inxs = (-coef.mean(0)).argsort()
+        coef = coef.iloc[:, inxs]
+        # coef = coef.reindex(sorted(coef.columns, key=lambda x: x[0]), axis=1)
+        sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5, ax=ax)
+        sns.violinplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10, ax=ax)
         ax.axvline(x=0, color=".5")
         ax.set_xlabel("Coefficient importance")
         if inx == 1:
@@ -270,15 +272,15 @@ def plot_dataframe(
             elif prev_veh != vehicle:
                 line_pos.append(i)
                 prev_veh = vehicle
-            y_tick_labels.append(f"{action} (V{vehicle})")
+            y_tick_labels.append(f"{action} ({vehicle})")
         ax.set_yticklabels(y_tick_labels)
         # else:
         #     ax.set_yticklabels([])
-        for pos in line_pos:
-            ax.axhline(pos - 0.5)
+        # for pos in line_pos:
+        #     ax.axhline(pos - 0.5)
     fig.tight_layout()
     if save_path is not None:
-        fig.savefig(os.path.join(save_path, f"attributions.pdf"))
+        fig.savefig(os.path.join(save_path, f"attributions.pdf"), bbox_inches='tight')
     # show the plot
     plt.show()
 

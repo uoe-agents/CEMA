@@ -155,14 +155,15 @@ def find_optimal_rollout_in_subset(subset: List["Item"],
                                    reward_factors: Dict[str, float]) -> "Item":
     """ Find the most optimal action from a subset of MTCS rollouts based on average rewards.
 
-    Returns: The rollout with the maximum q-value at the selected leaf node.
+    Returns: The rollout with the maximum average reward.
     """
     rollouts = defaultdict(list)
     for m, item in enumerate(subset):
         rollout = item.rollout
         sum_reward = 0.0
         for component, factor in reward_factors.items():
-            reward = item.reward[component] if item.reward[component] is not None else 0.0
+            reward = item.reward.reward_components[component] \
+                if item.reward.reward_components[component] is not None else 0.0
             sum_reward += factor * reward
         rollouts[rollout.trace].append((rollout, sum_reward))
     means = {trace: np.mean(list(zip(*items))[1]) for trace, items in rollouts.items()}

@@ -218,7 +218,7 @@ class Query:
             trajectory: the agent trajectory.
             current_t: the current time
             segment: If true, then return a segmentation
-            present_ref_t: The reference time for present time queries.
+            present_ref_t: The reference time for the time queries.
 
         Returns:
             action_segmentations: the segmented actions
@@ -236,7 +236,11 @@ class Query:
             else:
                 trajectory = trajectory.slice(start_inx, current_inx)
         elif self.tense == "future":
-            trajectory = trajectory.slice(current_inx, end_inx)
+            if present_ref_t is not None:
+                t_action_inx = int(present_ref_t - trajectory[0].time + 1)
+                trajectory = trajectory.slice(t_action_inx, end_inx)
+            else:
+                trajectory = trajectory.slice(current_inx, end_inx)
         elif self.tense is None:
             logger.warning(f"Query time was not given. Falling back to observed trajectory.")
             trajectory = trajectory.slice(start_inx, current_inx)
