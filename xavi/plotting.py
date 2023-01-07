@@ -210,13 +210,23 @@ def plot_dataframe(
         df: pd.DataFrame,
         coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]],
         save_path: str = None):
-    # plot final cause
+    SMALL_SIZE = 10
+    MEDIUM_SIZE = 12
+    BIGGER_SIZE = 14
+
+    plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+    plt.rc('axes', titlesize=BIGGER_SIZE+2)  # fontsize of the axes title
+    plt.rc('axes', labelsize=BIGGER_SIZE+2)  # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=MEDIUM_SIZE+2)  # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+    plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
     # plot absolute reward difference
-    fig, axs = plt.subplots(1, 3, figsize=(20, 5))
+    fig, axs = plt.subplots(1, 3, figsize=(17, 5), gridspec_kw={'width_ratios': [3, 3, 3]})
     ax = axs[0]
     rewards = {"time": "Time to goal\n(s)",
-               "jerk": f"Jerk\n(m/s^3)",
+               "jerk": f"Jerk\n($m/s^3$)",
                "angular_velocity": "Angular velocity\n(rad/s)",
                "curvature": "Curvature\n(1/m)",
                "coll": "Collision",
@@ -230,7 +240,8 @@ def plot_dataframe(
     c_star = max(r_diffs.index, key=lambda k: np.abs(r_diffs[k]))
     r_star = r_diffs[c_star]
     # plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
-    ax.set_title(f"Collision: {binaries.loc['coll', 'absolute'] > 0}; "
+    ax.set_xlabel("Cost difference")
+    ax.set_title(f"Collision: {binaries.loc['coll', 'absolute'] > 0}; \n"
                  f"Goal not reached: {binaries.loc['dead', 'absolute'] > 0}")
     ax.set_yticklabels(y_tick_labels)
 
@@ -242,9 +253,13 @@ def plot_dataframe(
             continue
         inxs = (-coef.mean(0)).argsort()
         coef = coef.iloc[:, inxs]
+        inxs = np.isclose(coef.mean(0),  0)
+        coef_rest = coef.loc[:, inxs].sum(1)
+        coef = coef.loc[:, ~inxs]
+        coef = pd.concat([coef, coef_rest], axis=1)
         # coef = coef.reindex(sorted(coef.columns, key=lambda x: x[0]), axis=1)
         sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5, ax=ax)
-        sns.violinplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10, ax=ax)
+        sns.violinplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10, width=.8, scale="count", ax=ax)
         ax.axvline(x=0, color=".5")
         ax.set_xlabel("Coefficient importance")
         if inx == 1:
@@ -256,6 +271,8 @@ def plot_dataframe(
         line_pos = []
         prev_veh = None
         for i, lbl in enumerate(coef.columns):
+            if not isinstance(lbl, str):
+                continue
             lbl_split = lbl.split("_")
             if "macro" in lbl_split:
                 lbl_split.remove("macro")
@@ -266,6 +283,11 @@ def plot_dataframe(
                     action += " " + params[0]
             else:
                 action = ' '.join(lbl_split[1:]).capitalize()
+            if "Lane" in action:
+                idx = action.index("Lane")
+                action = action[:idx] + " " + action[idx+4:].lower()
+            if "velocity" in action:
+                action = action.replace("velocity", "vel.")
             vehicle = lbl_split[0]
             if prev_veh is None:
                 prev_veh = vehicle
@@ -273,8 +295,9 @@ def plot_dataframe(
                 line_pos.append(i)
                 prev_veh = vehicle
             y_tick_labels.append(f"{action} ({vehicle})")
+        y_tick_labels.append(f"Rest of {sum(inxs)}")
         ax.set_yticklabels(y_tick_labels)
-        # else:
+        # else:g
         #     ax.set_yticklabels([])
         # for pos in line_pos:
         #     ax.axhline(pos - 0.5)
