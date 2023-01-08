@@ -1,4 +1,5 @@
-from typing import Tuple
+import logging
+from typing import Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -8,16 +9,21 @@ import re
 from xavi.query import Query
 from xavi.matching import ActionGroup
 
+logger = logging.getLogger(__name__)
+
 
 class Language:
-    def __init__(self, n_associative: int = 2, n_final: int = 1, n_efficient: int = 2):
+    def __init__(self,
+                 n_associative: int = 2,
+                 n_final: int = 1,
+                 n_efficient: Tuple[int, int] = (1, 4)):
         """ Initialise a new explanation generation language class.
         This class uses SimpleNLG by Gatt and Reiter, 2009 to generate explanations.
 
         Args:
             n_associative: The number of associative causes to use for explanations.
             n_final: The number of final causes to use for explanations.
-            n_efficient: The number of efficient causes to use for explanations.
+            n_efficient: The number of efficient causes (per cause time) to use for explanations.
         """
         self.n_associative = n_associative
         self.n_final = n_final
@@ -47,45 +53,43 @@ class Language:
         associative_explanation = None
         if action_group is not None:
             associative_clause = self.__actiongroup_to_text(action_group, self.n_associative)
-            subject = self.__factory.createNounPhrase("we")
-            associative_sentence = self.__factory.createClause()
+            associative_sentence = self.__factory.createClause("we", associative_clause)
             self.__set_tense(associative_sentence, query.tense)
-            associative_sentence.setVerb(associative_clause)
-            associative_sentence.setSubject(subject)
             associative_explanation = self.__realiser.realiseSentence(associative_sentence)
 
         # Generate final explanation
         final_phrase = self.__reward_to_text(final_causes, self.n_final)
-        final_sentence = self.__factory.createClause()
-        cause_subject = self.__factory.createNounPhrase("it")
-        final_sentence.setSubject(cause_subject)
-        final_sentence.setVerbPhrase(final_phrase)
+        final_sentence = self.__factory.createClause("it", final_phrase)
         self.__set_tense(final_sentence, query.tense)
         final_explanation = self.__realiser.realiseSentence(final_sentence)
 
-        efficient_phrase = self.__features_to_text(efficient_causes, self.n_efficient)
-        efficient_sentence = self.__factory.createClause()
-        cause_subject = self.__factory.createNounPhrase("Balint")
-        verb = self.__factory.createVerbPhrase("will")
-        object = self.__factory.createNounPhrase("apple")
-        verb.addPreModifier("gluttonously")
-        verb.setTense(nlg.Tense.PAST)
-        object.setPlural(True)
-        cause_subject.addModifier("hungry")
-        efficient_sentence.setSubject(cause_subject)
-        efficient_sentence.setVerbPhrase(verb)
-        efficient_sentence.setObject(object)
-        efficient_explanation = self.__realiser.realiseSentence(efficient_sentence)
+        past_sents, future_sents = \
+            self.__features_to_text(efficient_causes, self.n_efficient)
+        efficient_paragraph = []
+        for time, sents in [("past", past_sents), ("future", future_sents)]:
+            for vid, phrase in sents:
+                efficient_sentence = self.__factory.createClause(f"vehicle {vid}", phrase)
+                self.__set_tense(efficient_sentence, query.tense, time)
+                efficient_paragraph.append(self.__factory.createSentence(efficient_sentence))
+        efficient_paragraph = self.__factory.createParagraph(efficient_paragraph)
+        efficient_explanation = self.__realiser.realise(efficient_paragraph).getRealisation()
         return final_explanation, efficient_explanation, associative_explanation
 
-    def __set_tense(self, phrase, tense: str):
-        if tense == "past":
-            phrase.setFeature(nlg.Feature.MODAL, "would")
-            phrase.setFeature(nlg.Feature.PERFECT, True)
-        elif tense == "present":
-            phrase.setFeature(nlg.Feature.MODAL, "would")
-        phrase.setTense(self.__tense_dict[tense])
-        phrase.setFeature(nlg.Feature.AGGREGATE_AUXILIARY, True)
+    def __set_tense(self, phrase, tense: str, efficient: str = None):
+        if efficient is not None:
+            phrase.setTense(self.__tense_dict[tense])
+            if efficient == "past":
+                phrase.setFeature(nlg.Feature.PERFECT, True)
+                if tense == "future":
+                    phrase.setFeature(nlg.Feature.MODAL, "will")
+        else:
+            if tense == "past":
+                phrase.setFeature(nlg.Feature.MODAL, "would")
+                phrase.setFeature(nlg.Feature.PERFECT, True)
+            elif tense == "present":
+                phrase.setFeature(nlg.Feature.MODAL, "would")
+            phrase.setTense(self.__tense_dict[tense])
+            phrase.setFeature(nlg.Feature.AGGREGATE_AUXILIARY, True)
 
     def __actiongroup_to_text(self, action_group: ActionGroup, depth: int = 4) -> nlg.VPPhraseSpec:
         """ Return a VP representation of the counterfactual action.
@@ -160,6 +164,74 @@ class Language:
             phrase.addCoordinate(neg_phrase)
         return phrase
 
-    def __features_to_text(self, efficient_causes: pd.DataFrame, n_efficient: int = 3) -> nlg.VPPhraseSpec:
+    def __features_to_text(self,
+                           efficient_causes: (pd.DataFrame, pd.DataFrame),
+                           n_efficient: Tuple[int, int] = (1, 3)) \
+            -> (List[Tuple[int, nlg.CoordinatedPhraseElement]], List[Tuple[int, nlg.CoordinatedPhraseElement]]):
         """ Convert the ordered list of efficient causes to a natural language sentence. """
-        
+        verbs_dict = {
+            "samevelocity": ("have", "the same speed than us"),
+            "exitright": ("turn", "right"),
+            "exitleft": ("turn", "left"),
+            "exitstraight": ("go", "straight"),
+            "changelaneleft": ("change", "lane to the left"),
+            "changelaneright": ("change", "lane to the right"),
+            "continue": ("go", "straight"),
+            "faster": ("be", "faster than us"),
+            "slower": ("be", "slower than us"),
+            "decelerate": ("slow down", None),
+            "accelerate": ("speed up", None),
+            "maintain": ("maintain", "velocity"),
+            "stops": ("stop", None)
+        }
+        macro_re = re.compile(r"^(\w+)\(([^,]+)(,[^,]+)*\)$")
+
+        def causes_to_verb(coef, n):
+            c = 0
+            coef = coef.mean(0)
+            coef = coef[(-coef).argsort()]
+            coef = coef[~np.isclose(coef, 0)]
+            phrases = []
+            coord = self.__factory.createCoordinatedPhrase()
+            prev_vehicle_id = None
+            for action, value in coef.iteritems():
+                if not isinstance(action, str):
+                    continue
+                action_split = action.split("_")
+                vehicle_id, action_split = action_split[0], action_split[1:]
+                if "macro" in action_split:
+                    action_split.remove("macro")
+                    match = macro_re.match(action_split[0])
+                    action, params = match.groups()[0].lower(), match.groups()[1:]
+                    params = " ".join([p for p in params if p is not None and "[" not in p])
+                    action = action + params
+                else:
+                    action = ''.join(action_split).lower()
+
+                if action in verbs_dict:
+                    verb, compl = verbs_dict[action]
+                    verb = self.__factory.createVerbPhrase(verb)
+                    if compl: verb.addComplement(compl)
+                    c += 1
+                else:
+                    logger.debug(f"Unknown action key: {action}")
+                    continue
+
+                if prev_vehicle_id != vehicle_id and prev_vehicle_id is not None:
+                    phrases.append((prev_vehicle_id, coord))
+                    coord = self.__factory.createCoordinatedPhrase()
+                clause = self.__factory.createClause()
+                clause.setVerbPhrase(verb)
+                coord.addCoordinate(clause)
+                prev_vehicle_id = vehicle_id
+
+                if c == n:
+                    if "coordinates" in coord.features:
+                        phrases.append((prev_vehicle_id, coord))
+                    break
+            return phrases
+
+        past_causes, future_causes = efficient_causes
+        past_verb = causes_to_verb(past_causes, n_efficient[0])
+        future_verb = causes_to_verb(future_causes, n_efficient[1])
+        return past_verb, future_verb

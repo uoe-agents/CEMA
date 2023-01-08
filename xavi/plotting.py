@@ -268,7 +268,6 @@ def plot_dataframe(
         else:
             ax.set_title("Present-future causes")
         y_tick_labels = []
-        line_pos = []
         prev_veh = None
         for i, lbl in enumerate(coef.columns):
             if not isinstance(lbl, str):
@@ -292,15 +291,10 @@ def plot_dataframe(
             if prev_veh is None:
                 prev_veh = vehicle
             elif prev_veh != vehicle:
-                line_pos.append(i)
                 prev_veh = vehicle
             y_tick_labels.append(f"{action} ({vehicle})")
         y_tick_labels.append(f"Rest of {sum(inxs)}")
         ax.set_yticklabels(y_tick_labels)
-        # else:g
-        #     ax.set_yticklabels([])
-        # for pos in line_pos:
-        #     ax.axhline(pos - 0.5)
     fig.tight_layout()
     if save_path is not None:
         fig.savefig(os.path.join(save_path, f"attributions.pdf"), bbox_inches='tight')
