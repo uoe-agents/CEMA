@@ -240,7 +240,7 @@ def plot_dataframe(
     c_star = max(r_diffs.index, key=lambda k: np.abs(r_diffs[k]))
     r_star = r_diffs[c_star]
     # plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
-    ax.set_xlabel("Cost difference")
+    ax.set_xlabel("(a) Cost difference")
     ax.set_title(f"Collision: {binaries.loc['coll', 'absolute'] > 0}; \n"
                  f"Goal not reached: {binaries.loc['dead', 'absolute'] > 0}")
     ax.set_yticklabels(y_tick_labels)
@@ -261,7 +261,7 @@ def plot_dataframe(
         sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5, ax=ax)
         sns.violinplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10, width=.8, scale="count", ax=ax)
         ax.axvline(x=0, color=".5")
-        ax.set_xlabel("Coefficient importance")
+        ax.set_xlabel(f"({'b' if inx == 1 else 'c'}) Coefficient importance")
         if inx == 1:
             # ax.set_title("Coefficient importance and its variability (past causes)")
             ax.set_title("Past causes")

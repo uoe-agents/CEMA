@@ -10,7 +10,19 @@ from xavi.matching import ActionGroup
 
 
 class Language:
-    def __init__(self):
+    def __init__(self, n_associative: int = 2, n_final: int = 1, n_efficient: int = 2):
+        """ Initialise a new explanation generation language class.
+        This class uses SimpleNLG by Gatt and Reiter, 2009 to generate explanations.
+
+        Args:
+            n_associative: The number of associative causes to use for explanations.
+            n_final: The number of final causes to use for explanations.
+            n_efficient: The number of efficient causes to use for explanations.
+        """
+        self.n_associative = n_associative
+        self.n_final = n_final
+        self.n_efficient = n_efficient
+
         self.__lexicon = nlg.Lexicon().getDefaultLexicon()
         self.__factory = nlg.NLGFactory(self.__lexicon)
         self.__realiser = nlg.Realiser(self.__lexicon)
@@ -34,27 +46,24 @@ class Language:
         # Associative explanation
         associative_explanation = None
         if action_group is not None:
-            associative_clause = self.__actiongroup_to_text(action_group, 2)
+            associative_clause = self.__actiongroup_to_text(action_group, self.n_associative)
             subject = self.__factory.createNounPhrase("we")
             associative_sentence = self.__factory.createClause()
             self.__set_tense(associative_sentence, query.tense)
-            associative_sentence.setFeature(nlg.Feature.AGGREGATE_AUXILIARY, True)
             associative_sentence.setVerb(associative_clause)
             associative_sentence.setSubject(subject)
             associative_explanation = self.__realiser.realiseSentence(associative_sentence)
 
         # Generate final explanation
-        cause_type = final_causes.index[0]
-        cause_verb, cause_object = self.__reward_to_text(
-            cause_type, final_causes.loc[cause_type, "absolute"])
+        final_phrase = self.__reward_to_text(final_causes, self.n_final)
         final_sentence = self.__factory.createClause()
         cause_subject = self.__factory.createNounPhrase("it")
         final_sentence.setSubject(cause_subject)
-        final_sentence.setVerbPhrase(cause_verb)
-        final_sentence.setObject(cause_object)
-        self.__set_tense(cause_verb, query.tense)
+        final_sentence.setVerbPhrase(final_phrase)
+        self.__set_tense(final_sentence, query.tense)
         final_explanation = self.__realiser.realiseSentence(final_sentence)
 
+        efficient_phrase = self.__features_to_text(efficient_causes, self.n_efficient)
         efficient_sentence = self.__factory.createClause()
         cause_subject = self.__factory.createNounPhrase("Balint")
         verb = self.__factory.createVerbPhrase("will")
@@ -76,6 +85,7 @@ class Language:
         elif tense == "present":
             phrase.setFeature(nlg.Feature.MODAL, "would")
         phrase.setTense(self.__tense_dict[tense])
+        phrase.setFeature(nlg.Feature.AGGREGATE_AUXILIARY, True)
 
     def __actiongroup_to_text(self, action_group: ActionGroup, depth: int = 4) -> nlg.VPPhraseSpec:
         """ Return a VP representation of the counterfactual action.
@@ -113,20 +123,43 @@ class Language:
                 man_verb.addComplement(f"through the {man_split[2].lower()}")
         return man_verb
 
-    def __reward_to_text(self, reward_type: str, change: float) -> (nlg.VPPhraseSpec, nlg.NPPhraseSpec):
+    def __reward_to_text(self, final_causes: pd.DataFrame, n_final: int = 1) -> nlg.VPPhraseSpec:
         """ Return a VP and NP representation of the reward change verb and object. """
-        object = self.__factory.createNounPhrase({
+        conversion_dict = {
             "time": "the time to reach the goal",
             "coll": "a collision",
             "angular_velocity": "lateral acceleration",
             "curvature": "curvature",
-            "jerk": "jerk"
-        }.get(reward_type, ""))
+            "jerk": "jerk",
+            "dead": "the goal"
+        }
+        pos_phrase = self.__factory.createCoordinatedPhrase()
+        neg_phrase = self.__factory.createCoordinatedPhrase()
+        phrase = self.__factory.createCoordinatedPhrase()
+        for n in range(n_final):
+            reward_type = final_causes.index[n]
+            change = final_causes.loc[reward_type, "absolute"]
+            object = self.__factory.createNounPhrase(conversion_dict.get(reward_type, "a change"))
+            verb = self.__factory.createVerbPhrase("cause")
+            negated = True
+            if reward_type == "dead":
+                verb = self.__factory.createVerbPhrase("reach")
+                negated = change < 0
+            elif reward_type != "coll":
+                verb = self.__factory.createVerbPhrase("increase" if change > 0.0 else "decrease")
+                negated = False
+            verb.setNegated(negated)
+            verb.setComplement(object)
+            if negated:
+                neg_phrase.addCoordinate(verb)
+            else:
+                pos_phrase.addCoordinate(verb)
+        phrase.addCoordinate(pos_phrase)
+        if "coordinates" in neg_phrase.features:
+            phrase.setFeature(nlg.Feature.CONJUNCTION, "but")
+            phrase.addCoordinate(neg_phrase)
+        return phrase
 
-        verb = self.__factory.createVerbPhrase("cause")
-        if np.isclose(change, 0.0):
-            verb.setNegated(True)
-            object = self.__factory.createNounPhrase("a change")
-        elif reward_type != "coll":
-            verb = self.__factory.createVerbPhrase("increase" if change > 0.0 else "decrease")
-        return verb, object
+    def __features_to_text(self, efficient_causes: pd.DataFrame, n_efficient: int = 3) -> nlg.VPPhraseSpec:
+        """ Convert the ordered list of efficient causes to a natural language sentence. """
+        
