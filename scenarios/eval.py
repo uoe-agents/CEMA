@@ -13,8 +13,8 @@ from xavi.plotting import plot_dataframe
 if __name__ == '__main__':
     setup_xavi_logging()
 
-    scenario = 1  # Which scenario to evaluate
-    query_no = 0  # Query index to evaluate
+    scenario = 2  # Which scenario to evaluate
+    query_no = 1  # Query index to evaluate
     query = xavi.Query(**json.load(open("scenarios/queries/final_queries.json"))[f"s{scenario}"][query_no])
     causes_file = f"output/scenario_{scenario}/q_t{query.t_query}_m{query.type}.pkl"
     causes = pickle.load(open(causes_file, "rb"))
@@ -36,6 +36,8 @@ if __name__ == '__main__':
         final_expl = final_expl.drop(["term"])
 
     lang = xavi.Language()
+    if query.type == xavi.QueryType.WHY_NOT or query.negative:
+        coef_past, coef_future = -coef_past, -coef_future
     s = lang.convert_to_sentence(query, final_expl, (coef_past, coef_future), action_segment)
     print(s)
 

@@ -246,7 +246,7 @@ def plot_dataframe(
     ax.set_yticklabels(y_tick_labels)
 
     # plot past and future efficient causes
-    macro_re = re.compile(r"^(\w+)\(([^,]+)(,[^,]+)*\)$")
+    macro_re = re.compile(r"^(\w+)\(([^,]*)(,[^,]+)*\)$")
     for inx, coef in enumerate(coefs, 1):
         ax = axs[inx]
         if coef is None:

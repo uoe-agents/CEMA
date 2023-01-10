@@ -6,7 +6,7 @@ import pandas as pd
 import simplenlg as nlg
 import re
 
-from xavi.query import Query
+from xavi.query import Query, QueryType
 from xavi.matching import ActionGroup
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class Language:
     def __init__(self,
                  n_associative: int = 2,
-                 n_final: int = 1,
+                 n_final: int = 2,
                  n_efficient: Tuple[int, int] = (1, 4)):
         """ Initialise a new explanation generation language class.
         This class uses SimpleNLG by Gatt and Reiter, 2009 to generate explanations.
@@ -67,6 +67,8 @@ class Language:
             self.__features_to_text(efficient_causes, self.n_efficient)
         efficient_paragraph = []
         for time, sents in [("past", past_sents), ("future", future_sents)]:
+            if sents is None:
+                continue
             for vid, phrase in sents:
                 efficient_sentence = self.__factory.createClause(f"vehicle {vid}", phrase)
                 self.__set_tense(efficient_sentence, query.tense, time)
@@ -127,7 +129,10 @@ class Language:
                 man_verb.addComplement(f"through the {man_split[2].lower()}")
         return man_verb
 
-    def __reward_to_text(self, final_causes: pd.DataFrame, n_final: int = 1) -> nlg.VPPhraseSpec:
+    def __reward_to_text(self,
+                         final_causes: pd.DataFrame,
+                         n_final: int = 1,
+                         include_dead: bool = False) -> nlg.VPPhraseSpec:
         """ Return a VP and NP representation of the reward change verb and object. """
         conversion_dict = {
             "time": "the time to reach the goal",
@@ -147,6 +152,8 @@ class Language:
             verb = self.__factory.createVerbPhrase("cause")
             negated = True
             if reward_type == "dead":
+                if not include_dead:
+                    continue
                 verb = self.__factory.createVerbPhrase("reach")
                 negated = change < 0
             elif reward_type != "coll":
@@ -184,7 +191,7 @@ class Language:
             "maintain": ("maintain", "velocity"),
             "stops": ("stop", None)
         }
-        macro_re = re.compile(r"^(\w+)\(([^,]+)(,[^,]+)*\)$")
+        macro_re = re.compile(r"^(\w+)\(([^,]*)(,[^,]+)*\)$")
 
         def causes_to_verb(coef, n):
             c = 0
@@ -211,6 +218,8 @@ class Language:
                 if action in verbs_dict:
                     verb, compl = verbs_dict[action]
                     verb = self.__factory.createVerbPhrase(verb)
+                    if action not in ["be", "stop"]:
+                        verb.setFeature(nlg.Feature.PROGRESSIVE, True)
                     if compl: verb.addComplement(compl)
                     c += 1
                 else:
@@ -232,6 +241,8 @@ class Language:
             return phrases
 
         past_causes, future_causes = efficient_causes
-        past_verb = causes_to_verb(past_causes, n_efficient[0])
+        past_verb = None
+        if past_causes is not None:
+            past_verb = causes_to_verb(past_causes, n_efficient[0])
         future_verb = causes_to_verb(future_causes, n_efficient[1])
         return past_verb, future_verb
