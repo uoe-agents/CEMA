@@ -131,8 +131,7 @@ class Language:
 
     def __reward_to_text(self,
                          final_causes: pd.DataFrame,
-                         n_final: int = 1,
-                         include_dead: bool = False) -> nlg.VPPhraseSpec:
+                         n_final: int = 1) -> nlg.VPPhraseSpec:
         """ Return a VP and NP representation of the reward change verb and object. """
         conversion_dict = {
             "time": "the time to reach the goal",
@@ -152,8 +151,9 @@ class Language:
             verb = self.__factory.createVerbPhrase("cause")
             negated = True
             if reward_type == "dead":
-                if not include_dead:
-                    continue
+                if final_causes["reference"].sum() != -1. or \
+                        final_causes["alternative"].sum() != -1.:
+                    continue  # Skip goal un-reachability if that is not the only reward difference
                 verb = self.__factory.createVerbPhrase("reach")
                 negated = change < 0
             elif reward_type != "coll":
@@ -177,7 +177,7 @@ class Language:
             -> (List[Tuple[int, nlg.CoordinatedPhraseElement]], List[Tuple[int, nlg.CoordinatedPhraseElement]]):
         """ Convert the ordered list of efficient causes to a natural language sentence. """
         verbs_dict = {
-            "samevelocity": ("have", "the same speed than us"),
+            "samevelocity": ("have", "the same speed as us"),
             "exitright": ("turn", "right"),
             "exitleft": ("turn", "left"),
             "exitstraight": ("go", "straight"),
