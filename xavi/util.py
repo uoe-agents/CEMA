@@ -186,10 +186,17 @@ def split_by_query(dataset: List["Item"]) -> (List["Item"], List["Item"]):
     return query_present, query_not_present
 
 
-def most_common(lst: list):
+def most_common(lst: list, **kwargs):
     """ Return the most common element in a list. """
-    data = Counter(lst)
-    return max(lst, key=data.get) if lst else None
+    in_roundabout = kwargs.get("in_roundabout", None)
+    data = list(sorted(Counter(lst).items(), key=lambda x: -x[1])) if lst else None
+    if data is None:
+        raise ValueError(f"No list given.")
+    if in_roundabout and any(["continue" not in k.lower() for k, cnt in data]):
+        filtered = [k for k, cnt in data if "continue" not in k.lower()]
+        return filtered[0]
+    else:
+        return data[0][0]
 
 
 def list_startswith(list1: list, list2: list) -> bool:

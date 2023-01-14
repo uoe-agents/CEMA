@@ -39,7 +39,7 @@ if __name__ == '__main__':
     if final_expl is not None:
         final_expl = final_expl.drop(["term"])
 
-    lang = xavi.Language()
+    lang = xavi.Language(n_final=1, collision=scenario in [2, 3])
     if coef_past is not None and coef_future is not None and \
             query.type == xavi.QueryType.WHY_NOT or query.negative:
         coef_past, coef_future = -coef_past, -coef_future

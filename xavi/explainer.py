@@ -103,7 +103,7 @@ class XAVIAgent(ip.MCTSAgent):
             "t_action": ip.MCTS(**mcts_params),
         }
 
-        self.__features = Features()
+        self.__features = Features(self.__scenario_map)
         self.__matching = ActionMatching(scenario_map=self.__scenario_map)
         self.__language = Language()
 

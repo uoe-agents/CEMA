@@ -16,7 +16,8 @@ class Language:
     def __init__(self,
                  n_associative: int = 2,
                  n_final: int = 2,
-                 n_efficient: Tuple[int, int] = (1, 4)):
+                 n_efficient: Tuple[int, int] = (1, 4),
+                 collision: bool = False):
         """ Initialise a new explanation generation language class.
         This class uses SimpleNLG by Gatt and Reiter, 2009 to generate explanations.
 
@@ -24,10 +25,12 @@ class Language:
             n_associative: The number of associative causes to use for explanations.
             n_final: The number of final causes to use for explanations.
             n_efficient: The number of efficient causes (per cause time) to use for explanations.
+            collision: Whether to always include collision identifier in explanation.
         """
         self.n_associative = n_associative
         self.n_final = n_final
         self.n_efficient = n_efficient
+        self.collision = collision
 
         self.__lexicon = nlg.Lexicon().getDefaultLexicon()
         self.__factory = nlg.NLGFactory(self.__lexicon)
@@ -65,13 +68,26 @@ class Language:
 
         # Generate final explanation
         final_explanation = None
+        final_paragraph = []
         if final_causes is not None:
+            subject = query.action if isinstance(query.action, str) \
+                else " and ".join(query.action)
+            if self.collision:
+                c_subject = subject
+                if query.factual is not None:
+                    c_subject = query.factual if isinstance(query.factual, str) \
+                        else " and ".join(query.factual)
+                negated = bool(final_causes.loc["coll", "absolute"] >= 0.)
+                final_sentence = self.__factory.createClause(c_subject, "cause", "a collision")
+                final_sentence.setFeature(nlg.Feature.NEGATED, negated)
+                final_explanation = self.__realiser.realiseSentence(final_sentence)
             final_phrase = self.__reward_to_text(final_causes, self.n_final)
-            final_sentence = self.__factory.createClause("it")
+            final_sentence = self.__factory.createClause(subject)
             final_sentence.setComplement(final_phrase)
             self.__set_tense(final_phrase, query.tense)
-            final_explanation = self.__realiser.realiseSentence(final_sentence)
+            final_explanation += f" {self.__realiser.realiseSentence(final_sentence)}"
 
+        # Generate efficient explanation
         efficient_explanation = None
         if any([c is not None for c in efficient_causes]):
             past_sents, future_sents = \
@@ -177,14 +193,13 @@ class Language:
                 negated = False
             verb.setNegated(negated)
             verb.setComplement(object)
-            if negated:
-                neg_phrase.addCoordinate(verb)
-            else:
-                pos_phrase.addCoordinate(verb)
+            neg_phrase.addCoordinate(verb) if negated else pos_phrase.addCoordinate(verb)
             n += 1
-        phrase.addCoordinate(pos_phrase)
+        if "coordinates" in pos_phrase.features:
+            phrase.addCoordinate(pos_phrase)
         if "coordinates" in neg_phrase.features:
             phrase.setFeature(nlg.Feature.CONJUNCTION, "but")
+            neg_phrase.setNegated(True)
             phrase.addCoordinate(neg_phrase)
         return phrase
 
