@@ -13,7 +13,7 @@ from xavi.plotting import plot_dataframe
 if __name__ == '__main__':
     setup_xavi_logging()
 
-    scenario = 2  # Which scenario to evaluate
+    scenario = 3  # Which scenario to evaluate
     query_no = 1  # Query index to evaluate
     query = xavi.Query(**json.load(open("scenarios/queries/final_queries.json"))[f"s{scenario}"][query_no])
     causes_file = f"output/scenario_{scenario}/q_t{query.t_query}_m{query.type}.pkl"
@@ -30,17 +30,23 @@ if __name__ == '__main__':
                                      (X_past, y_past, m_past),
                                      (X_future, y_future, m_future)) = causes
     elif query.type == xavi.QueryType.WHAT:
-        pass
+        action_segment = causes
+        final_expl = None
+        coef_past, coef_future = None, None
+    else:
+        raise ValueError(f"Unknown query type: {query.type}.")
 
     if final_expl is not None:
         final_expl = final_expl.drop(["term"])
 
     lang = xavi.Language()
-    if query.type == xavi.QueryType.WHY_NOT or query.negative:
+    if coef_past is not None and coef_future is not None and \
+            query.type == xavi.QueryType.WHY_NOT or query.negative:
         coef_past, coef_future = -coef_past, -coef_future
     s = lang.convert_to_sentence(query, final_expl, (coef_past, coef_future), action_segment)
     print(s)
 
     # Generate plots
-    plot_dataframe(final_expl, (coef_past, coef_future), save_path=f"output/scenario_{scenario}")
-    plt.show()
+    if final_expl is not None:
+        plot_dataframe(final_expl, (coef_past, coef_future), save_path=f"output/scenario_{scenario}")
+        plt.show()

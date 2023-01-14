@@ -54,27 +54,38 @@ class Language:
         if action_group is not None:
             associative_clause = self.__actiongroup_to_text(action_group, self.n_associative)
             associative_sentence = self.__factory.createClause("we", associative_clause)
-            self.__set_tense(associative_sentence, query.tense)
+            if query.t_query >= query.t_action:
+                tense = "past"
+            elif query.t_query - query.t_action > -20:  # TODO: FPS is hardcoded
+                tense = "present"
+            else:
+                tense = "future"
+            self.__set_tense(associative_sentence, tense)
             associative_explanation = self.__realiser.realiseSentence(associative_sentence)
 
         # Generate final explanation
-        final_phrase = self.__reward_to_text(final_causes, self.n_final)
-        final_sentence = self.__factory.createClause("it", final_phrase)
-        self.__set_tense(final_sentence, query.tense)
-        final_explanation = self.__realiser.realiseSentence(final_sentence)
+        final_explanation = None
+        if final_causes is not None:
+            final_phrase = self.__reward_to_text(final_causes, self.n_final)
+            final_sentence = self.__factory.createClause("it")
+            final_sentence.setComplement(final_phrase)
+            self.__set_tense(final_phrase, query.tense)
+            final_explanation = self.__realiser.realiseSentence(final_sentence)
 
-        past_sents, future_sents = \
-            self.__features_to_text(efficient_causes, self.n_efficient)
-        efficient_paragraph = []
-        for time, sents in [("past", past_sents), ("future", future_sents)]:
-            if sents is None:
-                continue
-            for vid, phrase in sents:
-                efficient_sentence = self.__factory.createClause(f"vehicle {vid}", phrase)
-                self.__set_tense(efficient_sentence, query.tense, time)
-                efficient_paragraph.append(self.__factory.createSentence(efficient_sentence))
-        efficient_paragraph = self.__factory.createParagraph(efficient_paragraph)
-        efficient_explanation = self.__realiser.realise(efficient_paragraph).getRealisation()
+        efficient_explanation = None
+        if any([c is not None for c in efficient_causes]):
+            past_sents, future_sents = \
+                self.__features_to_text(efficient_causes, self.n_efficient)
+            efficient_paragraph = []
+            for time, sents in [("past", past_sents), ("future", future_sents)]:
+                if sents is None:
+                    continue
+                for vid, phrase in sents:
+                    efficient_sentence = self.__factory.createClause(f"vehicle {vid}", phrase)
+                    self.__set_tense(efficient_sentence, query.tense, time)
+                    efficient_paragraph.append(self.__factory.createSentence(efficient_sentence))
+            efficient_paragraph = self.__factory.createParagraph(efficient_paragraph)
+            efficient_explanation = self.__realiser.realise(efficient_paragraph).getRealisation()
         return final_explanation, efficient_explanation, associative_explanation
 
     def __set_tense(self, phrase, tense: str, efficient: str = None):
@@ -105,6 +116,8 @@ class Language:
         clause.setFeature(nlg.Feature.AGGREGATE_AUXILIARY, True)
 
         d = 0
+        if isinstance(action_group, list):
+            action_group = action_group[0]
         for segment in action_group.segments:
             segment_clause = self.__factory.createCoordinatedPhrase()
             for action in reversed(segment.actions):
@@ -144,8 +157,11 @@ class Language:
         pos_phrase = self.__factory.createCoordinatedPhrase()
         neg_phrase = self.__factory.createCoordinatedPhrase()
         phrase = self.__factory.createCoordinatedPhrase()
-        for n in range(n_final):
-            reward_type = final_causes.index[n]
+        n = 0
+        i = -1
+        while n < n_final:
+            i += 1
+            reward_type = final_causes.index[i]
             change = final_causes.loc[reward_type, "absolute"]
             object = self.__factory.createNounPhrase(conversion_dict.get(reward_type, "a change"))
             verb = self.__factory.createVerbPhrase("cause")
@@ -165,6 +181,7 @@ class Language:
                 neg_phrase.addCoordinate(verb)
             else:
                 pos_phrase.addCoordinate(verb)
+            n += 1
         phrase.addCoordinate(pos_phrase)
         if "coordinates" in neg_phrase.features:
             phrase.setFeature(nlg.Feature.CONJUNCTION, "but")
