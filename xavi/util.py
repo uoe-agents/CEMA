@@ -155,14 +155,15 @@ def find_optimal_rollout_in_subset(subset: List["Item"],
                                    reward_factors: Dict[str, float]) -> "Item":
     """ Find the most optimal action from a subset of MTCS rollouts based on average rewards.
 
-    Returns: The rollout with the maximum q-value at the selected leaf node.
+    Returns: The rollout with the maximum average reward.
     """
     rollouts = defaultdict(list)
     for m, item in enumerate(subset):
         rollout = item.rollout
         sum_reward = 0.0
         for component, factor in reward_factors.items():
-            reward = item.reward[component] if item.reward[component] is not None else 0.0
+            reward = item.reward.reward_components[component] \
+                if item.reward.reward_components[component] is not None else 0.0
             sum_reward += factor * reward
         rollouts[rollout.trace].append((rollout, sum_reward))
     means = {trace: np.mean(list(zip(*items))[1]) for trace, items in rollouts.items()}
@@ -185,10 +186,26 @@ def split_by_query(dataset: List["Item"]) -> (List["Item"], List["Item"]):
     return query_present, query_not_present
 
 
-def most_common(lst: list):
+def most_common(lst: list, **kwargs):
     """ Return the most common element in a list. """
-    data = Counter(lst)
-    return max(lst, key=data.get) if lst else None
+    in_roundabout = kwargs.get("in_roundabout", None)
+    data = list(sorted(Counter(lst).items(), key=lambda x: -x[1])) if lst else None
+    if data is None:
+        raise ValueError(f"No list given.")
+    if in_roundabout and any(["continue" not in k.lower() for k, cnt in data]):
+        filtered = [k for k, cnt in data if "continue" not in k.lower()]
+        return filtered[0]
+    else:
+        return data[0][0]
+
+
+def list_startswith(list1: list, list2: list) -> bool:
+    """ Compare two lists. If the lengths are equal simply return equality using ==.
+    If lengths are unequal, then check whether the first one has the same element as the second one. """
+    len1, len2 = len(list1), len(list2)
+    if len1 >= len2:
+        return list1[:len2] == list2
+    return False
 
 
 def product_dict(**kwargs):

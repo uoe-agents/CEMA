@@ -54,10 +54,11 @@ class ActionMatching:
                       'GiveWay',
                       'GoStraight']
 
-    def __init__(self, eps: float = 0.1):
+    def __init__(self, eps: float = 0.1, scenario_map: ip.Map = None):
         self.__trajectory = None
         self.__segmentation = None
         self.__eps = eps
+        self.__scenario_map = scenario_map
 
     def action_segmentation(self, trajectory: ip.StateTrajectory) -> List[ActionSegment]:
         """ Segment the trajectory into different actions and sorted with time.
@@ -91,8 +92,14 @@ class ActionMatching:
 
             if state.maneuver is not None:
                 if 'Turn' in state.maneuver:
+                    road_in_roundabout = None
+                    if self.__scenario_map is not None:
+                        road = self.__scenario_map.best_road_at(state.position, state.heading)
+                        road_in_roundabout = self.__scenario_map.road_in_roundabout(road)
                     angular_vel = trajectory.angular_velocity[inx]
-                    if angular_vel > self.__eps:
+                    if road_in_roundabout:
+                        action.append('GoStraightJunction')
+                    elif angular_vel > self.__eps:
                         action.append('TurnLeft')
                     elif angular_vel < -self.__eps:
                         action.append('TurnRight')
@@ -164,7 +171,8 @@ class ActionMatching:
         Returns:
             True if action was matched with trajectory
         """
-        if action not in ActionMatching.action_library:
+        if isinstance(action, str) and action not in ActionMatching.action_library or \
+                isinstance(action, list) and any([act not in ActionMatching.action_library for act in action]):
             raise Exception('User action does not exist in action library.')
 
         action_found = False
@@ -173,7 +181,8 @@ class ActionMatching:
                     (factual == action_segmentation.actions or
                      factual in action_segmentation.actions):
                 return False  # For whynot and positive whatif questions, factual actions are not relevant
-            if action in action_segmentation.actions:
+            if action in action_segmentation.actions or \
+                    action == action_segmentation.actions:
                 action_found = True
         return action_found
 
@@ -184,9 +193,7 @@ class ActionMatching:
         """ determine if an action exists in the action segmentation """
         iterator = action_segmentations if tense == "future" else reversed(action_segmentations)
         for seg in iterator:
-            key = tuple(seg.actions)
-            if isinstance(action, str) and action in key or \
-                    isinstance(action, tuple) and action == key:
+            if action in seg.actions or action == seg.actions:
                 return True
         return False
 
@@ -216,6 +223,10 @@ class ActionMatching:
             raise Exception('No counter action is found!')
 
         return counter_actions
+
+    def set_scenario_map(self, new_map: ip.Map):
+        """ Set the current scenario map for the matching"""
+        self.__scenario_map = new_map
 
     @property
     def segmentation(self) -> List[ActionSegment]:

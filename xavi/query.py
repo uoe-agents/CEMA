@@ -50,12 +50,15 @@ class Query:
     time_limits = np.array([5, 5])  # Maximum lengths of the trajectories, both in past and future, in seconds.
 
     def __post_init__(self):
+        self.__all_factual = False
         self.__matching = ActionMatching()
         if self.negative is None:
             self.negative = False
         self.type = QueryType(self.type)
         if self.action is not None:
-            assert self.action in self.__matching.action_library, f"Unknown action {self.action}."
+            assert all([act in self.__matching.action_library
+                        for act in self.__matching.action_library]), \
+                f"Unknown action {self.action}."
             if self.factual is not None:
                 assert self.factual != self.action, f"Factual {self.factual} cannot " \
                                                     f"be the same as the action {self.action}."
@@ -63,6 +66,7 @@ class Query:
 
     def get_tau(self,
                 current_t: int,
+                scenario_map: ip.Map,
                 observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]],
                 rollouts_buffer: List[Tuple[int, ip.AllMCTSResult]]):
         """ Calculate tau and the start time step of the queried action.
@@ -70,14 +74,13 @@ class Query:
 
         Args:
             current_t: The current timestep of the simulation
+            scenario_map: The current road layout
             observations: Trajectories observed (and possibly extended with future predictions) of the environment.
             rollouts_buffer: The actual MCTS rollouts of the agent.
         """
         agent_id = self.agent_id
-        if self.type == QueryType.WHAT_IF:
-            agent_id = self.agent_id
-
         trajectory = observations[agent_id][0]
+        self.__matching.set_scenario_map(scenario_map)
         action_segmentations = self.slice_segment_trajectory(trajectory, current_t)
 
         if self.type == QueryType.WHAT_IF and not self.negative or \
@@ -118,7 +121,7 @@ class Query:
 
         if self.tense == "future":
             for i, action in enumerate(action_segmentations):
-                if self.action in action.actions:
+                if self.action in action.actions or self.action == action.actions:
                     t_action = action.times[0]
                     segment_inx = i
                     break
@@ -126,7 +129,7 @@ class Query:
                 raise ValueError(f"Could not match action {self.action} to trajectory.")
         else:
             for i, action in enumerate(reversed(action_segmentations)):
-                if self.action in action.actions:
+                if self.action in action.actions or self.action == action.actions:
                     action_matched = True
                 elif action_matched:
                     t_action = action.times[-1] + 1
@@ -173,31 +176,49 @@ class Query:
             action_segmentations: the action segmentation of a rollout matched with the query
         """
         for start_t, rollouts in rollouts_buffer[::-1]:
-            factual_action_exist = False
+            if start_t == current_t:
+                continue  # Ignore rollout of current time step as no action would have been taken
+
+            # first determine if factual action exist in this rollouts
             for rollout in rollouts.mcts_results:
-                # get the start and end time of a rollout
                 trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
                 segmentation = self.slice_segment_trajectory(trajectory, current_t)
-
-                # skip the rollout that includes the factual action
                 if ActionMatching.action_exists(segmentation, self.factual, self.tense):
-                    factual_action_exist = True
-                    continue
-                if ActionMatching.action_exists(segmentation, self.action, self.tense) \
-                        and factual_action_exist:
-                    return segmentation
-        raise ValueError(f"The queried action {self.action} is not a counterfactual!")
+                    break
+            else:
+                continue
+
+            fallback = None
+            for rollout in rollouts.mcts_results:
+                trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
+                segmentation = self.slice_segment_trajectory(trajectory, current_t)
+                action_exists = ActionMatching.action_exists(segmentation, self.action, self.tense)
+                factual_exists = ActionMatching.action_exists(segmentation, self.factual, self.tense)
+                # skip the rollout that includes the factual action
+                if action_exists:
+                    if not factual_exists:
+                        return segmentation
+                    else:
+                        fallback = segmentation
+            if fallback is not None:
+                # If all rollouts contain the factual but some also the counterfactual,
+                #  then use that as a fallback option.
+                self.__all_factual = True
+                return fallback
+        raise ValueError(f"The queried action {self.action} does not exist!")
 
     def slice_segment_trajectory(self,
                                  trajectory: ip.StateTrajectory,
                                  current_t: int,
-                                 segment: bool = True) -> Union[ip.StateTrajectory, List[ActionSegment]]:
+                                 segment: bool = True,
+                                 present_ref_t: int = None) -> Union[ip.StateTrajectory, List[ActionSegment]]:
         # Obtain relevant trajectory slice and segment it
         """ Obtain relevant trajectory slice and segment it.
         Args:
             trajectory: the agent trajectory.
             current_t: the current time
             segment: If true, then return a segmentation
+            present_ref_t: The reference time for the time queries.
 
         Returns:
             action_segmentations: the segmented actions
@@ -206,14 +227,20 @@ class Query:
         current_inx = int(current_t - trajectory[0].time + 1)
         start_inx = max(0, current_inx - past_limit)
         end_inx = min(len(trajectory), current_inx + future_limit)
-        if self.tense == "past" or \
-                self.tense == "present" and self.t_action is None:
+        if self.tense == "past":
             trajectory = trajectory.slice(start_inx, current_inx)
         elif self.tense == "present":
-            t_action_inx = int(self.t_action - trajectory[0].time + 1)
-            trajectory = trajectory.slice(t_action_inx, end_inx)
+            if present_ref_t is not None:
+                t_action_inx = int(present_ref_t - trajectory[0].time + 1)
+                trajectory = trajectory.slice(t_action_inx, end_inx)
+            else:
+                trajectory = trajectory.slice(start_inx, current_inx)
         elif self.tense == "future":
-            trajectory = trajectory.slice(current_inx, end_inx)
+            if present_ref_t is not None:
+                t_action_inx = int(present_ref_t - trajectory[0].time + 1)
+                trajectory = trajectory.slice(t_action_inx, end_inx)
+            else:
+                trajectory = trajectory.slice(current_inx, end_inx)
         elif self.tense is None:
             logger.warning(f"Query time was not given. Falling back to observed trajectory.")
             trajectory = trajectory.slice(start_inx, current_inx)
@@ -221,3 +248,8 @@ class Query:
         if segment:
             return self.__matching.action_segmentation(trajectory)
         return trajectory
+
+    @property
+    def all_factual(self) -> bool:
+        """ Return whether the query factual appears in all rollouts or not. """
+        return self.__all_factual

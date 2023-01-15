@@ -4,8 +4,7 @@
     "max_speed": 10.0,
     "fps": 20,
     "seed": 21,
-    "max_steps": 250,
-    "velocity_stop": 0.1
+    "max_steps": 250
   },
   "agents": [
     {
@@ -50,19 +49,20 @@
       },
       "mcts": {
         "t_update": 2.0,
-        "n_simulations": 15,
+        "n_simulations": 30,
         "store_results": "all",
+        "trajectory_agents": false,
         "reward_factors": {
           "time": 1.0,
           "jerk": -0.2,
-          "angular_velocity": -0.01,
+          "angular_velocity": -0.05,
           "curvature": 0.0
         }
       },
       "explainer": {
-        "cf_n_simulations": 25,
+        "cf_n_simulations": 100,
         "cf_max_depth": 5,
-        "tau_limits": [1.0, 5.0],
+        "tau_limits": [2.0, 5.0],
         "time_limits": [5.0, 5.0]
       },
       "view_radius": 500,

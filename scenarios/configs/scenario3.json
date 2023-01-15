@@ -5,17 +5,17 @@
     "fps": 20,
     "seed": 21,
     "max_steps": 250,
-    "velocity_stop": 0.1
+    "max_oncoming_vehicle_dist": 40
   },
   "agents": [
     {
       "id": 0,
-      "type": "MCTSAgent",
+      "type": "XAVIAgent",
       "spawn": {
         "box": {
           "center": [
             2.175,
-            -30.0
+            -35.0
           ],
           "length": 3.5,
           "width": 10.0,
@@ -43,16 +43,17 @@
         "acceleration": 0.0,
         "jerk": 1.0,
         "heading": 0.0,
-        "angular_velocity": 0.1,
+        "angular_velocity": 0.0,
         "angular_acceleration": 0.0,
         "curvature": 0.0,
         "safety": 0.0
       },
       "mcts": {
         "t_update": 2.0,
-        "n_simulations": 10,
+        "n_simulations": 30,
         "max_depth": 5,
         "store_results": "all",
+        "trajectory_agents": false,
         "reward_factors": {
           "time": 1.0,
           "jerk": -1.0,
@@ -61,7 +62,7 @@
         }
       },
       "explainer": {
-        "cf_n_simulations": 15,
+        "cf_n_simulations": 100,
         "cf_max_depth": 5
       },
       "view_radius": 500,

@@ -22,12 +22,12 @@
   {
     "type": "whatif",
     "agent_id": 1,
-    "action": "TurnRight",
-    "t_query": 60,
+    "action": "GoStraightJunction",
+    "t_query": 110,
     "tense": "past",
     "negative": false,
     "factual": "TurnLeft"
-  },
+  }
   {
     "type": "whatif",
     "agent_id": 1,

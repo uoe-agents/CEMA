@@ -11,8 +11,9 @@ logger = logging.getLogger(__name__)
 class Features:
     """ Convert joint trajectories into a set features. """
 
-    def __init__(self):
+    def __init__(self, scenario_map: ip.Map):
         self.__features = None
+        self.__scenario_map = scenario_map
 
     def to_features(self,
                     agent_id: int,
@@ -66,7 +67,9 @@ class Features:
                 for state in trajectory:
                     mas.append(state.macro_action)
                     mans.append(state.maneuver)
-            features[f"{aid}_macro"] = most_common(mas) or None
+            inr = self.__scenario_map.in_roundabout(
+                trajectory.path[0], trajectory.heading[0])
+            features[f"{aid}_macro"] = most_common(mas, in_roundabout=inr) or None
             # cat_features[f"{aid}_maneuver"] = most_common(mans)
 
         self.__features = features
