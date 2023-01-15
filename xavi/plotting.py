@@ -1,7 +1,6 @@
 import os.path
 import pickle
-import re
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List
 
 import igp2 as ip
 import matplotlib.pyplot as plt
@@ -206,102 +205,6 @@ def plot_predictions(ego_agent: ip.MCTSAgent,
 
 
 # -----------Explanation plotting functions---------------------
-def plot_dataframe(
-        df: pd.DataFrame,
-        coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]],
-        save_path: str = None):
-    SMALL_SIZE = 10
-    MEDIUM_SIZE = 12
-    BIGGER_SIZE = 14
-
-    plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
-    plt.rc('axes', titlesize=BIGGER_SIZE+2)  # fontsize of the axes title
-    plt.rc('axes', labelsize=BIGGER_SIZE+2)  # fontsize of the x and y labels
-    plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
-    plt.rc('ytick', labelsize=MEDIUM_SIZE+2)  # fontsize of the tick labels
-    plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
-    plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-
-    # plot absolute reward difference
-    fig, axs = plt.subplots(1, 3, figsize=(17, 5), gridspec_kw={'width_ratios': [3, 3, 3]})
-    ax = axs[0]
-    rewards = {"time": "Time to goal\n(s)",
-               "jerk": f"Jerk\n($m/s^3$)",
-               "angular_velocity": "Angular velocity\n(rad/s)",
-               "curvature": "Curvature\n(1/m)",
-               "coll": "Collision",
-               "dead": "Goal not reached"}
-    binaries = df.loc[["coll", "dead"]]
-    df = df.drop(["coll", "dead"])
-    y_tick_labels = [rewards[indx] for indx in df.index]
-    r_diffs = df.absolute
-    rewards, widths = list(zip(*[(k, v) for (k, v) in r_diffs.items() if not np.isnan(v)]))
-    ax.barh(rewards, widths, left=0, height=1.0, color=plt.cm.get_cmap("tab10").colors)
-    c_star = max(r_diffs.index, key=lambda k: np.abs(r_diffs[k]))
-    r_star = r_diffs[c_star]
-    # plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
-    ax.set_xlabel("(a) Cost difference")
-    ax.set_title(f"Collision: {binaries.loc['coll', 'absolute'] > 0}; \n"
-                 f"Goal not reached: {binaries.loc['dead', 'absolute'] > 0}")
-    ax.set_yticklabels(y_tick_labels)
-
-    # plot past and future efficient causes
-    macro_re = re.compile(r"^(\w+)\(([^,]*)(,[^,]+)*\)$")
-    for inx, coef in enumerate(coefs, 1):
-        ax = axs[inx]
-        if coef is None:
-            continue
-        inxs = (-coef.mean(0)).argsort()
-        coef = coef.iloc[:, inxs]
-        inxs = np.isclose(coef.mean(0),  0)
-        coef_rest = coef.loc[:, inxs].sum(1)
-        coef = coef.loc[:, ~inxs]
-        coef = pd.concat([coef, coef_rest], axis=1)
-        # coef = coef.reindex(sorted(coef.columns, key=lambda x: x[0]), axis=1)
-        sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5, ax=ax)
-        sns.violinplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10, width=.8, scale="count", ax=ax)
-        ax.axvline(x=0, color=".5")
-        ax.set_xlabel(f"({'b' if inx == 1 else 'c'}) Coefficient importance")
-        if inx == 1:
-            # ax.set_title("Coefficient importance and its variability (past causes)")
-            ax.set_title("Past causes")
-        else:
-            ax.set_title("Present-future causes")
-        y_tick_labels = []
-        prev_veh = None
-        for i, lbl in enumerate(coef.columns):
-            if not isinstance(lbl, str):
-                continue
-            lbl_split = lbl.split("_")
-            if "macro" in lbl_split:
-                lbl_split.remove("macro")
-                match = macro_re.match(lbl_split[1])
-                action = match.groups()[0]
-                params = match.groups()[1:]
-                if action == "Exit":
-                    action += " " + params[0]
-            else:
-                action = ' '.join(lbl_split[1:]).capitalize()
-            if "Lane" in action:
-                idx = action.index("Lane")
-                action = action[:idx] + " " + action[idx+4:].lower()
-            if "velocity" in action:
-                action = action.replace("velocity", "vel.")
-            vehicle = lbl_split[0]
-            if prev_veh is None:
-                prev_veh = vehicle
-            elif prev_veh != vehicle:
-                prev_veh = vehicle
-            y_tick_labels.append(f"{action} ({vehicle})")
-        y_tick_labels.append(f"Rest of {sum(inxs)}")
-        ax.set_yticklabels(y_tick_labels)
-    fig.tight_layout()
-    if save_path is not None:
-        fig.savefig(os.path.join(save_path, f"attributions.pdf"), bbox_inches='tight')
-    # show the plot
-    plt.show()
-
-
 def plot_explanation(
         r_diffs: Dict[str, float],
         data: pd.DataFrame,

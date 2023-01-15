@@ -67,8 +67,7 @@ class Language:
             associative_explanation = self.__realiser.realiseSentence(associative_sentence)
 
         # Generate final explanation
-        final_explanation = None
-        final_paragraph = []
+        final_explanation = ""
         if final_causes is not None:
             subject = query.action if isinstance(query.action, str) \
                 else " and ".join(query.action)

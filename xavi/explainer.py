@@ -14,7 +14,6 @@ from xavi.util import fill_missing_actions, truncate_observations, \
 from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
 from xavi.language import Language
-from xavi.plotting import plot_dataframe
 
 logger = logging.getLogger(__name__)
 
@@ -163,11 +162,8 @@ class XAVIAgent(ip.MCTSAgent):
             causes = self.__explain_what()
         elif self.query.type in [QueryType.WHY, QueryType.WHY_NOT]:
             causes = self.__explain_why()
-            # plot_dataframe(causes[0], causes[1])
         elif self.query.type == QueryType.WHAT_IF:
             causes = self.__explain_whatif()
-            # plot_dataframe(causes[1], causes[2])
-            # logger.info(f"I will {causes[0]}")
         else:
             raise ValueError(f"Unknown query type: {self.query.type}")
 
