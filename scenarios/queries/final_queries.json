@@ -1,6 +1,13 @@
 {
   "s1": [
     {
+      "type": "why",
+      "agent_id": 0,
+      "action": "ChangeLaneLeft",
+      "t_query": 40,
+      "tense": "future"
+    },
+    {
       "type": "whynot",
       "agent_id": 0,
       "action": "GoStraight",
