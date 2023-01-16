@@ -29,6 +29,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def parse_eval_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("scenario", metavar="S", type=int, default=1,
+                        help="The number of the scenario to execute.")
+    parser.add_argument("query", metavar="Q", type=int, default=0,
+                        help="The index of the query to evaluate in the given scenario.")
+    parser.add_argument("--robustness", action="store_true", help="Whether to run a robustness evaluation.")
+    return parser.parse_args()
+
+
 def setup_xavi_logging():
     # Add %(asctime)s  for time
     log_formatter = logging.Formatter("[%(threadName)-10.10s:%(name)-20.20s] [%(levelname)-6.6s]  %(message)s")
@@ -114,10 +124,10 @@ def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:
             else ip.AgentMetadata(**ip.AgentMetadata.CAR_DEFAULT)
 
         ret[agent["id"]] = ip.AgentState(time=0,
-                                      position=spawn_position,
-                                      velocity=spawn_velocity,
-                                      acceleration=np.array([0.0, 0.0]),
-                                      heading=spawn_heading,
-                                      metadata=agent_metadata)
+                                         position=spawn_position,
+                                         velocity=spawn_velocity,
+                                         acceleration=np.array([0.0, 0.0]),
+                                         heading=spawn_heading,
+                                         metadata=agent_metadata)
 
     return ret

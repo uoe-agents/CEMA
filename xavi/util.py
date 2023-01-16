@@ -126,7 +126,9 @@ def find_join_index(
 
 def get_coefficient_significance(data: pd.DataFrame,
                                  labels: np.ndarray,
-                                 model: LogisticRegression) -> pd.DataFrame:
+                                 model: LogisticRegression,
+                                 folds: int = 5,
+                                 repeats: int = 7) -> pd.DataFrame:
     """ Run K-fold cross validation on the model to
     retrieve an error bound on the feature significance on the coefficients.
 
@@ -134,10 +136,12 @@ def get_coefficient_significance(data: pd.DataFrame,
         data: The dataset underlying the model.
         labels: The target labels of the data.
         model: The model validate.
+        folds: K, the number of folds
+        repeats: Number of random repeats for K-fold CV
 
     Returns: A Pandas dataframe with validate feature significance.
     """
-    cv = RepeatedKFold(n_splits=5, n_repeats=7, random_state=0)
+    cv = RepeatedKFold(n_splits=folds, n_repeats=repeats, random_state=0)
     cv_model = cross_validate(model, data, labels,
                               cv=cv, return_estimator=True, n_jobs=2)
     coefs = pd.DataFrame(
