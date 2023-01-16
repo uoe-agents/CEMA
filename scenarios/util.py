@@ -23,7 +23,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config_path", type=str, help="Path to a scenario configuration file.")
     parser.add_argument("--query_path", type=str, help="Path to load a query.")
     parser.add_argument("--save_causes", action="store_true", default=False,
-                        help="Whether to save the causes for each query.")
+                        help="Whether to pickle the causes for each query.")
+    parser.add_argument("--save_agent", action="store_true", default=False,
+                        help="Whether to pickle the agent for each query.")
     parser.add_argument("--plot", action="store_true", default=False,
                         help="Whether to display plots of the simulation.")
     return parser.parse_args()
@@ -35,7 +37,8 @@ def parse_eval_args() -> argparse.Namespace:
                         help="The number of the scenario to execute.")
     parser.add_argument("query", metavar="Q", type=int, default=0,
                         help="The index of the query to evaluate in the given scenario.")
-    parser.add_argument("--robustness", action="store_true", help="Whether to run a robustness evaluation.")
+    parser.add_argument("--size", action="store_true", help="Whether to run a size robustness evaluation.")
+    parser.add_argument("--sampling", action="store_true", help="Whether to run a sampling robustness evaluation.")
     return parser.parse_args()
 
 

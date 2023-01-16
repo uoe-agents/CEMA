@@ -63,6 +63,7 @@ class XAVIAgent(ip.MCTSAgent):
                  cf_max_depth: int = 5,
                  tau_limits: Tuple[float, float] = (1., 5.),
                  time_limits: Tuple[float, float] = (5., 5.),
+                 alpha: float = 0.1,
                  **kwargs):
         """ Create a new XAVIAgent.
 
@@ -73,6 +74,7 @@ class XAVIAgent(ip.MCTSAgent):
             cf_d_max: Maximum MCTS search depth for counterfactual simulations.
             tau_limits: Lower and upper bounds on the distance of tau from t_action.
             time_limits: The maximal amount of time to look back in the past and future.
+            alpha: The distribution smoothing weight
 
         Keyword Args: See arguments of parent-class MCTSAgent.
         """
@@ -83,6 +85,7 @@ class XAVIAgent(ip.MCTSAgent):
         self.__tau_limits = np.array(tau_limits)
         self.__time_limits = np.array(time_limits)
         self.__scenario_map = kwargs["scenario_map"]
+        self.__alpha = alpha
 
         self.__cf_n_simulations = kwargs.get("cf_n_simulations", cf_n_simulations)
         self.__cf_max_depth = kwargs.get("cf_max_depth", cf_max_depth)
@@ -128,7 +131,7 @@ class XAVIAgent(ip.MCTSAgent):
         current_t = int(self.observations[self.agent_id][0].states[-1].time)
         self.__mcts_results_buffer.append((current_t, self.mcts.results))
 
-    def explain_actions(self, user_query: Query) -> (str, Any):
+    def explain_actions(self, user_query: Query = None) -> (str, Any):
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
 
         Args:
@@ -161,6 +164,7 @@ class XAVIAgent(ip.MCTSAgent):
         if self.query.type == QueryType.WHAT:
             causes = self.__explain_what()
         elif self.query.type in [QueryType.WHY, QueryType.WHY_NOT]:
+            self.query.tau = None
             causes = self.__explain_why()
         elif self.query.type == QueryType.WHAT_IF:
             causes = self.__explain_whatif()
@@ -385,8 +389,7 @@ class XAVIAgent(ip.MCTSAgent):
                 self.__generate_rollouts(previous_frame,
                                          truncated_observations,
                                          goal_probabilities,
-                                         mcts,
-                                         alpha=0.1)
+                                         mcts)
                 self.__cf_goal_probabilities_dict[time_reference] = goal_probabilities
             ref_t = self.query.t_action if time_reference == "t_action" else self.query.tau
             self.__cf_dataset_dict[time_reference] = self.__get_dataset(
@@ -396,15 +399,13 @@ class XAVIAgent(ip.MCTSAgent):
                             frame: Dict[int, ip.AgentState],
                             observations: Observations,
                             goal_probabilities: Dict[int, ip.GoalsProbabilities],
-                            mcts: ip.MCTS,
-                            alpha: float = 0.1):
+                            mcts: ip.MCTS):
         """ Runs MCTS to generate a new sequence of macro actions to execute using previous observations.
 
         Args:
             frame: Observation of the env tau time steps back.
             observations: Dictionary of observation history.
             goal_probabilities: Dictionary of predictions for each non-ego agent.
-            alpha: Alpha smoothing for goal recognition.
         """
         visible_region = ip.Circle(frame[self.agent_id].position, self.view_radius)
 
@@ -428,7 +429,7 @@ class XAVIAgent(ip.MCTSAgent):
 
             # Set the probabilities equal for each goal and trajectory
             #  to make sure we can sample all counterfactual scenarios
-            gps.add_smoothing(alpha, uniform_goals=True)
+            gps.add_smoothing(self.__alpha, uniform_goals=True)
 
         # Reset the number of trajectories for goal generation
         self._goal_recognition._n_trajectories = n_trajectories
@@ -584,3 +585,13 @@ class XAVIAgent(ip.MCTSAgent):
     def query(self) -> Query:
         """ The most recently asked user query. """
         return self.__user_query
+
+    @property
+    def alpha(self) -> float:
+        """ The smoothing weight for goal recognition. """
+        return self.__alpha
+
+    @alpha.setter
+    def alpha(self, value: float):
+        assert isinstance(value, float) and value >= 0., f"Invalid new alpha {value}."
+        self.__alpha = value

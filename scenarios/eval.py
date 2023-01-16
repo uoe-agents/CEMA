@@ -7,6 +7,7 @@ import xavi
 import re
 import os
 import logging
+import pickle
 from typing import Tuple, Optional, Union
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 macro_re = re.compile(r"^(\w+)\(([^,]*)(,[^,]+)*\)$")
 
 
-def get_y_tick_label(lbl) -> str:
+def get_y_tick_label(lbl: str) -> str:
     if not isinstance(lbl, str):
         return str(lbl)
     lbl_split = lbl.split("_")
@@ -54,10 +55,9 @@ def get_y_tick_label(lbl) -> str:
         return f"{action} ({vehicle})"
 
 
-def plot_dataframe(
-        rew_difs: Optional[pd.DataFrame],
-        coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]],
-        save_path: str = None):
+def plot_dataframe(rew_difs: Optional[pd.DataFrame],
+                   coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]],
+                   save_path: str = None):
     # plot absolute reward difference
     fig, axs = plt.subplots(1, 3, figsize=(17, 5), gridspec_kw={'width_ratios': [3, 3, 3]})
     if rew_difs is not None:
@@ -115,7 +115,35 @@ def plot_dataframe(
     plt.show()
 
 
-def eval_robustness(xp, yp, xf, yf, iters=50):
+def load_data(scenario_id: int, query_in: Union[int, xavi.Query]):
+    if isinstance(query_in, int):
+        query = xavi.Query(**json.load(open("scenarios/queries/final_queries.json"))[f"s{scenario_id}"][query_in])
+    elif isinstance(query_in, xavi.Query):
+        query = query_in
+    else:
+        raise ValueError(f"Invalid input query given: {query_in}")
+
+    causes_file = f"output/scenario_{scenario_id}/q_t{query.t_query}_m{query.type}.pkl"
+    causes = pickle.load(open(causes_file, "rb"))
+
+    # Split causes according to query type
+    act_seg = None
+    if query.type == xavi.QueryType.WHY or query.type == xavi.QueryType.WHY_NOT:
+        f_exp, (cp, cf, (xp, yp, mp), (xf, yf, mf)) = causes
+    elif query.type == xavi.QueryType.WHAT_IF:
+        act_seg, f_exp, (cp, cf, (xp, yp, mp), (xf, yf, mf)) = causes
+    elif query.type == xavi.QueryType.WHAT:
+        act_seg = causes
+        f_exp = None
+        xp, yp, mp = None, None, None
+        xf, yf, mf = None, None, None
+        cp, cf = None, None
+    else:
+        raise ValueError(f"Unknown query type: {query.type}.")
+    return query, f_exp, (cp, cf, (xp, yp, mp), (xf, yf, mf)), act_seg
+
+
+def eval_size_robustness(xp, yp, xf, yf, iters=50):
     def coef_evolution(x, y, fname):
         plt.figure(figsize=(6, 3.5))
         data = pd.concat([x, pd.DataFrame(y, columns=["y"])], axis=1)
@@ -152,43 +180,61 @@ def eval_robustness(xp, yp, xf, yf, iters=50):
         cs = cs.rename({"variable": "Feature"}, axis=1)
         sns.lineplot(cs, x="n", y="value", hue="Feature", style="Feature")
         # sns.lineplot(coef, x="n", y="value", hue="variable", style="variable", legend=False, errorbar=None)
-        plt.xlabel("Number of samples ($K$)")
+        plt.xlabel("(a) Number of samples ($K$)")
         plt.ylabel("Feature weight")
         plt.legend(loc="upper right")
         plt.xlim([4.9, 100.1])
+        # plt.title("Present-future causes")
         plt.tight_layout()
-        plt.savefig(f"output/scenario_{sid[1]}/{fname}", bbox_inches='tight')
+        plt.savefig(os.path.join(output_path, fname), bbox_inches='tight')
         plt.show()
     coef_evolution(xf, yf, fname="coef_evolution_future.pdf")
     coef_evolution(xp, yp, fname="coef_evolution_past.pdf")
 
 
-def load_data(scenario_id: int, query_in: Union[int, xavi.Query]):
-    if isinstance(query_in, int):
-        query = xavi.Query(**json.load(open("scenarios/queries/final_queries.json"))[f"s{scenario_id}"][query_in])
-    elif isinstance(query_in, xavi.Query):
-        query = query_in
+def eval_sampling_robustness(agent: xavi.XAVIAgent, n_alphas=20, overwrite_save=False, fname=None):
+    save_path = os.path.join(query_path, "sampling_robustness_data.pkl")
+    if not os.path.exists(save_path) or overwrite_save:
+        alphas = 0.1 * np.logspace(0, 2.5, n_alphas)
+        alphas = np.insert(alphas, 0, 0.)
+        agent.cf_datasets["tau"] = None
+        agent.cf_mcts["t_action"].n = 100
+        data = {}
+        for alpha in alphas:
+            logger.info(f"Generating data with alpha {alpha}")
+            agent.alpha = alpha
+            agent.cf_datasets["t_action"] = None
+            _, causes = agent.explain_actions(agent.query)
+            data[alpha] = causes
+        pickle.dump(data, open(save_path, "wb"))
     else:
-        raise ValueError(f"Invalid input query given: {query_in}")
-
-    causes_file = f"output/scenario_{scenario_id}/q_t{query.t_query}_m{query.type}.pkl"
-    causes = pickle.load(open(causes_file, "rb"))
-
-    # Split causes according to query type
-    act_seg = None
-    if query.type == xavi.QueryType.WHY or query.type == xavi.QueryType.WHY_NOT:
-        f_exp, (cp, cf, (xp, yp, mp), (xf, yf, mf)) = causes
-    elif query.type == xavi.QueryType.WHAT_IF:
-        act_seg, f_exp, (cp, cf, (xp, yp, mp), (xf, yf, mf)) = causes
-    elif query.type == xavi.QueryType.WHAT:
-        act_seg = causes
-        f_exp = None
-        xp, yp, mp = None, None, None
-        xf, yf, mf = None, None, None
-        cp, cf = None, None
-    else:
-        raise ValueError(f"Unknown query type: {query.type}.")
-    return query, f_exp, (cp, cf, (xp, yp, mp), (xf, yf, mf)), act_seg
+        data = pickle.load(open(save_path, "rb"))
+    coefs = []
+    plt.figure(figsize=(6, 3.5))
+    for alpha, causes in data.items():
+        cs = causes[1][1]
+        cs = cs.loc[:, (cs != 0.).any(axis=0)]
+        if sid in [1, "s1"]:
+            cs = cs.loc[:, ~cs.columns.str.startswith("2")]
+        cs.columns = [get_y_tick_label(c) if c != "n" else c for c in cs.columns]
+        inxs = (-cs.mean(0)).argsort()
+        cs = cs[cs.columns[inxs]]
+        cs["Alpha"] = alpha
+        cs = cs.melt(value_vars=cs.columns, id_vars=["Alpha"])
+        cs = cs.rename({"variable": "Feature"}, axis=1)
+        coefs.append(cs)
+    coefs = pd.concat(coefs, axis=0)
+    sns.lineplot(coefs, x="Alpha", y="value", hue="Feature", style="Feature", legend=False)
+    plt.xlabel(r"(b) Smoothing weight ($\alpha$)")
+    plt.ylabel("Feature weight")
+    # plt.legend(loc="upper right")
+    plt.xlim([0, 32])
+    plt.xscale("symlog")
+    # plt.title("Present-future causes")
+    plt.tight_layout()
+    if fname is not None:
+        plt.savefig(os.path.join(query_path, fname), bbox_inches='tight')
+    plt.show()
 
 
 if __name__ == '__main__':
@@ -197,15 +243,25 @@ if __name__ == '__main__':
 
     sid = args.scenario  # Which scenario to evaluate
     qix = args.query  # Query index to evaluate
+    queries = json.load(open("scenarios/queries/final_queries.json"))
 
-    if args.robustness:
-        df = {}
-        queries = json.load(open("scenarios/queries/final_queries.json"))
+    if args.size:
         for sid in queries:
+            output_path = f"output/scenario_{sid[1:]}"
             for qix in queries[sid]:
-                _, _, (_, _, (X_past, y_past, _), (X_future, y_future, _)), _ = load_data(sid[1], xavi.Query(**qix))
-                eval_robustness(X_past, y_past, X_future, y_future)
-
+                _, _, (_, _, (X_past, y_past, _), (X_future, y_future, _)), _ = load_data(sid[1:], xavi.Query(**qix))
+                eval_size_robustness(X_past, y_past, X_future, y_future)
+    if args.sampling:
+        for sid in queries:
+            output_path = f"output/scenario_{sid[1:]}"
+            for qix, q in enumerate(queries[sid]):
+                query = xavi.Query(**q)
+                query_path = os.path.join(output_path, f"q{qix}_sampling")
+                if not os.path.exists(query_path):
+                    os.mkdir(query_path)
+                # pickled_agent = pickle.load(open(f"{output_path}/agent_t{query.t_query}_m{query.type}.pkl", "rb"))
+                # eval_sampling_robustness(pickled_agent, fname="sampling_eval_future.pdf")
+                eval_sampling_robustness(None, fname="sampling_eval_future.pdf")
     else:
         user_query, final_explanation, (coef_past, coef_future, (X_past, y_past, m_past),
                                         (X_future, y_future, m_future)), action_segment = load_data(sid, qix)

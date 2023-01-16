@@ -87,6 +87,10 @@ if __name__ == '__main__':
 
                 _, causes = xavi_agent.explain_actions(query)
 
+                if args.save_agent:
+                    file_path = os.path.join(output_path, f"agent_t{t}_m{query.type}.pkl")
+                    pickle.dump(xavi_agent, open(file_path, "wb"))
+
                 if args.save_causes:
                     file_path = os.path.join(output_path, f"q_t{t}_m{query.type}.pkl")
                     pickle.dump(causes, open(file_path, "wb"))

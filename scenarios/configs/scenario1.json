@@ -63,7 +63,8 @@
         "cf_n_simulations": 100,
         "cf_max_depth": 5,
         "tau_limits": [2.0, 5.0],
-        "time_limits": [5.0, 5.0]
+        "time_limits": [5.0, 5.0],
+        "alpha": 0.1
       },
       "view_radius": 500,
       "kinematic": true
