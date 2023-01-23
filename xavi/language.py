@@ -57,12 +57,14 @@ class Language:
         if action_group is not None:
             associative_clause = self.__actiongroup_to_text(action_group, self.n_associative)
             associative_sentence = self.__factory.createClause("we", associative_clause)
-            if query.t_query >= query.t_action:
-                tense = "past"
-            elif query.t_query - query.t_action > -20:  # TODO: FPS is hardcoded
-                tense = "present"
-            else:
-                tense = "future"
+            tense = query.tense
+            if query.t_action is not None:
+                if query.t_query >= query.t_action:
+                    tense = "past"
+                elif query.t_query - query.t_action > -20:  # TODO: FPS is hardcoded
+                    tense = "present"
+                else:
+                    tense = "future"
             self.__set_tense(associative_sentence, tense)
             associative_explanation = self.__realiser.realiseSentence(associative_sentence)
 

@@ -78,14 +78,15 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
         r_star = r_diffs[c_star]
         # plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
         ax.set_xlabel("(a) Cost difference")
-        ax.set_title(f"Collision possible: {'No' if binaries.loc['coll', 'absolute'] >= 0 else 'Yes'} \n"
-                     f"Always reach goal: {'No' if binaries.loc['dead', 'absolute'] >= 0 else 'Yes'}")
+        ax.set_title(f"Collision possible: {'No' if binaries.loc['coll', 'reference'] == 0. else 'Yes'} \n"
+                     f"Always reaches goal: {'Yes' if binaries.loc['dead', 'reference'] == 0. else 'No'}")
         ax.set_yticklabels(y_tick_labels)
 
     # plot past and future efficient causes
     for inx, coef in enumerate(coefs, 1):
         ax = axs[inx]
         if coef is None:
+            ax.text(0.25, 0.45, "  Not generated for \n future tense queries", fontsize=14)
             continue
         if sid == 1:  # Remove V2 for S1 plotting as it is not relevant for paper
             coef = coef.loc[:, ~coef.columns.str.startswith("2")]
@@ -110,7 +111,9 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
         ax.set_yticklabels(y_tick_labels)
     fig.tight_layout()
     if save_path is not None:
-        fig.savefig(os.path.join(save_path, f"attributions.pdf"), bbox_inches='tight')
+        qt = str(user_query.type)
+        qt = qt.replace("QueryType.", "")
+        fig.savefig(os.path.join(save_path, f"attr_s{sid}_t{user_query.t_query}_m{qt}.pdf"), bbox_inches='tight')
     # show the plot
     plt.show()
 
@@ -271,9 +274,10 @@ if __name__ == '__main__':
 
         # Generate language explanation
         lang = xavi.Language(n_final=1, collision=sid in [2, 3])
-        if coef_past is not None and coef_future is not None and \
-                user_query.type == xavi.QueryType.WHY_NOT or user_query.negative:
-            coef_past, coef_future = -coef_past, -coef_future
+        if user_query.type == xavi.QueryType.WHY_NOT or user_query.negative:
+            if coef_past is not None:
+                coef_past = -coef_past
+            coef_future = -coef_future
         s = lang.convert_to_sentence(user_query, final_explanation, (coef_past, coef_future), action_segment)
         logger.info(s)
 
