@@ -90,7 +90,7 @@ class Query:
 
         tau = len(trajectory) - 1
         if self.type in [QueryType.WHAT_IF, QueryType.WHY_NOT, QueryType.WHY]:
-            t_action, tau = self.__get_t_tau(action_segmentations, self.type != QueryType.WHAT_IF)
+            t_action, tau = self.__get_t_tau(action_segmentations, True)
         elif self.type == QueryType.WHAT:
             t_action = self.t_action
         else:

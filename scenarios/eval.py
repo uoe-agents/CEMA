@@ -86,7 +86,7 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
     for inx, coef in enumerate(coefs, 1):
         ax = axs[inx]
         if coef is None:
-            ax.text(0.25, 0.45, "  Not generated for \n future tense queries", fontsize=14)
+            ax.text(0.2, 0.45, "No past causes because \n action starts from $t=1$.", fontsize=14)
             continue
         if sid == 1:  # Remove V2 for S1 plotting as it is not relevant for paper
             coef = coef.loc[:, ~coef.columns.str.startswith("2")]
@@ -143,6 +143,12 @@ def load_data(scenario_id: int, query_in: Union[int, xavi.Query]):
         cp, cf = None, None
     else:
         raise ValueError(f"Unknown query type: {query.type}.")
+
+    if query.type == xavi.QueryType.WHY_NOT or query.negative:
+        if cp is not None:
+            cp = -cp
+        cf = -cf
+
     return query, f_exp, (cp, cf, (xp, yp, mp), (xf, yf, mf)), act_seg
 
 
@@ -157,7 +163,8 @@ def eval_size_robustness(xp, yp, xf, yf, iters=50):
         coef_["n"] = 100
         coef = pd.concat([coef, coef_], axis=0)
         cs = []
-        for n in range(5, len(xp) + 5, 5):
+        ns = np.linspace(5, data.shape[0], 20, dtype=int)
+        for n in ns:
             for i in range(iters):
                 sample = data.sample(n)
                 trunc_x = sample.iloc[:, :-1]
@@ -175,28 +182,48 @@ def eval_size_robustness(xp, yp, xf, yf, iters=50):
             cs = cs.loc[:, (cs.abs() > 0.28).any(axis=0)]
         if sid == "s1":  # Remove V2 for S1 plotting as it is not relevant for paper
             cs = cs.loc[:, ~cs.columns.str.startswith("2")]
-        coef = coef.melt(value_vars=cs.columns, id_vars=["n"])
+        # coef = coef.melt(value_vars=cs.columns, id_vars=["n"])
         cs.columns = [get_y_tick_label(c) if c != "n" else c for c in cs.columns]
-        inxs = (-cs.mean(0)).argsort()
+        if user_query.type == xavi.QueryType.WHY_NOT or user_query.negative:
+            inxs = cs.mean(0).argsort()
+        else:
+            inxs = (-cs.mean(0)).argsort()
         cs = cs[cs.columns[inxs]]
         cs = cs.melt(value_vars=cs.columns, id_vars=["n"])
         cs = cs.rename({"variable": "Feature"}, axis=1)
+        if user_query.type == xavi.QueryType.WHY_NOT or user_query.negative:
+            cs["value"] = -cs["value"]
         sns.lineplot(cs, x="n", y="value", hue="Feature", style="Feature")
         # sns.lineplot(coef, x="n", y="value", hue="variable", style="variable", legend=False, errorbar=None)
-        plt.xlabel("(a) Number of samples ($K$)")
+        plt.xlabel("Number of samples ($K$)")
         plt.ylabel("Feature weight")
         plt.legend(loc="upper right")
-        plt.xlim([4.9, 100.1])
-        # plt.title("Present-future causes")
+        plt.xlim([ns[0]-0.1, ns[-1]+0.1])
+        if fname is not None:
+            if "past" in fname:
+                plt.title("Past causes")
+            else:
+                plt.title("Present-future causes")
         plt.tight_layout()
         plt.savefig(os.path.join(output_path, fname), bbox_inches='tight')
-        plt.show()
-    coef_evolution(xf, yf, fname="coef_evolution_future.pdf")
-    coef_evolution(xp, yp, fname="coef_evolution_past.pdf")
+        # plt.show()
+
+    qt = str(user_query.type)
+    qt = qt.replace("QueryType.", "")
+    file_name = f"size_{sid}_t{user_query.t_query}_m{qt}"
+    logger.debug(file_name)
+    if xf is not None and yf is not None:
+        coef_evolution(xf, yf, fname=f"{file_name}_future.pdf")
+    if xp is not None and yp is not None:
+        coef_evolution(xp, yp, fname=f"{file_name}_past.pdf")
 
 
 def eval_sampling_robustness(agent: xavi.XAVIAgent, n_alphas=20, overwrite_save=False, fname=None):
-    save_path = os.path.join(query_path, "sampling_robustness_data.pkl")
+    qt = str(user_query.type)
+    qt = qt.replace("QueryType.", "")
+    file_name = f"sample_{sid}_t{user_query.t_query}_m{qt}"
+    logger.debug(file_name)
+    save_path = os.path.join(query_path, f"{file_name}.pkl")
     if not os.path.exists(save_path) or overwrite_save:
         alphas = 0.1 * np.logspace(0, 2.5, n_alphas)
         alphas = np.insert(alphas, 0, 0.)
@@ -209,7 +236,7 @@ def eval_sampling_robustness(agent: xavi.XAVIAgent, n_alphas=20, overwrite_save=
             agent.cf_datasets["t_action"] = None
             _, causes = agent.explain_actions(agent.query)
             data[alpha] = causes
-        pickle.dump(data, open(save_path, "wb"))
+            pickle.dump(data, open(save_path, "wb"))
     else:
         data = pickle.load(open(save_path, "rb"))
     coefs = []
@@ -228,7 +255,7 @@ def eval_sampling_robustness(agent: xavi.XAVIAgent, n_alphas=20, overwrite_save=
         coefs.append(cs)
     coefs = pd.concat(coefs, axis=0)
     sns.lineplot(coefs, x="Alpha", y="value", hue="Feature", style="Feature", legend=False)
-    plt.xlabel(r"(b) Smoothing weight ($\alpha$)")
+    plt.xlabel(r"Smoothing weight ($\alpha$)")
     plt.ylabel("Feature weight")
     # plt.legend(loc="upper right")
     plt.xlim([0, 32])
@@ -248,23 +275,22 @@ if __name__ == '__main__':
     qix = args.query  # Query index to evaluate
     queries = json.load(open("scenarios/queries/final_queries.json"))
 
-    if args.size:
-        for sid in queries:
-            output_path = f"output/scenario_{sid[1:]}"
-            for qix in queries[sid]:
-                _, _, (_, _, (X_past, y_past, _), (X_future, y_future, _)), _ = load_data(sid[1:], xavi.Query(**qix))
-                eval_size_robustness(X_past, y_past, X_future, y_future)
-    if args.sampling:
+    if args.size or args.sampling:
         for sid in queries:
             output_path = f"output/scenario_{sid[1:]}"
             for qix, q in enumerate(queries[sid]):
-                query = xavi.Query(**q)
-                query_path = os.path.join(output_path, f"q{qix}_sampling")
-                if not os.path.exists(query_path):
-                    os.mkdir(query_path)
-                # pickled_agent = pickle.load(open(f"{output_path}/agent_t{query.t_query}_m{query.type}.pkl", "rb"))
-                # eval_sampling_robustness(pickled_agent, fname="sampling_eval_future.pdf")
-                eval_sampling_robustness(None, fname="sampling_eval_future.pdf")
+                user_query = xavi.Query(**q)
+                if args.size:
+                    _, _, (_, _, (X_past, y_past, _), (X_future, y_future, _)), _ = load_data(sid[1:], user_query)
+                    eval_size_robustness(X_past, y_past, X_future, y_future)
+                elif args.sampling:
+                    query_path = os.path.join(output_path, f"q{qix}_sampling")
+                    if not os.path.exists(query_path):
+                        os.mkdir(query_path)
+                    agent_path = f"{output_path}/agent_t{user_query.t_query}_m{user_query.type}.pkl"
+                    pickled_agent = pickle.load(open(agent_path, "rb"))
+                    eval_sampling_robustness(pickled_agent, fname="sampling_eval_future.pdf")
+                    # eval_sampling_robustness(None, fname="sampling_eval_future.pdf")
     else:
         user_query, final_explanation, (coef_past, coef_future, (X_past, y_past, m_past),
                                         (X_future, y_future, m_future)), action_segment = load_data(sid, qix)
@@ -274,10 +300,6 @@ if __name__ == '__main__':
 
         # Generate language explanation
         lang = xavi.Language(n_final=1, collision=sid in [2, 3])
-        if user_query.type == xavi.QueryType.WHY_NOT or user_query.negative:
-            if coef_past is not None:
-                coef_past = -coef_past
-            coef_future = -coef_future
         s = lang.convert_to_sentence(user_query, final_explanation, (coef_past, coef_future), action_segment)
         logger.info(s)
 

@@ -167,7 +167,6 @@ class XAVIAgent(ip.MCTSAgent):
         if self.query.type == QueryType.WHAT:
             causes = self.__explain_what()
         elif self.query.type in [QueryType.WHY, QueryType.WHY_NOT]:
-            self.query.tau = None
             causes = self.__explain_why()
         elif self.query.type == QueryType.WHAT_IF:
             causes = self.__explain_whatif()
