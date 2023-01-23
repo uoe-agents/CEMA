@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import logging
+import time
 import igp2 as ip
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
@@ -139,6 +140,8 @@ class XAVIAgent(ip.MCTSAgent):
 
         Returns: A natural language explanation of the query, and the causes that generated the sentence.
         """
+        t_start = time.time()
+
         self.__user_query = user_query
         self.__user_query.fps = self.fps
         self.__user_query.tau_limits = self.tau_limits
@@ -177,6 +180,7 @@ class XAVIAgent(ip.MCTSAgent):
 
         self.__previous_queries.append(self.__user_query)
         logger.info(f"t_action is {self.query.t_action}, tau is {self.query.tau}")
+        logger.debug(f"Runtime: {time.time() - t_start}")
         return sentence, causes
 
     def __final_causes(self, ref_items: List[Item], alt_items: List[Item]) -> pd.DataFrame:

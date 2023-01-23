@@ -78,8 +78,8 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
         r_star = r_diffs[c_star]
         # plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
         ax.set_xlabel("(a) Cost difference")
-        ax.set_title(f"Collision: {binaries.loc['coll', 'absolute'] > 0}; \n"
-                     f"Goal not reached: {binaries.loc['dead', 'absolute'] > 0}")
+        ax.set_title(f"Collision possible: {'No' if binaries.loc['coll', 'absolute'] >= 0 else 'Yes'} \n"
+                     f"Always reach goal: {'No' if binaries.loc['dead', 'absolute'] >= 0 else 'Yes'}")
         ax.set_yticklabels(y_tick_labels)
 
     # plot past and future efficient causes
@@ -105,7 +105,7 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
             ax.set_title("Past causes")
         else:
             ax.set_title("Present-future causes")
-        y_tick_labels = [get_y_tick_label(lbl) for lbl in coef.columns]
+        y_tick_labels = [get_y_tick_label(lbl) for lbl in coef.columns if isinstance(lbl, str)]
         y_tick_labels.append(f"Rest of {sum(inxs)}")
         ax.set_yticklabels(y_tick_labels)
     fig.tight_layout()
