@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("scenario", metavar="S", type=int, help="The number of the scenario to execute.")
+    parser.add_argument("scenario", metavar="S", type=int, help="The ID of the scenario to execute.")
     parser.add_argument("--seed", type=int, help="Random seed of the simulation.")
     parser.add_argument("--fps", type=int, help="Framerate of the simulation.")
     parser.add_argument("--config_path", type=str, help="Path to a scenario configuration file.")
