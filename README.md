@@ -1,12 +1,12 @@
 # Causal Social Explanations for Stochastic Sequential Multi-Agent Decision-Making
-This is the code repository for the paper "Causal Social Explanations for Stochastic Sequential Multi-Agent Decision-Making" by Gyevnar et al [1].
+This is the code repository for the [paper](https://arxiv.org/abs/2302.10809) "Causal Social Explanations for Stochastic Sequential Multi-Agent Decision-Making" by Gyevnar et al [1].
 The following readme describes the installation process and usage of the code to reproduce our results.
 
 The python package for accessing our code is called 'xavi'.
 It relies on the [IGP2](https://github.com/uoe-agents/IGP2) package to simulate road interactions in scenarios with an autonomous vehicle.
 
 ## Please Cite
-If you use our code in your work then please cite the following:
+If you use our code in your work then please cite our [paper](https://arxiv.org/abs/2302.10809):
 ```text
 @misc{gyevnar2023causal,
     title={Causal Social Explanations for Stochastic Sequential Multi-Agent Decision-Making},
