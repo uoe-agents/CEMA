@@ -8,11 +8,13 @@ It relies on the [IGP2](https://github.com/uoe-agents/IGP2) package to simulate 
 ## Please Cite
 If you use our code in your work then please cite the following:
 ```text
-@misc{gyevnar2023causalsocial,
-   title={Causal Social Explanations for Stochastic Sequential Multi-Agent Decision-Making},
-   author={Balint Gyevnar and Cheng Wang and Christopher G. Lucas and Shay B. Cohen and Stefano V. Albrecht},
-   booktitle={xxx},
-   year={2023}
+@misc{gyevnar2023causal,
+    title={Causal Social Explanations for Stochastic Sequential Multi-Agent Decision-Making},
+    author={Balint Gyevnar and Cheng Wang and Christopher G. Lucas and Shay B. Cohen and Stefano V. Albrecht},
+    eprint={2302.10809},
+    archivePrefix={arXiv}
+    year={2023},
+    primaryClass={cs.AI}
 }
 ```
 
@@ -36,6 +38,19 @@ python run.py 1
 
 If you wish to plot the simulation, you can do so by specifying the ```--plot``` commandline argument (currently we only use matplotlib so plotting is rather slow).
 Plots of the explanations are generated automatically after executing each query. 
+
+### Reproducing results
+To reproduce all our results you can just run the ```bash eval_all.sh``` script to generate all results and outputs. 
+
+To generate results for a particular scenario and query, first run the scenario and the corresponding queries (currently defined in ```final_queries.json```) and save the results using the following command:
+```commandline
+python run.py $scenario_id$ --query_path scenarios/queries/final_queries.json --save_causes 
+```
+
+After saving the results, you can plot the causal attributions and generate the natural language explanations for a given scenario and query by running the following command:
+```commandline
+python eval.py $scenario_id$ $query_index$
+```
 
 ### Map file
 The road layout in each scenario is defined using the ASAM OpenDrive standard v1.6.

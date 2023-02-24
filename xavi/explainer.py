@@ -15,6 +15,7 @@ from xavi.util import fill_missing_actions, truncate_observations, \
 from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
 from xavi.language import Language
+from xavi.plotting import plot_explanation
 
 logger = logging.getLogger(__name__)
 
@@ -158,29 +159,39 @@ class XAVIAgent(ip.MCTSAgent):
             self.query.get_tau(
                 self.__current_t, self.__scenario_map,
                 self.total_observations, self.__mcts_results_buffer)
+            logger.info(f"t_action is {self.query.t_action}, tau is {self.query.tau}")
         except ValueError as ve:
             logger.exception(str(ve), exc_info=ve)
-            return str(ve)
+            return str(ve), None
 
         logger.info(f"Running explanation for {self.query}.")
 
         if self.query.type == QueryType.WHAT:
             causes = self.__explain_what()
+            final_causes, efficient_causes = None, None
+            explanation = self.__language.convert_to_sentence(self.query, action_group=causes[0])
         elif self.query.type in [QueryType.WHY, QueryType.WHY_NOT]:
             causes = self.__explain_why()
+            final_causes = causes[0]
+            efficient_causes = (causes[1][0], causes[1][1])
+            explanation = self.__language.convert_to_sentence(
+                self.query, final_causes=final_causes, efficient_causes=efficient_causes)
         elif self.query.type == QueryType.WHAT_IF:
             causes = self.__explain_whatif()
+            final_causes = causes[1]
+            efficient_causes = (causes[2][0], causes[2][1])
+            explanation = self.__language.convert_to_sentence(self.query,
+                                                              final_causes=final_causes,
+                                                              efficient_causes=efficient_causes,
+                                                              action_group=causes[0])
         else:
             raise ValueError(f"Unknown query type: {self.query.type}")
 
-        # TODO (high): Convert to NL explanations through language templates.
-        # sentence = self.__language.convert_to_sentence(causes)
-        sentence = ""
+        plot_explanation(final_causes, efficient_causes)
 
         self.__previous_queries.append(self.__user_query)
-        logger.info(f"t_action is {self.query.t_action}, tau is {self.query.tau}")
         logger.debug(f"Runtime: {time.time() - t_start}")
-        return sentence, causes
+        return explanation, causes
 
     def __final_causes(self, ref_items: List[Item], alt_items: List[Item]) -> pd.DataFrame:
         """ Generate final causes for the queried action.

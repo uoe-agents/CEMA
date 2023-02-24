@@ -299,7 +299,7 @@ if __name__ == '__main__':
             final_explanation = final_explanation.drop(["term"])
 
         # Generate language explanation
-        lang = xavi.Language(n_final=1, collision=sid in [2, 3])
+        lang = xavi.Language(n_final=1)
         s = lang.convert_to_sentence(user_query, final_explanation, (coef_past, coef_future), action_segment)
         logger.info(s)
 

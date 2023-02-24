@@ -1,6 +1,6 @@
 import os.path
 import pickle
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 import igp2 as ip
 import matplotlib.pyplot as plt
@@ -206,82 +206,51 @@ def plot_predictions(ego_agent: ip.MCTSAgent,
 
 # -----------Explanation plotting functions---------------------
 def plot_explanation(
-        r_diffs: Dict[str, float],
-        data: pd.DataFrame,
-        labels: np.ndarray,
-        model: LogisticRegression,
-        save_path: str = None,
-        future: bool = False) -> plt.Axes:
-    """ Plot final and efficient explanations from the calculated information.
+        d_rewards: Optional[pd.DataFrame],
+        coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]],
+        save_path: str = None):
+    """ Plot causal attributions
 
     Args:
-        r_diffs: Reward component differences.
-        data: Input data to the logistic regression model
-        labels: Labels indicating the presence of a query
-        model: The logistic regression model
-        save_path: If not None, then save figures to this path
-        future: Whether the data relates to future trajectories.
+        d_rewards: Reward differences for final causes.
+        coefs: Feature coefficient importances for efficient causes.
+        save_path: Optional save path for the image.
 
     Returns:
-        plt.Axes that was plotted on.
+
     """
-    # Plot reward differences
-    rewards, widths = list(zip(*[(k, v) for (k, v) in r_diffs.items() if not np.isnan(v)]))
+    fig, axs = plt.subplots(1, 3, figsize=(17, 5), gridspec_kw={'width_ratios': [3, 3, 3]})
+    if d_rewards is not None:
+        ax = axs[0]
+        binaries = d_rewards.loc[["coll", "dead"]]
+        d_rewards = d_rewards.drop(["coll", "dead"])
+        r_diffs = d_rewards.absolute
+        rewards, widths = list(zip(*[(k, v) for (k, v) in r_diffs.items() if not np.isnan(v)]))
+        ax.barh(rewards, widths, left=0, height=1.0, color=plt.cm.get_cmap("tab10").colors)
+        ax.set_xlabel("(a) Cost difference")
+        ax.set_title(f"Collision possible: {'No' if binaries.loc['coll', 'reference'] == 0. else 'Yes'} \n"
+                     f"Always reaches goal: {'Yes' if binaries.loc['dead', 'reference'] == 0. else 'No'}")
 
-    # Plot reward differences
-    plt.barh(rewards, widths, left=0, height=1.0, color=plt.cm.get_cmap("tab10").colors)
-    c_star = max(r_diffs, key=lambda k: np.abs(r_diffs[k]))
-    r_star = r_diffs[c_star]
-    plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
-    plt.gcf().tight_layout()
+    # plot past and future efficient causes
+    for inx, coef in enumerate(coefs, 1):
+        ax = axs[inx]
+        if coef is None:
+            ax.text(0.2, 0.45, "No past causes because \n action starts from $t=1$.", fontsize=14)
+            continue
+        inxs = (-coef.mean(0)).argsort()
+        coef = coef.iloc[:, inxs]
+        inxs = np.isclose(coef.mean(0), 0)
+        coef_rest = coef.loc[:, inxs].sum(1)
+        coef = coef.loc[:, ~inxs]
+        coef = pd.concat([coef, coef_rest], axis=1)
+        sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5, ax=ax)
+        sns.violinplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10, width=.8, scale="count", ax=ax)
+        ax.axvline(x=0, color=".5")
+        ax.set_xlabel(f"({'b' if inx == 1 else 'c'}) Coefficient importance")
+        if inx == 1:
+            ax.set_title("Past causes")
+        else:
+            ax.set_title("Present-future causes")
+    fig.tight_layout()
     if save_path is not None:
-        plt.savefig(os.path.join(save_path, f"{'future' if future else 'past'}_final.png"))
-
-    # Plot model coefficients
-    feature_names = [col[:15] for col in data.columns]
-    coefs = pd.DataFrame(
-        np.squeeze(model.coef_) * data.std(axis=0),
-        columns=["Coefficient importance"],
-        index=feature_names,
-    )
-    coefs.plot(kind="barh", figsize=(9, 7), alpha=0.45)
-    plt.xlabel("Coefficient values corrected by the feature's std. dev.")
-    plt.title("Logistic model, small regularization")
-    plt.axvline(x=0, color=".5")
-    plt.subplots_adjust(left=0.3)
-
-    cv = RepeatedKFold(n_splits=5, n_repeats=7, random_state=0)
-    cv_model = cross_validate(model, data, labels,
-                              cv=cv, return_estimator=True, n_jobs=2)
-    coefs = pd.DataFrame(
-        [
-            np.squeeze(est.coef_) * data.iloc[train_idx].std(axis=0)
-            for est, (train_idx, _) in zip(cv_model["estimator"], cv.split(data, labels))
-        ],
-        columns=feature_names,
-    )
-    # plt.figure(figsize=(9, 7))
-    sns.stripplot(data=coefs, orient="h", palette="dark:k", alpha=0.5)
-    sns.boxplot(data=coefs, orient="h", color="cyan", saturation=0.5, whis=10)
-    plt.axvline(x=0, color=".5")
-    plt.xlabel("Coefficient importance")
-    plt.title("Coefficient importance and its variability")
-    plt.suptitle("Logistic model, small regularization")
-    plt.subplots_adjust(left=0.3)
-    if save_path is not None:
-        plt.savefig(os.path.join(save_path, f"{'future' if future else 'past'}_efficient.png"))
-
-
-if __name__ == '__main__':
-    scenario = 1
-    future = False
-    save_path = os.path.join("output", str(scenario))
-    if not os.path.exists("output"):
-        os.mkdir("output")
-    if not os.path.exists(save_path):
-        os.mkdir(save_path)
-
-    plot_explanation(*pickle.load(open(f"s{scenario}_{'future' if future else 'past'}.p", "rb")),
-                     save_path=save_path,
-                     future=future)
-    plt.show()
+        fig.savefig(save_path, bbox_inches='tight')
