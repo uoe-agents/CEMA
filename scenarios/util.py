@@ -28,6 +28,8 @@ def parse_args() -> argparse.Namespace:
                         help="Whether to pickle the agent for each query.")
     parser.add_argument("--plot", action="store_true", default=False,
                         help="Whether to display plots of the simulation.")
+    parser.add_argument("--sim_only", action="store_true", default=False,
+                        help="If true then do not execute queries.")
     return parser.parse_args()
 
 

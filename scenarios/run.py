@@ -79,6 +79,8 @@ if __name__ == '__main__':
         if t % 20 == 0 and args.plot:
             xavi.plot_simulation(simulation, debug=False)
             plt.show()
+        if args.sim_only:
+            continue
         for query in queries:
             if t > 0 and t == query.t_query:
                 if args.plot:
