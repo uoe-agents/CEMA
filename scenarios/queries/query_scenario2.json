@@ -27,7 +27,7 @@
     "tense": "past",
     "negative": false,
     "factual": "TurnLeft"
-  }
+  },
   {
     "type": "whatif",
     "agent_id": 1,

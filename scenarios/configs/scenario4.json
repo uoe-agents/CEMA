@@ -1,0 +1,10 @@
+{
+  "scenario": {
+    "map_path": "scenarios/maps/scenario4.xodr",
+    "max_speed": 10.0,
+    "fps": 20,
+    "seed": 21,
+    "max_steps": 250,
+    "max_oncoming_vehicle_dist": 40
+  }
+}

@@ -13,7 +13,7 @@
       "spawn": {
         "box": {
           "center": [
-            -80.0,
+            -25.0,
             -1.8
           ],
           "length": 10,
@@ -28,7 +28,7 @@
       "goal": {
         "box": {
           "center": [
-            -6.0,
+            70.0,
             0.0
           ],
           "length": 5,
@@ -75,7 +75,7 @@
       "spawn": {
         "box": {
           "center": [
-            -70.0,
+            -15.0,
             1.7
           ],
           "length": 10,
@@ -90,7 +90,7 @@
       "goal": {
         "box": {
           "center": [
-            -22.0,
+            48.25,
             -25.5
           ],
           "length": 3.5,
@@ -104,7 +104,7 @@
       "type": "TrafficAgent",
       "spawn": {
         "box": {
-          "center": [-18.34, -25.5],
+          "center": [51.75, -25.5],
           "length": 3.5,
           "width": 10.0,
           "heading": 0.0
@@ -117,7 +117,7 @@
       "goal": {
         "box": {
           "center": [
-            -6.0,
+            70,
             0.0
           ],
           "length": 5,

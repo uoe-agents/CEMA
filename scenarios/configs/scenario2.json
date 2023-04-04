@@ -15,7 +15,7 @@
       "spawn": {
         "box": {
           "center": [
-            28.25,
+            1.75,
             -30.0
           ],
           "length": 3.5,
@@ -31,7 +31,7 @@
         "box": {
           "center": [
             65.0,
-            -5.25
+            -1.75
           ],
           "length": 5,
           "width": 3.5,
@@ -42,7 +42,7 @@
         "time": 0.5,
         "velocity": 0.0,
         "acceleration": 0.0,
-        "jerk": 100.0,
+        "jerk": 1.0,
         "heading": 0.0,
         "angular_velocity": 0.0,
         "angular_acceleration": 0.0,
@@ -51,7 +51,7 @@
       },
       "mcts": {
         "t_update": 2.0,
-        "n_simulations": 10,
+        "n_simulations": 30,
         "store_results": "all",
         "trajectory_agents": false,
         "reward_factors": {
@@ -74,8 +74,8 @@
       "spawn": {
         "box": {
           "center": [
-            -20.0,
-            -5.25
+            -46.5,
+            -1.75
           ],
           "length": 10.0,
           "width": 3.5,
@@ -89,8 +89,8 @@
       "goal": {
         "box": {
           "center": [
-            28.25,
-            10.0
+            1.75,
+            15.0
           ],
           "length": 3.5,
           "width": 5,
@@ -104,8 +104,8 @@
       "spawn": {
         "box": {
           "center": [
-            100.0,
-            -1.75
+            53.5,
+            1.75
           ],
           "length": 10.0,
           "width": 3.5,
@@ -119,8 +119,8 @@
       "goal": {
         "box": {
           "center": [
-            5.0,
-            -1.75
+            -25.0,
+            1.75
           ],
           "length": 5,
           "width": 3.5,
