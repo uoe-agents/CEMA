@@ -13,7 +13,7 @@
       "spawn": {
         "box": {
           "center": [
-            -25.0,
+            -20.0,
             -1.8
           ],
           "length": 10,
@@ -49,7 +49,7 @@
       },
       "mcts": {
         "t_update": 2.0,
-        "n_simulations": 30,
+        "n_simulations": 20,
         "store_results": "all",
         "trajectory_agents": false,
         "reward_factors": {
@@ -75,7 +75,7 @@
       "spawn": {
         "box": {
           "center": [
-            -15.0,
+            -8.0,
             1.7
           ],
           "length": 10,

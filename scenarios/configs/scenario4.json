@@ -6,5 +6,54 @@
     "seed": 21,
     "max_steps": 250,
     "max_oncoming_vehicle_dist": 40
-  }
+  },
+  "agents": [
+    {
+      "id": 1,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            1.75,
+            -25.5
+          ],
+          "length": 3.5,
+          "width": 5,
+          "heading": 0.0
+        },
+        "velocity": [
+          5.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            1.75,
+            25.5
+          ],
+          "length": 3.5,
+          "width": 5,
+          "heading": 0.0
+        }
+      },
+      "macro_actions": [
+        {
+          "type": "Stop",
+          "termination_point": [
+            1.75,
+            -12.5
+          ],
+          "stop_duration": 5.0
+        },
+        {
+          "type": "Exit",
+          "turn_target": [
+            1.75,
+            9.0
+          ]
+        }
+      ]
+    }
+  ]
 }

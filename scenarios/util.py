@@ -1,7 +1,7 @@
 import logging
 import sys
 import os
-from typing import Dict, List
+from typing import Dict, List, Any
 
 import logging
 import igp2 as ip
@@ -83,6 +83,17 @@ def parse_query(args) -> List[Query]:
     except FileNotFoundError as e:
         logger.exception(str(e), exc_info=e)
         return []
+
+
+def to_ma_list(ma_confs: List[Dict[str, Any]], agent_id: int, start_frame: Dict[int, ip.AgentState], scenario_map: ip.Map) \
+        -> List[ip.MacroAction]:
+    mas = []
+    for config in ma_confs:
+        config["open_loop"] = False
+        frame = start_frame if not mas else mas[-1].final_frame
+        ma = ip.MacroActionFactory.create(ip.MacroActionConfig(config), agent_id, frame, scenario_map)
+        mas.append(ma)
+    return mas
 
 
 def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:

@@ -1,5 +1,3 @@
-import os.path
-import pickle
 from typing import Dict, List, Optional, Tuple
 
 import igp2 as ip
@@ -7,8 +5,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import RepeatedKFold, cross_validate
 
 from xavi.simulation import Simulation
 
@@ -104,6 +100,8 @@ def plot_diagnostics(agents: Dict[int, ip.Agent], actions: Dict[int, List[ip.Act
     # Plot observations
     fig, axes = plt.subplots(n_agents, n_attributes,
                              figsize=(n_attributes * subplot_w, n_agents * subplot_w))
+    if n_agents < 2:
+        axes = axes[None, :]
     for i, (aid, agent) in enumerate(agents.items()):
         if agent is None:
             continue
@@ -113,18 +111,19 @@ def plot_diagnostics(agents: Dict[int, ip.Agent], actions: Dict[int, List[ip.Act
             ax = axes[i, j]
             ys = getattr(agent.trajectory_cl, attribute)
             ys = np.round(ys, 4)
-            ax.plot(ts, ys)
+            ax.plot(ts, ys, label="Observed")
             ax.scatter(ts, ys, s=5)
 
             # Plot target velocities
             if attribute == "velocity":
                 ys = [action.target_speed for action in actions[aid]]
                 ys = [ys[0]] + ys
-                ax.plot(ts, ys, c="red")
+                ax.plot(ts, ys, c="red", label="Target")
                 ax.scatter(ts, ys, s=5, c="red")
             axes[0, j].set_title(attribute)
             plot_maneuvers(agent, ax)
         axes[i, 0].set_ylabel(f"Agent {aid}")
+        axes[i, 0].legend()
     fig.tight_layout()
     return fig, axes
 

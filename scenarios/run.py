@@ -8,7 +8,8 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 
-from util import generate_random_frame, setup_xavi_logging, parse_args, load_config, parse_query
+from util import generate_random_frame, setup_xavi_logging, parse_args, \
+    load_config, parse_query, to_ma_list
 
 logger = logging.Logger(__name__)
 
@@ -69,6 +70,8 @@ if __name__ == '__main__':
                                    **agent["mcts"])
             xavi_agent = agent
         elif agent["type"] == "TrafficAgent":
+            if "macro_actions" in agent:
+                base_agent["macro_actions"] = to_ma_list(agent["macro_actions"], agent["id"], frame, scenario_map)
             agent = ip.TrafficAgent(**base_agent)
 
         simulation.add_agent(agent)
