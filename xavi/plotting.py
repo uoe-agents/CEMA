@@ -159,9 +159,14 @@ def plot_predictions(ego_agent: ip.MCTSAgent,
     ax.text(x, y, "Goal Prediction Probabilities", fontsize="large")
     y -= 2 * dy
     for i, (aid, goals_probs) in enumerate(ego_agent.goal_probabilities.items()):
+        if i > 0 and i % 2 == 0:
+            x += dx
+            y = 0.85
         ax.text(x, y, f"Agent {aid}:", fontsize="medium")
         y -= dy
         for gid, (goal, gp) in enumerate(goals_probs.goals_probabilities.items()):
+            if np.isclose(gp, 0.0):
+                continue
             ax.text(x, y,
                     rf"   $P(g^{aid}_{gid}|s^{aid}_{{1:{ego_agent.trajectory_cl.states[-1].time}}})={gp:.3f}$:")
             y -= dy
@@ -169,8 +174,6 @@ def plot_predictions(ego_agent: ip.MCTSAgent,
                 ax.text(x, y, rf"       $P(\hat{{s}}^{{{aid}, {tid}}}_{{1:n}}|g^{aid}_{gid})={tp:.3f}$")
                 y -= dy
         y -= dy
-        if i > 0 and i % 3 == 0:
-            x += dx
     ax.axis("off")
 
     # Plot prediction trajectories
