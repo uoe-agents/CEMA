@@ -53,21 +53,16 @@ if __name__ == '__main__':
     for agent in config["agents"]:
         base_agent = {"agent_id": agent["id"], "initial_state": frame[agent["id"]],
                       "goal": ip.BoxGoal(ip.Box(**agent["goal"]["box"])), "fps": fps}
+        mcts_agent = {"scenario_map": scenario_map,
+                      "cost_factors": agent.get("cost_factors", None),
+                      "view_radius": agent.get("view_radius", None),
+                      "kinematic": agent.get("kinematic", True),
+                      "velocity_smoother": agent.get("velocity_smoother", None),
+                      "goal_recognition": agent.get("goal_recognition", None)}
         if agent["type"] == "MCTSAgent":
-            agent = ip.MCTSAgent(scenario_map=scenario_map,
-                                 cost_factors=agent["cost_factors"],
-                                 view_radius=agent["view_radius"],
-                                 kinematic=agent["kinematic"],
-                                 **base_agent,
-                                 **agent["mcts"])
+            agent = ip.MCTSAgent(**base_agent, **mcts_agent, **agent["mcts"])
         elif agent["type"] == "XAVIAgent":
-            agent = xavi.XAVIAgent(scenario_map=scenario_map,
-                                   cost_factors=agent["cost_factors"],
-                                   view_radius=agent["view_radius"],
-                                   kinematic=agent["kinematic"],
-                                   **base_agent,
-                                   **agent["explainer"],
-                                   **agent["mcts"])
+            agent = xavi.XAVIAgent(**base_agent, **mcts_agent, **agent["explainer"], **agent["mcts"])
             xavi_agent = agent
         elif agent["type"] == "TrafficAgent":
             if "macro_actions" in agent:
