@@ -15,7 +15,7 @@
         "box": {
           "center": [
             1.75,
-            -65.0
+            -80.0
           ],
           "length": 3.5,
           "width": 10.0,
@@ -41,7 +41,7 @@
         "time": 1.0,
         "velocity": 0.0,
         "acceleration": 0.0,
-        "jerk": 1.0,
+        "jerk": 0.05,
         "heading": 0.0,
         "angular_velocity": 0.0,
         "angular_acceleration": 0.0,
@@ -74,7 +74,7 @@
       "spawn": {
         "box": {
           "center": [
-            -4,
+            -2,
             18.0
           ],
           "length": 10.0,
@@ -96,7 +96,38 @@
           "width": 5,
           "heading": 0.0
         }
-      }
+      },
+      "macro_actions": [
+        {
+          "type": "Continue"
+        },
+        {
+          "type": "ChangeLaneRight",
+          "target_sequence": [
+            [
+              35,
+              -5
+            ],
+            [
+              7,
+              -5
+            ]
+          ]
+        },
+        {
+          "type": "Continue"
+        },
+        {
+          "type": "Exit",
+          "turn_target": [
+            -1.75,
+            -27.58
+          ]
+        },
+        {
+          "type": "Continue"
+        }
+      ]
     }
   ]
 }

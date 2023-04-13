@@ -33,7 +33,7 @@ def plot_simulation(simulation: Simulation, axes: plt.Axes = None, debug: bool =
     color_bar_non_ego = None
 
     ax = axes[0]
-    ip.plot_map(simulation.scenario_map, markings=True, ax=ax)
+    ip.plot_map(simulation.scenario_map, markings=True, hide_road_bounds_in_junction=True, ax=ax)
     for agent_id, agent in simulation.agents.items():
         if agent is None or not agent.alive:
             continue
@@ -161,7 +161,7 @@ def plot_predictions(ego_agent: ip.MCTSAgent,
     for i, (aid, goals_probs) in enumerate(ego_agent.goal_probabilities.items()):
         if i > 0 and i % 2 == 0:
             x += dx
-            y = 0.85
+            y = 0.9
         ax.text(x, y, f"Agent {aid}:", fontsize="medium")
         y -= dy
         for gid, (goal, gp) in enumerate(goals_probs.goals_probabilities.items()):
