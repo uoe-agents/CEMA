@@ -30,6 +30,8 @@ def parse_args() -> argparse.Namespace:
                         help="Whether to display plots of the simulation.")
     parser.add_argument("--sim_only", action="store_true", default=False,
                         help="If true then do not execute queries.")
+    parser.add_argument("--debug", action="store_true", default=False,
+                        help="Whether to display debugging plots.")
     return parser.parse_args()
 
 
@@ -142,11 +144,11 @@ def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:
         agent_metadata = ip.AgentMetadata(**agent["metadata"]) if "metadata" in agent \
             else ip.AgentMetadata(**ip.AgentMetadata.CAR_DEFAULT)
 
-        ret[agent["id"]] = ip.AgentState(time=0,
-                                         position=spawn_position,
-                                         velocity=spawn_velocity,
-                                         acceleration=np.array([0.0, 0.0]),
-                                         heading=spawn_heading,
-                                         metadata=agent_metadata)
-
+        ret[agent["id"]] = ip.AgentState(
+            time=0,
+            position=spawn_position,
+            velocity=spawn_velocity,
+            acceleration=np.array([0.0, 0.0]),
+            heading=spawn_heading,
+            metadata=agent_metadata)
     return ret

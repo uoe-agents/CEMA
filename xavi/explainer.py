@@ -5,13 +5,14 @@ import time
 import igp2 as ip
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
+from collections import Counter
 
 from sklearn.linear_model import LogisticRegression
 
 from xavi.features import Features
 from xavi.util import fill_missing_actions, truncate_observations, \
     to_state_trajectory, find_join_index, Observations, get_coefficient_significance, \
-    find_optimal_rollout_in_subset, split_by_query, list_startswith
+    find_optimal_rollout_in_subset, split_by_query, list_startswith, find_matching_rollout
 from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
 from xavi.language import Language
@@ -535,13 +536,11 @@ class XAVIAgent(ip.MCTSAgent):
             # Find simulated trajectory that matches best with observations and predictions
             if agent_id == self.agent_id:
                 optimal_rollouts = self.mcts.results.optimal_rollouts
-                matching_rollout = None
-                for rollout in optimal_rollouts:
-                    for aid, prediction in map_predictions.items():
-                        if rollout.samples[aid] != prediction: break
-                    else:
-                        matching_rollout = rollout
-                        break
+                matching_rollout = find_matching_rollout(optimal_rollouts, map_predictions)
+                if matching_rollout is None:
+                    c = Counter([tuple(r.samples.items()) for r in optimal_rollouts])
+                    most_common = c.most_common(1)[0][0]
+                    matching_rollout = find_matching_rollout(optimal_rollouts, dict(most_common))
                 last_node = matching_rollout.tree[matching_rollout.trace[:-1]]
                 agent = last_node.run_result.agents[agent_id]
                 sim_trajectory = agent.trajectory_cl
