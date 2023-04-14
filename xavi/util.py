@@ -1,6 +1,6 @@
 import itertools
 from copy import copy
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from collections import Counter, defaultdict
 import igp2 as ip
 import numpy as np
@@ -109,16 +109,20 @@ def find_join_index(
         logger.warning(f"Last observed point is on different lane then closest predicted point.")
     else:
         while closest_idx < len(joining_trajectory):
+            closest_point = joining_trajectory.path[closest_idx]
+            closest_heading = joining_trajectory.heading[closest_idx]
+            closest_point_lane = scenario_map.best_lane_at(closest_point, closest_heading)
             d_last = last_point_lane.distance_at(last_point)
             d_closest = closest_point_lane.distance_at(closest_point)
             if last_point_lane != closest_point_lane:
                 d_closest += last_point_lane.length
-            if d_last - d_closest < -ip.Maneuver.POINT_SPACING:
+
+            diff = d_last - d_closest
+            if diff < -ip.Maneuver.POINT_SPACING:
+                break
+            elif diff < 0 and joining_trajectory.velocity[closest_idx] < ip.Trajectory.VELOCITY_STOP:
                 break
             closest_idx += 1
-            closest_point = joining_trajectory.path[closest_idx]
-            closest_heading = joining_trajectory.heading[closest_idx]
-            closest_point_lane = scenario_map.best_lane_at(closest_point, closest_heading)
         else:
             raise ValueError(f"Predicted trajectory has no valid point!")
     return int(closest_idx)
@@ -210,6 +214,16 @@ def list_startswith(list1: list, list2: list) -> bool:
     if len1 >= len2:
         return list1[:len2] == list2
     return False
+
+
+def find_matching_rollout(rollouts: List[ip.MCTSResult], samples: Dict[int, ip.GoalsProbabilities]) \
+        -> Optional[ip.MCTSResult]:
+    for rollout in rollouts:
+        for aid, prediction in samples.items():
+            if rollout.samples[aid] != prediction:
+                break
+        else:
+            return rollout
 
 
 def product_dict(**kwargs):
