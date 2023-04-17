@@ -8,6 +8,7 @@ import igp2 as ip
 import numpy as np
 import argparse
 import json
+from datetime import datetime
 from shapely.geometry import Polygon
 
 from xavi import Query
@@ -46,7 +47,7 @@ def parse_eval_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_xavi_logging():
+def setup_xavi_logging(log_dir: str = None, log_name: str = None):
     # Add %(asctime)s  for time
     log_formatter = logging.Formatter("[%(threadName)-10.10s:%(name)-20.20s] [%(levelname)-6.6s]  %(message)s")
     root_logger = logging.getLogger()
@@ -54,6 +55,14 @@ def setup_xavi_logging():
     logging.getLogger("igp2.velocitysmoother").setLevel(logging.INFO)
     logging.getLogger("matplotlib").setLevel(logging.INFO)
     logging.getLogger("PIL").setLevel(logging.INFO)
+    if log_dir and log_name:
+        if not os.path.isdir(log_dir):
+            os.mkdir(log_dir)
+
+        date_time = datetime.today().strftime('%Y%m%d_%H%M%S')
+        file_handler = logging.FileHandler("{0}/{1}_{2}.log".format(log_dir, log_name, date_time))
+        file_handler.setFormatter(log_formatter)
+        root_logger.addHandler(file_handler)
     console_handler = logging.StreamHandler(stream=sys.stdout)
     console_handler.setFormatter(log_formatter)
     root_logger.addHandler(console_handler)
