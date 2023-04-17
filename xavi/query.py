@@ -89,10 +89,15 @@ class Query:
                 self.type == QueryType.WHY_NOT:
             action_segmentations = self.__determine_matched_rollout(
                 rollouts_buffer, agent_id, current_t)
+        else:
+            action_segmentations = [action_segmentations]
 
         tau = len(trajectory) - 1
         if self.type in [QueryType.WHAT_IF, QueryType.WHY_NOT, QueryType.WHY]:
-            t_action, tau = self.__get_t_tau(action_segmentations, True)
+            t_actions_taus = []
+            for segmentation in action_segmentations:
+                t_actions_taus.append(self.__get_t_tau(segmentation, True))
+            t_action, tau = min(t_actions_taus, key=lambda x: x[0])
         elif self.type == QueryType.WHAT:
             t_action = self.t_action
         else:
@@ -167,7 +172,7 @@ class Query:
     def __determine_matched_rollout(self,
                                     rollouts_buffer: List[Tuple[int, ip.AllMCTSResult]],
                                     agent_id: int,
-                                    current_t: int) -> List[ActionSegment]:
+                                    current_t: int) -> List[List[ActionSegment]]:
         """ determine the action segmentation of the rollout that matches the query for whynot and what-if questions.
         Args:
             rollouts_buffer: all previous rollouts from MCTS.
@@ -177,9 +182,13 @@ class Query:
         Returns:
             action_segmentations: the action segmentation of a rollout matched with the query
         """
+        segmentations = []
+        past_limit = self.time_limits[0] * self.fps
         for start_t, rollouts in rollouts_buffer[::-1]:
             if start_t == current_t:
-                continue  # Ignore rollout of current time step as no action would have been taken
+                continue  # Ignore rollout of current time step as no action would have been taken.
+            if start_t < current_t - past_limit:
+                break  # Limit the amount of time we look back into the past.
 
             # first determine if factual action exist in this rollouts
             for rollout in rollouts.mcts_results:
@@ -196,17 +205,20 @@ class Query:
                 segmentation = self.slice_segment_trajectory(trajectory, current_t)
                 action_exists = ActionMatching.action_exists(segmentation, self.action, self.tense)
                 factual_exists = ActionMatching.action_exists(segmentation, self.factual, self.tense)
-                # skip the rollout that includes the factual action
+                # skip the rollout that includes the factual action (unless actions can be non-exclusive)
                 if action_exists:
-                    if not factual_exists:
-                        return segmentation
+                    if not factual_exists or not self.exclusive:
+                        segmentations.append(segmentation)
+                        self.__all_factual = factual_exists
                     else:
                         fallback = segmentation
             if fallback is not None:
                 # If all rollouts contain the factual but some also the counterfactual,
                 #  then use that as a fallback option.
                 self.__all_factual = True
-                return fallback
+                segmentations.append(fallback)
+        if segmentations:
+            return segmentations
         raise ValueError(f"The queried action {self.action} does not exist!")
 
     def slice_segment_trajectory(self,
