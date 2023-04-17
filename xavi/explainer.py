@@ -181,10 +181,11 @@ class XAVIAgent(ip.MCTSAgent):
             causes = self.__explain_whatif()
             final_causes = causes[1]
             efficient_causes = (causes[2][0], causes[2][1])
-            explanation = self.__language.convert_to_sentence(self.query,
-                                                              final_causes=final_causes,
-                                                              efficient_causes=efficient_causes,
-                                                              action_group=causes[0])
+            explanation = self.__language.convert_to_sentence(
+                self.query,
+                final_causes=final_causes,
+                efficient_causes=efficient_causes,
+                action_group=causes[0])
         else:
             raise ValueError(f"Unknown query type: {self.query.type}")
 
@@ -505,7 +506,7 @@ class XAVIAgent(ip.MCTSAgent):
             # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
             sliced_trajectory = self.query.slice_segment_trajectory(
                 trajectory_queried_agent, self.__current_t, present_ref_t=reference_t)
-            query_factual = self.query.factual if not self.query.all_factual else None
+            query_factual = self.query.factual if not self.query.all_factual and self.query.exclusive else None
             y = self.__matching.action_matching(
                 self.query.action, sliced_trajectory, query_factual)
             if self.query.negative:

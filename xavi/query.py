@@ -33,6 +33,7 @@ class Query:
         tau: The number of timesteps to rollback from the present for counterfactual generation.
         tense: Past, future, or present. Indicates the time of the query.
         factual: The factual action of the agent. Useful for whynot and positive what-if queries.
+        exclusive: Whether action and factual are exclusive of one another.
     """
 
     type: QueryType
@@ -44,6 +45,7 @@ class Query:
     tau: int = None
     tense: str = None
     factual: str = None
+    exclusive: str = True
 
     fps: int = 20
     tau_limits: np.ndarray = np.array([1, 5])  # The minimum and maximum length of tau in seconds
