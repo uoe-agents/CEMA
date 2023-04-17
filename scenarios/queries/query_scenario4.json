@@ -2,9 +2,10 @@
   {
     "type": "whynot",
     "agent_id": 0,
-    "action": "Stop",
+    "action": ["Stop", "GiveWay"],
     "t_query": 140,
     "tense": "present",
-    "factual": "TurnLeft"
+    "factual": ["Accelerate", "GiveWay"],
+    "exclusive": false
   }
 ]
