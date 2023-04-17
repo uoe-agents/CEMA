@@ -1,4 +1,6 @@
 import logging
+import numpy as np
+import numpy.ma as ma
 import igp2 as ip
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Union
@@ -113,7 +115,7 @@ class ActionMatching:
             action_sequences.append(action)
 
         # Fix other turning actions appearing due to variable angular velocity.
-        ActionMatching.__fix_turning_actions(action_sequences)
+        ActionMatching.__fix_turning_actions(action_sequences, trajectory, self.__eps / 2)
 
         # aggregate same actions during a period
         action_segmentations = []
@@ -133,30 +135,14 @@ class ActionMatching:
         return action_segmentations
 
     @staticmethod
-    def __fix_turning_actions(action_sequence: List[List[str]]):
-        counts = {}
-        start_inx, end_inx = None, None
-        turn_found = False
-        for t, actions in enumerate(action_sequence):
-            high_level_action = actions[-1]  # TODO (low): Relies on last action being high-level
-            if high_level_action in ["TurnLeft", "TurnRight", "GoStraightJunction"]:
-                if not turn_found:
-                    start_inx = t
-                    turn_found = True
-                if high_level_action not in counts:
-                    counts[high_level_action] = 0
-                counts[high_level_action] += 1
-            elif turn_found:
-                end_inx = t
-                break  # TODO (low): Assumes only one Exit in the segmentation.
-
-        if len(counts) < 2:
-            return
-
-        most_frequent = max(counts, key=counts.get)
-        for actions in action_sequence[start_inx:end_inx]:
-            if actions[-1] != most_frequent:
-                actions[-1] = most_frequent
+    def __fix_turning_actions(action_sequence: List[List[str]], trajectory: ip.StateTrajectory, eps: float):
+        idx = [a[-1] in ["TurnLeft", "TurnRight", "GoStraightJunction"] for a in action_sequence]
+        avels = ma.array(trajectory.angular_velocity, mask=idx)
+        for slice in ma.clump_masked(avels):
+            mean_avel = trajectory.angular_velocity[slice].mean()
+            turn_type = "TurnLeft" if mean_avel > eps else "TurnRight" if mean_avel < -eps else "GoStraightJunction"
+            for actions in action_sequence[slice]:
+                actions[-1] = turn_type
 
     @staticmethod
     def action_matching(action: str,
