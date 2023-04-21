@@ -33,11 +33,12 @@ class Simulation:
         self.__agents = {}
         self.__actions = defaultdict(list)
 
-    def add_agent(self, new_agent: ip.Agent):
+    def add_agent(self, new_agent: ip.Agent, rolename: str = None):
         """ Add a new agent to the simulation.
 
         Args:
             new_agent: Agent to add.
+            rolename: Currently unused. Optional string to describe role of the vehicle.
         """
         if new_agent.agent_id in self.__agents \
                 and self.__agents[new_agent.agent_id] is not None:
