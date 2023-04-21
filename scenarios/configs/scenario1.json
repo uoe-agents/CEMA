@@ -103,7 +103,7 @@
       "type": "TrafficAgent",
       "spawn": {
         "box": {
-          "center": [51.75, -25.5],
+          "center": [51.75, -30.5],
           "length": 3.5,
           "width": 10.0,
           "heading": 0.0

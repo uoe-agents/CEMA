@@ -68,7 +68,8 @@
         "cf_n_simulations": 20,
         "cf_max_depth": 5
       },
-      "view_radius": 500
+      "view_radius": 500,
+      "stop_goals": true
     },
     {
       "id": 1,

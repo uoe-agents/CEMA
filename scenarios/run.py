@@ -65,7 +65,8 @@ def main():
                           "view_radius": agent.get("view_radius", None),
                           "kinematic": not args.carla,
                           "velocity_smoother": agent.get("velocity_smoother", None),
-                          "goal_recognition": agent.get("goal_recognition", None)}
+                          "goal_recognition": agent.get("goal_recognition", None),
+                          "stop_goals": agent.get("stop_goals", False)}
             if agent["type"] == "MCTSAgent":
                 agent = ip.MCTSAgent(**base_agent, **mcts_agent, **agent["mcts"])
                 rolename = "ego"
@@ -76,8 +77,8 @@ def main():
             elif agent["type"] == "TrafficAgent":
                 if "macro_actions" in agent:
                     base_agent["macro_actions"] = to_ma_list(agent["macro_actions"], agent["id"], frame, scenario_map)
-                agent = ip.TrafficAgent(**base_agent)
                 rolename = agent.get("rolename", "car")
+                agent = ip.TrafficAgent(**base_agent)
             else:
                 raise ValueError(f"Unsupported agent type {agent['type']}")
 

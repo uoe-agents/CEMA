@@ -124,10 +124,10 @@ def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:
         for road in layout.roads.values():
             for lane_section in road.lanes.lane_sections:
                 for lane in lane_section.all_lanes:
-                    overlap = lane.boundary.intersection(poly).area
-                    if overlap > max_overlap:
+                    overlap = lane.boundary.intersection(poly)
+                    if not overlap.is_empty and overlap.area > max_overlap:
                         best_lane = lane
-                        max_overlap = overlap
+                        max_overlap = overlap.area
 
         intersections = list(best_lane.midline.intersection(poly).coords)
         start_d = best_lane.distance_at(intersections[0])
