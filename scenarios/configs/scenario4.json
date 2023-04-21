@@ -68,8 +68,7 @@
         "cf_n_simulations": 20,
         "cf_max_depth": 5
       },
-      "view_radius": 500,
-      "kinematic": true
+      "view_radius": 500
     },
     {
       "id": 1,
