@@ -33,6 +33,8 @@ def parse_args() -> argparse.Namespace:
                         help="If true then do not execute queries.")
     parser.add_argument("--debug", action="store_true", default=False,
                         help="Whether to display debugging plots.")
+    parser.add_argument("--carla", action="store_true", default=False,
+                        help="Whether to use CARLA as the simulator instead of the simple simulator.")
     return parser.parse_args()
 
 
@@ -131,10 +133,10 @@ def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:
         for road in layout.roads.values():
             for lane_section in road.lanes.lane_sections:
                 for lane in lane_section.all_lanes:
-                    overlap = lane.boundary.intersection(poly).area
-                    if overlap > max_overlap:
+                    overlap = lane.boundary.intersection(poly)
+                    if not overlap.is_empty and overlap.area > max_overlap:
                         best_lane = lane
-                        max_overlap = overlap
+                        max_overlap = overlap.area
 
         intersections = list(best_lane.midline.intersection(poly).coords)
         start_d = best_lane.distance_at(intersections[0])
@@ -143,7 +145,7 @@ def generate_random_frame(layout: ip.Map, config) -> Dict[int, ip.AgentState]:
             start_d, end_d = end_d, start_d
         position_d = (end_d - start_d) * np.random.random() + start_d
 
-        spawn_position = np.array(best_lane.point_at(position_d))
+        spawn_position = best_lane.point_at(position_d)
         spawn_heading = best_lane.get_heading_at(position_d)
 
         vel = (spawn_vel[1] - spawn_vel[0]) * np.random.random() + spawn_vel[0]

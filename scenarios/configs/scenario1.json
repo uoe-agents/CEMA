@@ -66,8 +66,7 @@
         "time_limits": [5.0, 5.0],
         "alpha": 0.1
       },
-      "view_radius": 500,
-      "kinematic": true
+      "view_radius": 500
     },
     {
       "id": 1,
@@ -104,7 +103,7 @@
       "type": "TrafficAgent",
       "spawn": {
         "box": {
-          "center": [51.75, -25.5],
+          "center": [51.75, -30.5],
           "length": 3.5,
           "width": 10.0,
           "heading": 0.0

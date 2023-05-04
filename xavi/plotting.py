@@ -73,7 +73,7 @@ def plot_simulation(simulation: Simulation, axes: plt.Axes = None, debug: bool =
 
             # Plot goals
             for gid, goal in enumerate(agent.possible_goals):
-                loc = (goal.center.x, goal.center.y)
+                loc = goal.center
                 ax.plot(*loc, "ro")
                 ax.plot(*loc, "kx")
                 ax.text(*loc, gid)

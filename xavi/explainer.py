@@ -125,6 +125,9 @@ class XAVIAgent(ip.MCTSAgent):
         # Retrieve maneuvers and macro actions for non-ego vehicles
         for rollout in self.mcts.results:
             last_node = rollout.leaf
+            if last_node.key == ("Root", ):
+                logger.debug("MCTS node terminated during Root.")
+                continue
             for agent_id, agent in last_node.run_result.agents.items():
                 if isinstance(agent, ip.TrajectoryAgent):
                     plan = self.goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
