@@ -86,10 +86,15 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
     for inx, coef in enumerate(coefs, 1):
         ax = axs[inx]
         if coef is None:
-            ax.text(0.2, 0.45, "No past causes because \n action starts from $t=1$.", fontsize=14)
+            if user_query.type == xavi.QueryType.WHAT_IF:
+                ax.text(0.2, 0.45, "No past causes because \n  this is a what-if query.", fontsize=14)
+            else:
+                ax.text(0.2, 0.45, "No past causes because \n action starts from $t=1$.", fontsize=14)
             continue
         if sid == 1:  # Remove V2 for S1 plotting as it is not relevant for paper
             coef = coef.loc[:, ~coef.columns.str.startswith("2")]
+        if sid == 4:  # Remove V4 for S4 plotting as it is not relevant for paper
+            coef = coef.loc[:, ~coef.columns.str.startswith("4")]
         inxs = (-coef.mean(0)).argsort()
         coef = coef.iloc[:, inxs]
         inxs = np.isclose(coef.mean(0), 0)
@@ -143,11 +148,6 @@ def load_data(scenario_id: int, query_in: Union[int, xavi.Query]):
         cp, cf = None, None
     else:
         raise ValueError(f"Unknown query type: {query.type}.")
-
-    if query.type == xavi.QueryType.WHY_NOT or query.negative:
-        if cp is not None:
-            cp = -cp
-        cf = -cf
 
     return query, f_exp, (cp, cf, (xp, yp, mp), (xf, yf, mf)), act_seg
 
@@ -299,9 +299,9 @@ if __name__ == '__main__':
             final_explanation = final_explanation.drop(["term"])
 
         # Generate language explanation
-        lang = xavi.Language(n_final=1)
-        s = lang.convert_to_sentence(user_query, final_explanation, (coef_past, coef_future), action_segment)
-        logger.info(s)
+        # lang = xavi.Language(n_final=1)
+        # s = lang.convert_to_sentence(user_query, final_explanation, (coef_past, coef_future), action_segment)
+        # logger.info(s)
 
         # Generate plots
         if final_explanation is not None:

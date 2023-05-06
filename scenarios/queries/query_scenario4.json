@@ -5,7 +5,16 @@
     "action": ["Stop", "GiveWay"],
     "t_query": 140,
     "tense": "present",
-    "factual": ["Accelerate", "GiveWay"],
+    "factual": ["Accelerate", "TurnLeft"],
     "exclusive": false
+  },
+  {
+    "type": "whatif",
+    "agent_id": 3,
+    "action": "GoStraightJunction",
+    "negative": false,
+    "t_query": 100,
+    "factual": "Stop",
+    "tense": "future"
   }
 ]

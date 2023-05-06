@@ -137,7 +137,7 @@ class XAVIAgent(ip.MCTSAgent):
         current_t = int(self.observations[self.agent_id][0].states[-1].time)
         self.__mcts_results_buffer.append((current_t, self.mcts.results))
 
-    def explain_actions(self, user_query: Query = None) -> (str, Any):
+    def explain_actions(self, user_query: Query = None):
         """ Explain the behaviour of the ego considering the last tau time-steps and the future predicted actions.
 
         Args:
@@ -172,33 +172,18 @@ class XAVIAgent(ip.MCTSAgent):
 
         if self.query.type == QueryType.WHAT:
             causes = self.__explain_what()
-            final_causes, efficient_causes = None, None
-            explanation = self.__language.convert_to_sentence(self.query, action_group=causes[0])
         elif self.query.type in [QueryType.WHY, QueryType.WHY_NOT]:
             causes = self.__explain_why()
-            final_causes = causes[0]
-            efficient_causes = (causes[1][0], causes[1][1])
-            explanation = self.__language.convert_to_sentence(
-                self.query, final_causes=final_causes, efficient_causes=efficient_causes)
         elif self.query.type == QueryType.WHAT_IF:
             causes = self.__explain_whatif()
-            final_causes = causes[1]
-            efficient_causes = (causes[2][0], causes[2][1])
-            explanation = self.__language.convert_to_sentence(
-                self.query,
-                final_causes=final_causes,
-                efficient_causes=efficient_causes,
-                action_group=causes[0])
         else:
             raise ValueError(f"Unknown query type: {self.query.type}")
 
-        plot_explanation(final_causes, efficient_causes)
-
         self.__previous_queries.append(self.__user_query)
         logger.debug(f"Runtime: {time.time() - t_start}")
-        return explanation, causes
+        return causes
 
-    def __final_causes(self, ref_items: List[Item], alt_items: List[Item]) -> pd.DataFrame:
+    def __teleological_causes(self, ref_items: List[Item], alt_items: List[Item]) -> pd.DataFrame:
         """ Generate final causes for the queried action.
 
         Args:
@@ -226,9 +211,9 @@ class XAVIAgent(ip.MCTSAgent):
         df = pd.DataFrame.from_dict(diffs, orient="index", columns=columns)
         return df.sort_values(ascending=False, by="absolute", key=abs)
 
-    def __efficient_causes(self,
-                           tau_dataset: List[Item] = None,
-                           t_action_dataset: List[Item] = None) \
+    def __mechanistic_causes(self,
+                             tau_dataset: List[Item] = None,
+                             t_action_dataset: List[Item] = None) \
             -> (Optional[pd.DataFrame], pd.DataFrame, (Optional[LogisticRegression], LogisticRegression)):
         """ Generate efficient causes for the queried action.
 
@@ -322,8 +307,8 @@ class XAVIAgent(ip.MCTSAgent):
         t_action = list(self.cf_datasets["t_action"].values())
 
         query_present, query_not_present = split_by_query(t_action)
-        final_causes = self.__final_causes(query_present, query_not_present)
-        efficient_causes = self.__efficient_causes(tau, t_action)
+        final_causes = self.__teleological_causes(query_present, query_not_present)
+        efficient_causes = self.__mechanistic_causes(tau, t_action)
 
         return final_causes, efficient_causes
 
@@ -364,8 +349,8 @@ class XAVIAgent(ip.MCTSAgent):
                             list_startswith(cf_optimal_rollout.trace, it.rollout.trace)]
 
         # compare reward initial and reward counter
-        final_causes = self.__final_causes(cf_optimal_items, f_optimal_items)
-        efficient_causes = self.__efficient_causes(None, cf_optimal_items + f_optimal_items)
+        final_causes = self.__teleological_causes(cf_optimal_items, f_optimal_items)
+        efficient_causes = self.__mechanistic_causes(None, cf_optimal_items + f_optimal_items)
 
         return cf_action_group, final_causes, efficient_causes
 

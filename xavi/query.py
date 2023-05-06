@@ -55,7 +55,7 @@ class Query:
         self.__all_factual = False
         self.__matching = ActionMatching()
         if self.negative is None:
-            self.negative = False
+            self.negative = self.type == QueryType.WHY_NOT
         self.type = QueryType(self.type)
         if self.action is not None:
             assert all([act in self.__matching.action_library
