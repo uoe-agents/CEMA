@@ -67,9 +67,9 @@ class Features:
                 for state in trajectory:
                     mas.append(state.macro_action)
                     mans.append(state.maneuver)
-            inr = self.__scenario_map.in_roundabout(
-                trajectory.path[0], trajectory.heading[0])
-            features[f"{aid}_macro"] = most_common(mas, in_roundabout=inr) or None
+                inr = self.__scenario_map.in_roundabout(
+                    trajectory.path[0], trajectory.heading[0])
+                features[f"{aid}_macro"] = most_common(mas, in_roundabout=inr) or None
             # cat_features[f"{aid}_maneuver"] = most_common(mans)
 
         self.__features = features
