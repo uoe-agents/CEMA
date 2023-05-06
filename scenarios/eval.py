@@ -77,7 +77,7 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
         c_star = max(r_diffs.index, key=lambda k: np.abs(r_diffs[k]))
         r_star = r_diffs[c_star]
         # plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
-        ax.set_xlabel("(a) Cost difference")
+        ax.set_xlabel("(a) Reward difference")
         ax.set_title(f"Collision possible: {'No' if binaries.loc['coll', 'reference'] == 0. else 'Yes'} \n"
                      f"Always reaches goal: {'Yes' if binaries.loc['dead', 'reference'] == 0. else 'No'}")
         ax.set_yticklabels(y_tick_labels)
@@ -184,17 +184,11 @@ def eval_size_robustness(xp, yp, xf, yf, iters=50):
             cs = cs.loc[:, ~cs.columns.str.startswith("2")]
         # coef = coef.melt(value_vars=cs.columns, id_vars=["n"])
         cs.columns = [get_y_tick_label(c) if c != "n" else c for c in cs.columns]
-        if user_query.type == xavi.QueryType.WHY_NOT or user_query.negative:
-            inxs = cs.mean(0).argsort()
-        else:
             inxs = (-cs.mean(0)).argsort()
         cs = cs[cs.columns[inxs]]
         cs = cs.melt(value_vars=cs.columns, id_vars=["n"])
         cs = cs.rename({"variable": "Feature"}, axis=1)
-        if user_query.type == xavi.QueryType.WHY_NOT or user_query.negative:
-            cs["value"] = -cs["value"]
         sns.lineplot(cs, x="n", y="value", hue="Feature", style="Feature")
-        # sns.lineplot(coef, x="n", y="value", hue="variable", style="variable", legend=False, errorbar=None)
         plt.xlabel("Number of samples ($K$)")
         plt.ylabel("Feature weight")
         plt.legend(loc="upper right")
@@ -227,14 +221,15 @@ def eval_sampling_robustness(agent: xavi.XAVIAgent, n_alphas=20, overwrite_save=
     if not os.path.exists(save_path) or overwrite_save:
         alphas = 0.1 * np.logspace(0, 2.5, n_alphas)
         alphas = np.insert(alphas, 0, 0.)
-        agent.cf_datasets["tau"] = None
         agent.cf_mcts["t_action"].n = 100
+        agent.cf_mcts["tau"].n = 100
         data = {}
         for alpha in alphas:
             logger.info(f"Generating data with alpha {alpha}")
             agent.alpha = alpha
+            agent.cf_datasets["tau"] = None
             agent.cf_datasets["t_action"] = None
-            _, causes = agent.explain_actions(agent.query)
+            causes = agent.explain_actions(agent.query)
             data[alpha] = causes
             pickle.dump(data, open(save_path, "wb"))
     else:
@@ -242,7 +237,7 @@ def eval_sampling_robustness(agent: xavi.XAVIAgent, n_alphas=20, overwrite_save=
     coefs = []
     plt.figure(figsize=(6, 3.5))
     for alpha, causes in data.items():
-        cs = causes[1][1]
+        cs = causes[1][1] if len(causes) == 2 else causes[2][1]
         cs = cs.loc[:, (cs != 0.).any(axis=0)]
         if sid in [1, "s1"]:
             cs = cs.loc[:, ~cs.columns.str.startswith("2")]
@@ -254,6 +249,8 @@ def eval_sampling_robustness(agent: xavi.XAVIAgent, n_alphas=20, overwrite_save=
         cs = cs.rename({"variable": "Feature"}, axis=1)
         coefs.append(cs)
     coefs = pd.concat(coefs, axis=0)
+    cols = coefs.groupby("Feature").mean().sort_values(by="value", ascending=False).index
+    coefs = coefs[(coefs["Feature"].isin(cols[:4])) | (coefs["Feature"].isin(cols[-5:]))]
     sns.lineplot(coefs, x="Alpha", y="value", hue="Feature", style="Feature", legend=False)
     plt.xlabel(r"Smoothing weight ($\alpha$)")
     plt.ylabel("Feature weight")
@@ -299,9 +296,10 @@ if __name__ == '__main__':
             final_explanation = final_explanation.drop(["term"])
 
         # Generate language explanation
-        # lang = xavi.Language(n_final=1)
-        # s = lang.convert_to_sentence(user_query, final_explanation, (coef_past, coef_future), action_segment)
-        # logger.info(s)
+        lang = xavi.Language(n_final=1)
+        s = lang.convert_to_sentence(user_query, final_explanation, (coef_past, coef_future), action_segment)
+        for cs_str in s:
+            logger.info(cs_str)
 
         # Generate plots
         if final_explanation is not None:

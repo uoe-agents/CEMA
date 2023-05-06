@@ -85,14 +85,14 @@ class Language:
         if self.query.type == QueryType.WHAT:
             associative_explanation = self.__associative_explanation(action_group)
         elif self.query.type == QueryType.WHY:
-            final_explanation = self.__final_explanation(final_causes, False)
-            efficient_explanation = self.__efficient_explanation(efficient_causes)
+            final_explanation = self.__teleological_explanation(final_causes, False)
+            efficient_explanation = self.__mechanistic_explanation(efficient_causes, query)
         elif self.query.type == QueryType.WHY_NOT:
-            final_explanation = self.__final_explanation(final_causes, True)
-            efficient_explanation = self.__efficient_explanation(efficient_causes)
+            final_explanation = self.__teleological_explanation(final_causes, True)
+            efficient_explanation = self.__mechanistic_explanation(efficient_causes, query)
         elif self.query.type == QueryType.WHAT_IF:
-            final_explanation = self.__final_explanation(final_causes, True)
-            efficient_explanation = self.__efficient_explanation(efficient_causes)
+            final_explanation = self.__teleological_explanation(final_causes, True)
+            efficient_explanation = self.__mechanistic_explanation(efficient_causes, query)
             associative_explanation = self.__associative_explanation(action_group)
 
         return final_explanation, efficient_explanation, associative_explanation
@@ -101,9 +101,11 @@ class Language:
         """ Convert an action from matching.py to a verb phrase. """
         def convert_action(action):
             camel_split = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z]|$)")
-            man_split = camel_split.findall(action)
-            man = " ".join(man_split[0:2]).lower()
-            man_verb = self.__factory.createVerbPhrase(man)
+            man_split = [man.lower() for man in camel_split.findall(action)]
+            man = " ".join(man_split[0:2])
+            man_verb = self.__factory.createVerbPhrase(man_split[0])
+            if len(man_split) == 2:
+                man_verb.addComplement(man_split[1])
             if len(man_split) > 2:
                 if man == "change lane":
                     man_verb.addComplement(f"to the {man_split[2].lower()}")
@@ -126,8 +128,11 @@ class Language:
             action_split.remove("macro")
             match = self.FEATURE_SPLIT.match(action_split[0])
             action, params = match.groups()[0].lower(), match.groups()[1:]
-            params = " ".join([p for p in params if p is not None and "[" not in p])
-            action = action + params
+            if "stop" in action.lower():
+                action = "stops"
+            else:
+                params = " ".join([p for p in params if p is not None and "[" not in p])
+                action = action + params
         else:
             action = ''.join(action_split).lower()
 
@@ -151,9 +156,10 @@ class Language:
         for i, segment in enumerate(action.segments):
             clause = self.__factory.createCoordinatedPhrase()
             clause.setFeature(nlg.Feature.AGGREGATE_AUXILIARY, True)
-            for action in reversed(segment.actions):
+            for action in segment.actions:
                 segment_phrase = self.__action_to_verb(action)
                 clause.addCoordinate(segment_phrase)
+                print(self.__realiser.realise(clause).getRealisation())
                 d += 1
                 if d == max_depth: break
             tense = self.query.tense
@@ -176,7 +182,7 @@ class Language:
             if d == max_depth: break
         return " ".join(sentences)
 
-    def __final_explanation(self, causes: pd.DataFrame, contrastive: bool = False) -> str:
+    def __teleological_explanation(self, causes: pd.DataFrame, contrastive: bool = False) -> str:
         def get_reward_verb(t, r, dr):
             if t == "dead":
                 verb = self.__factory.createVerbPhrase("reach")
@@ -240,7 +246,7 @@ class Language:
                 sentences.append(self.__realiser.realiseSentence(clause))
         return " ".join(sentences)
 
-    def __efficient_explanation(self, efficient_causes: Tuple[pd.DataFrame, ...]) -> str:
+    def __mechanistic_explanation(self, efficient_causes: Tuple[pd.DataFrame, ...], query: Query) -> str:
         def explain_causes(causes: pd.DataFrame, time: str):
             if causes is None:
                 return ""
@@ -254,7 +260,7 @@ class Language:
                     if self.query.tense == "future":
                         verb.setTense(nlg.Tense.FUTURE)
                         if i == 0:
-                         verb.addModifier("likely")
+                            verb.addModifier("likely")
                         verb.setFeature(nlg.Feature.PERFECT, True)
                 elif time == "future":
                     verb.setTense(nlg.Tense.FUTURE)
@@ -270,6 +276,6 @@ class Language:
                     sentence.setFeature(nlg.Feature.CUE_PHRASE, "because")
                 sentences.append(self.__realiser.realiseSentence(sentence))
             return " ".join(sentences)
-        ep = explain_causes(efficient_causes[0], "past")
-        ef = explain_causes(efficient_causes[1], "future")
-        return ep + " " + ef
+        ep = explain_causes(efficient_causes[0], "past" if query.tense in ["past", "present"] else "present")
+        ef = explain_causes(efficient_causes[1], "present" if query.tense in ["past", "present"] else "future")
+        return "Past causes: " + ep + "; Future causes: " + ef

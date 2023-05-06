@@ -54,9 +54,9 @@ class Query:
     def __post_init__(self):
         self.__all_factual = False
         self.__matching = ActionMatching()
+        self.type = QueryType(self.type)
         if self.negative is None:
             self.negative = self.type == QueryType.WHY_NOT
-        self.type = QueryType(self.type)
         if self.action is not None:
             assert all([act in self.__matching.action_library
                         for act in self.__matching.action_library]), \
