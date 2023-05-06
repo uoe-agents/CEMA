@@ -53,7 +53,7 @@ def setup_xavi_logging():
     log_formatter = logging.Formatter("[%(threadName)-10.10s:%(name)-20.20s] [%(levelname)-6.6s]  %(message)s")
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
-    logging.getLogger("igp2.velocitysmoother").setLevel(logging.INFO)
+    logging.getLogger("igp2.core.velocitysmoother").setLevel(logging.INFO)
     logging.getLogger("matplotlib").setLevel(logging.INFO)
     logging.getLogger("PIL").setLevel(logging.INFO)
     console_handler = logging.StreamHandler(stream=sys.stdout)
