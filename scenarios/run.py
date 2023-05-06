@@ -52,7 +52,7 @@ def main():
     try:
         if args.carla:
             map_name = os.path.split(config["scenario"]["map_path"])[1][:-5]
-            simulation = ip.carla.CarlaSim(xodr=config["scenario"]["map_path"], map_name=map_name)
+            simulation = ip.carlasim.CarlaSim(xodr=config["scenario"]["map_path"], map_name=map_name)
         else:
             simulation = xavi.Simulation(scenario_map, fps)
 
@@ -97,7 +97,7 @@ def main():
 
 
 def run_carla_simulation(xavi_agent, simulation, args, queries, config, output_path) -> bool:
-    visualiser = ip.carla.Visualiser(simulation)
+    visualiser = ip.carlasim.Visualiser(simulation)
     world = None
     try:
         clock, world, display, controller = visualiser.initialize()

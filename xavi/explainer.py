@@ -315,7 +315,7 @@ class XAVIAgent(ip.MCTSAgent):
             self.__get_counterfactuals(["t_action"])
             tau = None
         else:
-            self.__get_counterfactuals(["tau", "t_action"])
+            self.__get_counterfactuals(["t_action", "tau"])
             tau = list(self.cf_datasets["tau"].values())
 
         assert self.__cf_dataset_dict["t_action"] is not None, f"Missing counterfactual dataset."
