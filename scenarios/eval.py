@@ -149,6 +149,11 @@ def load_data(scenario_id: int, query_in: Union[int, xavi.Query]):
     else:
         raise ValueError(f"Unknown query type: {query.type}.")
 
+    if query.negative:
+        if cp is not None:
+            cp = -cp
+        cf = -cf
+
     return query, f_exp, (cp, cf, (xp, yp, mp), (xf, yf, mf)), act_seg
 
 
@@ -184,7 +189,7 @@ def eval_size_robustness(xp, yp, xf, yf, iters=50):
             cs = cs.loc[:, ~cs.columns.str.startswith("2")]
         # coef = coef.melt(value_vars=cs.columns, id_vars=["n"])
         cs.columns = [get_y_tick_label(c) if c != "n" else c for c in cs.columns]
-            inxs = (-cs.mean(0)).argsort()
+        inxs = (-cs.mean(0)).argsort()
         cs = cs[cs.columns[inxs]]
         cs = cs.melt(value_vars=cs.columns, id_vars=["n"])
         cs = cs.rename({"variable": "Feature"}, axis=1)
