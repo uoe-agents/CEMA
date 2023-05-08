@@ -49,7 +49,7 @@ def get_y_tick_label(lbl: str) -> str:
     if "velocity" in action:
         action = action.replace("velocity", "vel.")
     vehicle = lbl_split[0]
-    if sid == "s1" or sid == 1:
+    if sid in ("s1", 1, "s3", 3):
         return f"{action}"
     else:
         return f"{action} ({vehicle})"
