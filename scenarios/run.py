@@ -87,6 +87,9 @@ def main():
         if args.carla:
             result = run_carla_simulation(xavi_agent, simulation, args, queries, config, output_path)
         else:
+            if args.plot:
+                xavi.plot_simulation(simulation, debug=False)
+                plt.show()
             result = run_simple_simulation(xavi_agent, simulation, args, queries, config, output_path)
     except Exception as e:
         logger.exception(msg=str(e), exc_info=e)
@@ -129,11 +132,11 @@ def run_simple_simulation(xavi_agent, simulation, args, queries, config, output_
 def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, output_path: str, args):
     for query in queries:
         if t > 0 and t == query.t_query:
-            causes = xavi_agent.explain_actions(query)
-
             if args.save_agent:
                 file_path = os.path.join(output_path, f"agent_t{t}_m{query.type}.pkl")
                 pickle.dump(xavi_agent, open(file_path, "wb"))
+
+            causes = xavi_agent.explain_actions(query)
 
             if args.save_causes:
                 file_path = os.path.join(output_path, f"q_t{t}_m{query.type}.pkl")

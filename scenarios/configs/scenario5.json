@@ -1,0 +1,697 @@
+{
+  "scenario": {
+    "map_path": "scenarios/maps/scenario5.xodr",
+    "max_speed": 10.0,
+    "fps": 20,
+    "seed": 21,
+    "max_steps": 250
+  },
+  "agents": [
+    {
+      "id": 0,
+      "type": "XAVIAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -25.0,
+            -1.75
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            70.0,
+            0.0
+          ],
+          "length": 5,
+          "width": 7,
+          "heading": 0.0
+        }
+      },
+      "cost_factors": {
+        "time": 3.0,
+        "velocity": 0.0,
+        "acceleration": 0.1,
+        "jerk": 0.0,
+        "heading": 0.0,
+        "angular_velocity": 1.0,
+        "angular_acceleration": 0.1,
+        "curvature": 0.0,
+        "safety": 0.0
+      },
+      "mcts": {
+        "t_update": 2.0,
+        "n_simulations": 30,
+        "store_results": "all",
+        "trajectory_agents": false,
+        "reward_factors": {
+          "time": 1.0,
+          "jerk": -1.0,
+          "angular_velocity": -0.15,
+          "curvature": 0.0,
+          "dead": 0.0
+        }
+      },
+      "explainer": {
+        "cf_n_simulations": 30,
+        "cf_max_depth": 5,
+        "tau_limits": [
+          2.0,
+          5.0
+        ],
+        "time_limits": [
+          5.0,
+          5.0
+        ],
+        "alpha": 0.1
+      },
+      "view_radius": 500
+    },
+    {
+      "id": 1,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -7.5,
+            1.7
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            48.25,
+            -25.5
+          ],
+          "length": 3.5,
+          "width": 5,
+          "heading": 0.0
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            51.75,
+            -30.5
+          ],
+          "length": 3.5,
+          "width": 10.0,
+          "heading": 0.0
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            70,
+            0.0
+          ],
+          "length": 5,
+          "width": 7,
+          "heading": 0.0
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            25.30645161290323,
+            -1.7488747819344894
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            93.54838709677423,
+            -1.489842023647995
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 4,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -61.6129032258064626,
+            -1.6625305291723294
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            48.387096774193566,
+            -74.27804710215159
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -1.5707963267948966
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 5,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            93.70967741935488,
+            5.245009691800732
+          ],
+          "length": 5.0,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            -92.1774193548387,
+            5.331353944562892
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 6,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            72.01612903225808,
+            8.957812560573757
+          ],
+          "length": 5.0,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            -91.37096774193549,
+            5.245009691800732
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 7,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -17.98387096774192,
+            8.871468307811583
+          ],
+          "length": 5.0,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            -92.74193548387096,
+            8.871468307811583
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 8,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            51.6935483870968,
+            -75.88672126381082
+          ],
+          "length": 3.5,
+          "width": 5.0,
+          "heading": 1.5707963267948966
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            92.4193548387097,
+            -1.6625305291723294
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 9,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -64.35483870967741,
+            5.245009691800732
+          ],
+          "length": 5.0,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            -92.98387096774194,
+            8.698779802287262
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 10,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -71.129032258064512,
+            1.8775838340763613
+          ],
+          "length": 5.0,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            91.77419354838713,
+            1.8775838340763613
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 11,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            51.6935483870968,
+            -15.218578212831943
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 1.5707963267948966
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            95.32258064516131,
+            1.8775838340763613
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 12,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            0.451612903225794,
+            5.417698197325052
+          ],
+          "length": 5.0,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            -93.95161290322581,
+            5.158665439038572
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 13,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -92.98387096774194,
+            -1.9215632874588238
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            48.225806451612925,
+            -74.19170284938942
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -1.5707963267948966
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 14,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            62.98387096774195,
+            1.7912395813142012
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            96.53225806451616,
+            1.7048953285520412
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 15,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            20.4516129032257936,
+            8.698779802287262
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            -94.83870967741936,
+            8.785124055049423
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 16,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -41.20967741935483,
+            5.245009691800732
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            -96.53225806451613,
+            5.158665439038572
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 17,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -85.0,
+            8.785124055049423
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            -97.82258064516128,
+            8.785124055049423
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 18,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -35.24193548387096,
+            8.871468307811583
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            -95.40322580645162,
+            8.75
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": -3.141592653589793
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 19,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            30.258064516129053,
+            1.9639280868385214
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            97.09677419354841,
+            -1.489842023647995
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        }
+      },
+      "macro_actions": []
+    },
+    {
+      "id": 20,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            65.725806451612925,
+            -1.5761862764101693
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          9.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            96.61290322580649,
+            -1.5761862764101693
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        }
+      },
+      "macro_actions": []
+    }
+  ]
+}

@@ -71,10 +71,10 @@ def setup_xavi_logging(log_dir: str = None, log_name: str = None):
 
 
 def load_config(args):
-    if "scenario" in args:
-        path = os.path.join("scenarios", "configs", f"scenario{args.scenario}.json")
-    elif "config_path" in args:
+    if args.config_path is not None:
         path = args.config_path
+    elif args.scenario is not None:
+        path = os.path.join("scenarios", "configs", f"scenario{args.scenario}.json")
     else:
         raise ValueError("No scenario was specified!")
     return json.load(open(path, "r"))
