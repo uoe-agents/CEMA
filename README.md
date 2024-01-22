@@ -1,21 +1,20 @@
-# Causal Social Explanations for Stochastic Sequential Multi-Agent Decision-Making
-This is the code repository for the [paper](https://arxiv.org/abs/2302.10809) "Causal Social Explanations for Stochastic Sequential Multi-Agent Decision-Making" by Gyevnar et al [1].
-The following readme describes the installation process and usage of the code to reproduce our results.
+# Causal Explanations for Sequential Decision-Making in Multi-Agent Systems
+This is the code repository for our [paper](https://arxiv.org/abs/2302.10809) "Causal Social Explanations for Stochastic Sequential Multi-Agent Decision-Making" by Gyevnar et al [1] published at AAMAS 2024 in Auckland, New Zealand.
+The following document describes the installation process and usage of the code to reproduce our results.
 
-The python package for accessing our code is called 'xavi'.
-It relies on the [IGP2](https://github.com/uoe-agents/IGP2) package to simulate road interactions in scenarios with an autonomous vehicle.
+As part of the publication, we release the full _codebase_ for the reproduction of our experiments, as well as the _dataset_ of human-written intelligible explanations collected for evaluation.
+
+Note, the Python package for accessing our code is called 'xavi' due to legacy reasons.
+The package relies on the [IGP2](https://github.com/uoe-agents/IGP2) package to simulate road interactions in scenarios with an autonomous vehicle.
 
 ## Please Cite
 If you use our code in your work then please cite our [paper](https://arxiv.org/abs/2302.10809):
 ```text
-@misc{gyevnar2023causal,
-    title={Causal Social Explanations for Stochastic Sequential Multi-Agent Decision-Making},
-    author={Balint Gyevnar and Cheng Wang and Christopher G. Lucas and Shay B. Cohen and Stefano V. Albrecht},
-    eprint={2302.10809},
-    archivePrefix={arXiv}
-    year={2023},
-    primaryClass={cs.AI}
-}
+@inproceedings{gyevnar2024cema,
+ title={Causal Explanations for Sequential Decision-Making in Multi-Agent Systems}, 
+ author={Balint Gyevnar and Cheng Wang and Christopher G. Lucas and Shay B. Cohen and Stefano V. Albrecht},
+ booktitle={Autonomous Agents and Multi-Agent Systems (AAMAS)},
+ year={2024}}
 ```
 
 ## Getting Started
@@ -23,7 +22,7 @@ If you use our code in your work then please cite our [paper](https://arxiv.org/
 ### Installation
 To install all pre-requisite packages and our package, navigate to the desired folder for installation and run the following commands:
 ```commandline
-git clone https://github.com/uoe-agents/xavi.git
+git clone https://github.com/uoe-agents/cema.git
 cd xavi
 pip install -e .
 ```
