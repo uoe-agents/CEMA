@@ -128,6 +128,22 @@
       ]
     }
   ],
+  "s7": [
+    {
+      "type": "whynot",
+      "agent_id": 0,
+      "action": [
+        "Stop",
+        "GiveWay"
+      ],
+      "t_query": 90,
+      "tense": "present",
+      "factual": [
+        "Accelerate",
+        "GiveWay"
+      ]
+    }
+  ],
   "s8": [
     {
       "type": "whynot",

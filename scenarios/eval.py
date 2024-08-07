@@ -9,11 +9,15 @@ import os
 import logging
 import pickle
 from typing import Tuple, Optional, Union
+import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from scenarios.util import setup_xavi_logging, parse_eval_args
 from sklearn.linear_model import LogisticRegression
+
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
 
 SMALL_SIZE = 10
 MEDIUM_SIZE = 12
@@ -28,6 +32,8 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 logger = logging.getLogger(__name__)
 macro_re = re.compile(r"^(\w+)\(([^,]*)(,[^,]+)*\)$")
+
+
 
 
 def get_y_tick_label(lbl: str) -> str:
@@ -59,7 +65,9 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
                    coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]],
                    save_path: str = None):
     # plot absolute reward difference
-    fig, axs = plt.subplots(1, 3, figsize=(17, 5), gridspec_kw={'width_ratios': [3, 3, 3]})
+    sns.set_style("darkgrid")
+    fig, axs = plt.subplots(1, 3, figsize=(17, 4))
+    # fig, axs = plt.subplots(3, 1, figsize=(6, 9))
     if rew_difs is not None:
         ax = axs[0]
         rewards = {"time": "Time to goal\n(s)",
@@ -77,7 +85,7 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
         c_star = max(r_diffs.index, key=lambda k: np.abs(r_diffs[k]))
         r_star = r_diffs[c_star]
         # plt.title(rf"$c^*:{c_star}$  $r^*={np.round(r_star, 3)}$")
-        ax.set_xlabel("(a) Reward difference")
+        # ax.set_xlabel("(a) Reward difference")
         ax.set_title(f"Collision possible: {'No' if binaries.loc['coll', 'reference'] == 0. else 'Yes'} \n"
                      f"Always reaches goal: {'Yes' if binaries.loc['dead', 'reference'] == 0. else 'No'}")
         ax.set_yticklabels(y_tick_labels)
@@ -93,8 +101,8 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
             continue
         if sid == 1:  # Remove V2 for S1 plotting as it is not relevant for paper
             coef = coef.loc[:, ~coef.columns.str.startswith("2")]
-        if sid == 4:  # Remove V4 for S4 plotting as it is not relevant for paper
-            coef = coef.loc[:, ~coef.columns.str.startswith("4")]
+        # if sid == 4:  # Remove V4 for S4 plotting as it is not relevant for paper
+        #     coef = coef.loc[:, ~coef.columns.str.startswith("4")]
         inxs = (-coef.mean(0)).argsort()
         coef = coef.iloc[:, inxs]
         inxs = np.isclose(coef.mean(0), 0)
@@ -105,7 +113,7 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
         sns.stripplot(data=coef, orient="h", palette="dark:k", alpha=0.5, ax=ax)
         sns.violinplot(data=coef, orient="h", color="cyan", saturation=0.5, whis=10, width=.8, scale="count", ax=ax)
         ax.axvline(x=0, color=".5")
-        ax.set_xlabel(f"({'b' if inx == 1 else 'c'}) Coefficient importance")
+        # ax.set_xlabel(f"({'b' if inx == 1 else 'c'}) Coefficient importance")
         if inx == 1:
             # ax.set_title("Coefficient importance and its variability (past causes)")
             ax.set_title("Past causes")
@@ -149,7 +157,7 @@ def load_data(scenario_id: int, query_in: Union[int, xavi.Query]):
     else:
         raise ValueError(f"Unknown query type: {query.type}.")
 
-    if query.negative:
+    if query.negative and query.type != xavi.QueryType.WHAT_IF:
         if cp is not None:
             cp = -cp
         cf = -cf
@@ -159,7 +167,7 @@ def load_data(scenario_id: int, query_in: Union[int, xavi.Query]):
 
 def eval_size_robustness(xp, yp, xf, yf, iters=50):
     def coef_evolution(x, y, fname):
-        plt.figure(figsize=(6, 3.5))
+        plt.figure(figsize=(6, 3))
         data = pd.concat([x, pd.DataFrame(y, columns=["y"])], axis=1)
         m = LogisticRegression().fit(x, y)
         coef = xavi.util.get_coefficient_significance(x, y, m)
@@ -202,10 +210,12 @@ def eval_size_robustness(xp, yp, xf, yf, iters=50):
             if "past" in fname:
                 plt.title("Past causes")
             else:
-                plt.title("Present-future causes")
+                # plt.title("Present-future causes")
+                plt.title("")
         plt.tight_layout()
         plt.savefig(os.path.join(output_path, fname), bbox_inches='tight')
         # plt.show()
+    sns.set_style("darkgrid")
 
     qt = str(user_query.type)
     qt = qt.replace("QueryType.", "")
@@ -218,6 +228,8 @@ def eval_size_robustness(xp, yp, xf, yf, iters=50):
 
 
 def eval_sampling_robustness(agent: xavi.XAVIAgent, n_alphas=20, overwrite_save=False, fname=None):
+    sns.set_style("darkgrid")
+
     qt = str(user_query.type)
     qt = qt.replace("QueryType.", "")
     file_name = f"sample_{sid}_t{user_query.t_query}_m{qt}"
@@ -240,12 +252,14 @@ def eval_sampling_robustness(agent: xavi.XAVIAgent, n_alphas=20, overwrite_save=
     else:
         data = pickle.load(open(save_path, "rb"))
     coefs = []
-    plt.figure(figsize=(6, 3.5))
+    plt.figure(figsize=(6, 2.8))
     for alpha, causes in data.items():
         cs = causes[1][1] if len(causes) == 2 else causes[2][1]
         cs = cs.loc[:, (cs != 0.).any(axis=0)]
         if sid in [1, "s1"]:
             cs = cs.loc[:, ~cs.columns.str.startswith("2")]
+        if sid in [4, "s4"]:
+            cs = cs.loc[:, ~cs.columns.str.startswith("4")]
         cs.columns = [get_y_tick_label(c) if c != "n" else c for c in cs.columns]
         inxs = (-cs.mean(0)).argsort()
         cs = cs[cs.columns[inxs]]
@@ -279,8 +293,12 @@ if __name__ == '__main__':
 
     if args.size or args.sampling:
         for sid in queries:
+            if args.scenario is not None and sid != args.scenario and sid != f"s{args.scenario}":
+                continue
             output_path = f"output/scenario_{sid[1:]}"
             for qix, q in enumerate(queries[sid]):
+                if args.query is not None and qix != args.query:
+                    continue
                 user_query = xavi.Query(**q)
                 if args.size:
                     _, _, (_, _, (X_past, y_past, _), (X_future, y_future, _)), _ = load_data(sid[1:], user_query)
@@ -290,9 +308,9 @@ if __name__ == '__main__':
                     if not os.path.exists(query_path):
                         os.mkdir(query_path)
                     agent_path = f"{output_path}/agent_t{user_query.t_query}_m{user_query.type}.pkl"
-                    pickled_agent = pickle.load(open(agent_path, "rb"))
-                    eval_sampling_robustness(pickled_agent, fname="sampling_eval_future.pdf")
-                    # eval_sampling_robustness(None, fname="sampling_eval_future.pdf")
+                    # pickled_agent = pickle.load(open(agent_path, "rb"))
+                    # eval_sampling_robustness(pickled_agent, fname="sampling_eval_future.pdf")
+                    eval_sampling_robustness(None, fname="sampling_eval_future.pdf")
     else:
         user_query, final_explanation, (coef_past, coef_future, (X_past, y_past, m_past),
                                         (X_future, y_future, m_future)), action_segment = load_data(sid, qix)
@@ -301,10 +319,10 @@ if __name__ == '__main__':
             final_explanation = final_explanation.drop(["term"])
 
         # Generate language explanation
-        lang = xavi.Language(n_final=1)
-        s = lang.convert_to_sentence(user_query, final_explanation, (coef_past, coef_future), action_segment)
-        for cs_str in s:
-            logger.info(cs_str)
+        # lang = xavi.Language(n_final=1)
+        # s = lang.convert_to_sentence(user_query, final_explanation, (coef_past, coef_future), action_segment)
+        # for cs_str in s:
+        #     logger.info(cs_str)
 
         # Generate plots
         if final_explanation is not None:
