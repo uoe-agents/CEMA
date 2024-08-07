@@ -5,8 +5,10 @@ import sys
 from typing import List
 
 import igp2 as ip
-import pygame
+from igp2.core.config import Configuration
 import xavi
+import oxavi
+import gofi
 import numpy as np
 import random
 import matplotlib.pyplot as plt
@@ -31,7 +33,7 @@ def main():
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
-    scenario_map = ip.Map.parse_from_opendrive(config["scenario"]["map_path"])
+    scenario_map = gofi.OMap.parse_from_opendrive(config["scenario"]["map_path"])
 
     # Get run parameters
     seed = args.seed if args.seed else config["scenario"]["seed"] if "seed" in config["scenario"] else 21
@@ -40,57 +42,24 @@ def main():
     np.random.seed(seed)
     np.seterr(divide="ignore")
 
-    ip.Maneuver.MAX_SPEED = config["scenario"].get("max_speed", 10)
-    ip.Trajectory.VELOCITY_STOP = config["scenario"].get("velocity_stop", 0.1)
-    ip.SwitchLane.TARGET_SWITCH_LENGTH = config["scenario"].get("target_switch_length", 20)
-    ip.GiveWay.MAX_ONCOMING_VEHICLE_DIST = config["scenario"].get("max_oncoming_vehicle_dist", 100)
+    ip_config = Configuration()
+    ip_config.set_properties(**config["scenario"])
     xavi.XAVITree.STOP_CHANCE = config["scenario"].get("stop_chance", 1.0)
 
     frame = generate_random_frame(scenario_map, config)
 
     fps = args.fps if args.fps else config["scenario"]["fps"] if "fps" in config["scenario"] else 20
     try:
-        if args.carla:
-            map_name = os.path.split(config["scenario"]["map_path"])[1][:-5]
-            simulation = ip.carlasim.CarlaSim(xodr=config["scenario"]["map_path"], map_name=map_name)
-        else:
-            simulation = xavi.Simulation(scenario_map, fps)
+        simulation = gofi.OSimulation(scenario_map, fps)
 
-        xavi_agent = None
-        for agent in config["agents"]:
-            base_agent = {"agent_id": agent["id"], "initial_state": frame[agent["id"]],
-                          "goal": ip.BoxGoal(ip.Box(**agent["goal"]["box"])), "fps": fps}
-            mcts_agent = {"scenario_map": scenario_map,
-                          "cost_factors": agent.get("cost_factors", None),
-                          "view_radius": agent.get("view_radius", None),
-                          "kinematic": not args.carla,
-                          "velocity_smoother": agent.get("velocity_smoother", None),
-                          "goal_recognition": agent.get("goal_recognition", None),
-                          "stop_goals": agent.get("stop_goals", False)}
-            if agent["type"] == "MCTSAgent":
-                agent = ip.MCTSAgent(**base_agent, **mcts_agent, **agent["mcts"])
-                rolename = "ego"
-            elif agent["type"] == "XAVIAgent":
-                agent = xavi.XAVIAgent(**base_agent, **mcts_agent, **agent["explainer"], **agent["mcts"])
-                xavi_agent = agent
-                rolename = "ego"
-            elif agent["type"] == "TrafficAgent":
-                if "macro_actions" in agent:
-                    base_agent["macro_actions"] = to_ma_list(agent["macro_actions"], agent["id"], frame, scenario_map)
-                rolename = agent.get("rolename", "car")
-                agent = ip.TrafficAgent(**base_agent)
-            else:
-                raise ValueError(f"Unsupported agent type {agent['type']}")
-
+        for agent_config in config["agents"]:
+            agent, rolename = create_agent(agent_config, scenario_map, frame, fps, args)
             simulation.add_agent(agent, rolename=rolename)
 
-        if args.carla:
-            result = run_carla_simulation(xavi_agent, simulation, args, queries, config, output_path)
-        else:
-            if args.plot:
-                xavi.plot_simulation(simulation, debug=False)
-                plt.show()
-            result = run_simple_simulation(xavi_agent, simulation, args, queries, config, output_path)
+        if args.plot:
+            xavi.plot_simulation(simulation, debug=False)
+            plt.show()
+        result = run_simple_simulation(simulation, args, queries, config, output_path)
     except Exception as e:
         logger.exception(msg=str(e), exc_info=e)
         result = False
@@ -99,33 +68,55 @@ def main():
     return result
 
 
-def run_carla_simulation(xavi_agent, simulation, args, queries, config, output_path) -> bool:
-    visualiser = ip.carlasim.Visualiser(simulation)
-    world = None
-    try:
-        clock, world, display, controller = visualiser.initialize()
-        for t in range(config["scenario"]["max_steps"]):
-            done = visualiser.step(clock, world, display, controller)
-            if not args.sim_only:
-                explain(queries, xavi_agent, t, output_path, args)
-            if done:
-                break
-    finally:
-        if world is not None:
-            world.destroy()
-            del world
-        pygame.quit()
-    return True
+def create_agent(agent_config, scenario_map, frame, fps, args):
+    base_agent = {"agent_id": agent_config["id"], "initial_state": frame[agent_config["id"]],
+                  "goal": ip.BoxGoal(ip.Box(**agent_config["goal"]["box"])), "fps": fps}
+
+    mcts_agent = {"scenario_map": scenario_map,
+                  "cost_factors": agent_config.get("cost_factors", None),
+                  "view_radius": agent_config.get("view_radius", None),
+                  "kinematic": not args.carla,
+                  "velocity_smoother": agent_config.get("velocity_smoother", None),
+                  "goal_recognition": agent_config.get("goal_recognition", None),
+                  "stop_goals": agent_config.get("stop_goals", False),
+                  "occluded_factors_prior": agent_config.get("occluded_factors_prior", 0.1)}
+
+    agent_type = agent_config["type"]
+
+    if agent_type == "OXAVIAgent":
+        agent = oxavi.OXAVIAgent(**base_agent, **mcts_agent, **agent_config["explainer"], **agent_config["mcts"])
+        rolename = "ego"
+    elif agent_type == "XAVIAgent":
+        agent = xavi.XAVIAgent(**base_agent, **mcts_agent, **agent_config["explainer"], **agent_config["mcts"])
+        rolename = "ego"
+    elif agent_type in "TrafficAgent":
+        if "macro_actions" in agent_config and agent_config["macro_actions"]:
+            base_agent["macro_actions"] = to_ma_list(
+                agent_config["macro_actions"], agent_config["id"], frame, scenario_map)
+        rolename = agent_config.get("rolename", "car")
+        agent = ip.TrafficAgent(**base_agent)
+    elif agent_type == "OccludedAgent":
+        if "macro_actions" in agent_config and agent_config["macro_actions"]:
+            base_agent["macro_actions"] = to_ma_list(
+                agent_config["macro_actions"], agent_config["id"], frame, scenario_map)
+        agent = gofi.OccludedAgent(occlusions=agent_config["occlusions"], **base_agent)
+        rolename = agent_config.get("rolename", "occluded")
+    elif agent_type == "StaticObject":
+        agent = gofi.StaticObject(**base_agent)
+        rolename = agent_config.get("rolename", "object")
+    else:
+        raise ValueError(f"Unsupported agent type {agent_config['type']}")
+    return agent, rolename
 
 
-def run_simple_simulation(xavi_agent, simulation, args, queries, config, output_path) -> bool:
+def run_simple_simulation(simulation, args, queries, config, output_path) -> bool:
     for t in range(config["scenario"]["max_steps"]):
         simulation.step()
         if t % 20 == 0 and args.plot:
             xavi.plot_simulation(simulation, debug=False)
             plt.show()
         if not args.sim_only:
-            explain(queries, xavi_agent, t, output_path, args)
+            explain(queries, simulation.agents[0], t, output_path, args)
     return True
 
 

@@ -12,7 +12,8 @@ from xavi.simulation import Simulation
 # -----------Simulation plotting functions---------------------
 
 
-def plot_simulation(simulation: Simulation, axes: plt.Axes = None, debug: bool = False) -> (plt.Figure, plt.Axes):
+def plot_simulation(simulation: ip.simplesim.Simulation, axes: plt.Axes = None, debug: bool = False) \
+        -> (plt.Figure, plt.Axes):
     """ Plot the current agents and the road layout for visualisation purposes.
 
     Args:

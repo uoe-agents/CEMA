@@ -111,7 +111,7 @@ def plot_dataframe(rew_difs: Optional[pd.DataFrame],
             ax.set_title("Past causes")
         else:
             ax.set_title("Present-future causes")
-        y_tick_labels = [get_y_tick_label(lbl) for lbl in coef.columns if isinstance(lbl, str)]
+        y_tick_labels = []
         y_tick_labels.append(f"Rest of {sum(inxs)}")
         ax.set_yticklabels(y_tick_labels)
     fig.tight_layout()

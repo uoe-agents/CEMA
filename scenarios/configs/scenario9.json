@@ -1,0 +1,159 @@
+{
+  "scenario": {
+    "map_path": "scenarios\\maps\\gofi-scenario1.xodr",
+    "max_speed": 10.0,
+    "fps": 20,
+    "seed": 42,
+    "max_steps": 1000
+  },
+  "agents": [
+    {
+      "id": 0,
+      "type": "OXAVIAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -30.983870967741936,
+            1.9277060067239802
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          5.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            92.4193548387097,
+            1.828793290043265
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        }
+      },
+      "velocity_smoother": {},
+      "goal_recognition": {
+        "beta": 1.5
+      },
+      "cost_factors": {
+        "time": 1.0,
+        "velocity": 0.0,
+        "acceleration": 0.0,
+        "jerk": 1.0,
+        "heading": 1.0,
+        "angular_velocity": 1.0,
+        "angular_acceleration": 0.0,
+        "curvature": 0.0,
+        "safety": 0.0
+      },
+      "mcts": {
+        "t_update": 1.0,
+        "n_simulations": 15,
+        "max_depth": 5,
+        "store_results": "all",
+        "trajectory_agents": false,
+        "reward_factors": {
+          "time": 1.0,
+          "jerk": -0.1,
+          "angular_velocity": -0.1,
+          "curvature": -0.1
+        }
+      },
+      "explainer": {
+        "cf_n_simulations": 15,
+        "cf_max_depth": 5
+      },
+      "view_radius": 500,
+      "stop_goals": true
+    },
+    {
+      "id": 1,
+      "type": "TrafficAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            -0.58064516129032,
+            1.714584235209216
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        },
+        "velocity": [
+          5.0,
+          10.0
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            91.61290322580649,
+            1.600375180375167
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        }
+      },
+      "macro_actions": [
+        {
+          "type": "ChangeLaneRight"
+        },
+        {
+          "type": "Exit",
+          "turn_target": [59.0, -1.75]
+        },
+        {
+          "type": "Continue"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "OccludedAgent",
+      "spawn": {
+        "box": {
+          "center": [
+            20.58064516129032,
+            1.714584235209216
+          ],
+          "length": 1.0,
+          "width": 1.0,
+          "heading": 0.0
+        },
+        "velocity": [
+          0.001,
+          0.002
+        ]
+      },
+      "goal": {
+        "box": {
+          "center": [
+            20.58064516129032,
+            1.714584235209216
+          ],
+          "length": 3.5,
+          "width": 3.5,
+          "heading": 0.0
+        }
+      },
+      "macro_actions": [
+        {
+          "type": "Stop",
+          "stop_duration": 100.0
+        }
+      ],
+      "occlusions": [
+        {
+          "start": 0,
+          "end": 60
+        }
+      ]
+    }
+  ]
+}

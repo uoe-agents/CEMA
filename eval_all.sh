@@ -1,5 +1,6 @@
 #!/bin/bash
 
+echo " This file is outdated!"
 echo "Running experiments for scenarios and queries defined in 'final_queries.json'".
 
 for sid in 1 2 3
