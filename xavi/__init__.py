@@ -5,4 +5,5 @@ from xavi.query import Query, QueryType
 from xavi.matching import ActionMatching, ActionSegment, ActionGroup
 from xavi.language import Language
 from xavi.plotting import plot_simulation, plot_explanation
+from xavi.util import Observations
 from xavi import util

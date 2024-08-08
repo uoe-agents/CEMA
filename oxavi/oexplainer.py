@@ -1,13 +1,12 @@
-from typing import Tuple
+from typing import Tuple, Dict
 import logging
-import time
 
 import gofi
 import xavi
-from xavi.util import *
 import numpy as np
 import igp2 as ip
 from oxavi.ofeatures import OFeatures
+from oxavi.util import fill_missing_actions
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +27,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
     """ Generate new rollouts and save results after MCTS in the observation tau time before. """
 
     def __init__(self,
+                 occluded_factors_prior: float = 0.1,
                  cf_n_trajectories: int = 3,
                  cf_n_simulations: int = 15,
                  cf_max_depth: int = 5,
@@ -39,7 +39,13 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
         Initialise a new OXAVIAgent. The arguments to this agent are the same as xavi.XAVIAgent.
         """
         super(OXAVIAgent, self).__init__(
-            cf_n_trajectories, cf_n_simulations, cf_max_depth, tau_limits, time_limits, alpha, **kwargs)
+            occluded_factors_prior=occluded_factors_prior,
+            cf_n_trajectories=cf_n_trajectories,
+            cf_n_simulations=cf_n_simulations,
+            cf_max_depth=cf_max_depth,
+            tau_limits=tau_limits,
+            time_limits=time_limits,
+            alpha=alpha, **kwargs)
 
         mcts_params = {"scenario_map": self._scenario_map,
                        "n_simulations": self._cf_n_simulations,
@@ -48,6 +54,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                        "store_results": "all",
                        "tree_type": OXAVITree,
                        "action_type": xavi.XAVIAction,
+                       "rollout_type": gofi.ORollout,
                        "trajectory_agents": False}
         self._cf_mcts_dict = {
             "tau": gofi.OMCTS(**mcts_params),
@@ -82,16 +89,10 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                         plan = self.goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
                         fill_missing_actions(agent.trajectory_cl, plan)
                     else:
-                        goal = ip.PointGoal(agent.state.position, threshold=0.1)
                         start_frame = {aid: ag.trajectory_cl.states[0] for aid, ag in
                                        last_node.run_result.agents.items()}
-                        if agent.state.speed < ip.Stop.STOP_VELOCITY and goal.reached(agent.state.position):
-                            config = ip.MacroActionConfig({'type': 'Stop', "duration": agent.trajectory_cl.duration})
-                            plan = [ip.MacroActionFactory.create(config, agent_id, start_frame, self._scenario_map)]
-                        else:
-                            _, plan = ip.AStar().search(agent_id, start_frame, goal, self._scenario_map)
-                            plan = plan[0]
-                        fill_missing_actions(agent.trajectory_cl, plan)
+                        start_observation = ip.Observation(start_frame, observation.scenario_map)
+                        fill_missing_actions(agent.trajectory_cl, None, agent, start_observation)
 
         current_t = int(self.observations[self.agent_id][0].states[-1].time)
         self._mcts_results_buffer.append((current_t, self.mcts.results))
@@ -99,6 +100,11 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
     def _get_goals_probabilities(self,
                                  observation: ip.Observation,
                                  previous_frame: Dict[int, ip.AgentState]) -> Dict[int, gofi.OGoalsProbabilities]:
+        """ Create a new data structure to store goal probability and occluded factor computations.
+
+        Args:
+            observation: the observation of the environment for which to generate the data structure
+        """
         goals = self.get_goals(observation)
         occluded_factors = self.get_occluded_factors(observation)
         gps = {}
@@ -107,3 +113,123 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                 gps[aid] = gofi.OGoalsProbabilities(
                     goals, occluded_factors, occluded_factors_priors=self._occluded_factors_prior)
         return gps
+
+    def _generate_rollouts(self,
+                           frame: Dict[int, ip.AgentState],
+                           observations: xavi.Observations,
+                           goal_probabilities: Dict[int, gofi.OGoalsProbabilities],
+                           mcts: gofi.OMCTS):
+        """ Runs OMCTS to generate a new sequence of macro actions to execute using previous observations.
+
+        Args:
+            frame: Observation of the env tau time steps back.
+            observations: Dictionary of observation history.
+            goal_probabilities: Dictionary of predictions for each non-ego agent.
+        """
+        visible_region = ip.Circle(frame[self.agent_id].position, self.view_radius)
+
+        # Increase number of trajectories to generate
+        n_trajectories = self._goal_recognition._n_trajectories
+        self._goal_recognition._n_trajectories = self._n_trajectories
+
+        previous_agent_id = None
+        for agent_id in frame:
+            if agent_id == self.agent_id:
+                continue
+
+            # Perform belief merging by using previous agent posterior as next agent prior
+            if previous_agent_id is not None:
+                for factor, pz in goal_probabilities[previous_agent_id].occluded_factors_probabilities.items():
+                    goal_probabilities[agent_id].occluded_factors_priors[factor] = pz
+
+            # Generate all possible trajectories for non-egos from tau time steps back
+            self._goal_recognition.update_goals_probabilities(
+                goals_probabilities=goal_probabilities[agent_id],
+                observed_trajectory=observations[agent_id][0],
+                agent_id=agent_id,
+                frame_ini=observations[agent_id][1],
+                frame=frame,
+                visible_region=visible_region)
+
+            # Set the probabilities equal for each goal and trajectory
+            #  to make sure we can sample all counterfactual scenarios
+            goal_probabilities[agent_id].add_smoothing(self._alpha, uniform_goals=True)
+            previous_agent_id = agent_id
+
+        # Set merged beliefs to be the same for all agents, i.e., the beliefs of the last agent in the merging order
+        pz = goal_probabilities[previous_agent_id].occluded_factors_probabilities
+        for agent_id, probabilities in goal_probabilities.items():
+            probabilities.set_merged_occluded_factors_probabilities(pz)
+
+        # Reset the number of trajectories for goal generation
+        self._goal_recognition._n_trajectories = n_trajectories
+
+        # Run MCTS search for counterfactual simulations while storing run results
+        agents_metadata = {aid: state.metadata for aid, state in frame.items()}
+        mcts.search(
+            agent_id=self.agent_id,
+            goal=self.goal,
+            frame=frame,
+            meta=agents_metadata,
+            predictions=goal_probabilities)
+
+    def _get_dataset(self,
+                     mcts_results: gofi.AllOMCTSResults,
+                     goal_probabilities: Dict[int, gofi.OGoalsProbabilities],
+                     observations: xavi.Observations,
+                     reference_t: int) \
+            -> Dict[int, xavi.Item]:
+        """ Return a dataset recording states, boolean feature, and reward taking occlusions into account
+
+         Args:
+             mcts_results: OMCTS results class to convert to a dataset.
+             goal_probabilities: Predictions for non-ego vehicles with occluded factors.
+             observations: The observations that preceded the planning step.
+             reference_t: The time of the start of the counterfactual simulation.
+         """
+        dataset = {}
+        for m, rollout in enumerate(mcts_results):
+            trajectories = {}
+            r = []
+            last_node = rollout.leaf
+            trajectory_queried_agent = None
+
+            # save trajectories of each agent
+            for agent_id, agent in last_node.run_result.agents.items():
+                trajectory = ip.StateTrajectory(self.fps)
+                observed_trajectory = observations[agent_id][0]
+                trajectory.extend(observed_trajectory, reload_path=False)
+                sim_trajectory = agent.trajectory_cl.slice(1, None)
+
+                # Retrieve maneuvers and macro actions for non-ego vehicles
+                if isinstance(agent, ip.TrajectoryAgent):
+                    fill_missing_actions(sim_trajectory, None, agent)
+                elif isinstance(agent, ip.TrafficAgent):
+                    plan = goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
+                    fill_missing_actions(sim_trajectory, plan)
+
+                if agent_id == self.query.agent_id:
+                    trajectory_queried_agent = sim_trajectory
+
+                trajectory.extend(sim_trajectory, reload_path=True)
+                trajectories[agent_id] = trajectory
+
+            # save reward for each component
+            for last_action, reward_value, in last_node.reward_results.items():
+                if last_action == rollout.trace[-1]:
+                    r = reward_value[-1]
+
+            # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
+            sliced_trajectory = self.query.slice_segment_trajectory(
+                trajectory_queried_agent, self._current_t, present_ref_t=reference_t)
+            query_factual = self.query.factual if not self.query.all_factual and self.query.exclusive else None
+            y = self._matching.action_matching(
+                self.query.action, sliced_trajectory, query_factual)
+            if self.query.negative:
+                y = not y
+
+            data_set_m = xavi.Item(trajectories, y, r, rollout)
+            dataset[m] = data_set_m
+
+        logger.debug('Dataset generation done.')
+        return dataset

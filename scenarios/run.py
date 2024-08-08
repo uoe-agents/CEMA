@@ -126,6 +126,7 @@ def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, outpu
             if args.save_agent:
                 file_path = os.path.join(output_path, f"agent_t{t}_m{query.type}.pkl")
                 pickle.dump(xavi_agent, open(file_path, "wb"))
+                assert False
 
             causes = xavi_agent.explain_actions(query)
 
