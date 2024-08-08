@@ -6,7 +6,7 @@ import xavi
 import numpy as np
 import igp2 as ip
 from oxavi.ofeatures import OFeatures
-from oxavi.util import fill_missing_actions
+from oxavi.util import fill_missing_actions, get_occluded_trajectory
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                  tau_limits: Tuple[float, float] = (1., 5.),
                  time_limits: Tuple[float, float] = (5., 5.),
                  alpha: float = 0.1,
+                 alpha_occlusion: float = 0.1,
                  **kwargs):
         """
         Initialise a new OXAVIAgent. The arguments to this agent are the same as xavi.XAVIAgent.
@@ -45,7 +46,10 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
             cf_max_depth=cf_max_depth,
             tau_limits=tau_limits,
             time_limits=time_limits,
-            alpha=alpha, **kwargs)
+            alpha=alpha,
+            **kwargs)
+
+        self._alpha_occlusion = alpha_occlusion
 
         mcts_params = {"scenario_map": self._scenario_map,
                        "n_simulations": self._cf_n_simulations,
@@ -55,6 +59,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                        "tree_type": OXAVITree,
                        "action_type": xavi.XAVIAction,
                        "rollout_type": gofi.ORollout,
+                       "allow_hide_occluded": False,
                        "trajectory_agents": False}
         self._cf_mcts_dict = {
             "tau": gofi.OMCTS(**mcts_params),
@@ -153,7 +158,10 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
 
             # Set the probabilities equal for each goal and trajectory
             #  to make sure we can sample all counterfactual scenarios
-            goal_probabilities[agent_id].add_smoothing(self._alpha, uniform_goals=True)
+            goal_probabilities[agent_id].add_smoothing(
+                alpha_goal=self._alpha,
+                alpha_occlusion=self._alpha_occlusion,
+                uniform_goals=True)
             previous_agent_id = agent_id
 
         # Set merged beliefs to be the same for all agents, i.e., the beliefs of the last agent in the merging order
@@ -195,15 +203,28 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
             trajectory_queried_agent = None
 
             # save trajectories of each agent
-            for agent_id, agent in last_node.run_result.agents.items():
+            agents = last_node.run_result.agents
+            for agent_id, agent in agents.items():
                 trajectory = ip.StateTrajectory(self.fps)
-                observed_trajectory = observations[agent_id][0]
+                if agent_id in observations:
+                    observed_trajectory = observations[agent_id][0]
+                else:
+                    # For occluded factors, use A* to plan an open-loop
+                    # trajectory from the initial state to the beginning of the simulation
+                    initial_frame = {aid: ag.trajectory_cl.states[0] for aid, ag in agents.items()}
+                    end_state = agent.trajectory_cl.states[1]
+                    observed_trajectory, plan = get_occluded_trajectory(
+                        agent, ip.Observation(initial_frame, self._scenario_map), end_state)
+                    fill_missing_actions(observed_trajectory, plan)
+                    observed_trajectory = observed_trajectory.slice(None, -1)
                 trajectory.extend(observed_trajectory, reload_path=False)
                 sim_trajectory = agent.trajectory_cl.slice(1, None)
 
                 # Retrieve maneuvers and macro actions for non-ego vehicles
                 if isinstance(agent, ip.TrajectoryAgent):
-                    fill_missing_actions(sim_trajectory, None, agent)
+                    start_frame = {aid: ag.trajectory_cl.states[1] for aid, ag in agents.items()}
+                    start_observation = ip.Observation(start_frame, self._scenario_map)
+                    fill_missing_actions(sim_trajectory, None, agent, start_observation)
                 elif isinstance(agent, ip.TrafficAgent):
                     plan = goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
                     fill_missing_actions(sim_trajectory, plan)

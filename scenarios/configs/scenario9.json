@@ -66,7 +66,8 @@
       },
       "explainer": {
         "cf_n_simulations": 15,
-        "cf_max_depth": 5
+        "cf_max_depth": 5,
+        "alpha_occlusion": 1.0
       },
       "view_radius": 500,
       "stop_goals": true

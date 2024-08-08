@@ -229,7 +229,7 @@ class XAVIAgent(ip.MCTSAgent):
         if tau_dataset is None and t_action_dataset is None:
             return None, None
 
-        # Get past and future datasets by truncate trajectories to relevant length and getting features
+        # Get past and future datasets by truncating trajectories to relevant length and getting features
         agent_id = self.agent_id
         if self.query.type in [QueryType.WHY, QueryType.WHY_NOT]:
             agent_id = self.query.agent_id

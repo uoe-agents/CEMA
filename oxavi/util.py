@@ -1,7 +1,36 @@
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 import igp2 as ip
+
+
+def get_occluded_trajectory(
+        agent: ip.Agent,
+        start_observation: ip.Observation,
+        end_state: ip.AgentState) -> Tuple[ip.StateTrajectory, List[ip.MacroAction]]:
+    """ Find the trajectory of the occluded agent by using A* to generate an open-loop trajectory.
+
+    Args:
+        agent: The occluded agent.
+        start_observation: The observation at the start of the occlusion.
+        end_state: The state at the end of the occlusion.
+    """
+    start_state = start_observation.frame[agent.agent_id]
+
+    goal = ip.PointGoal(end_state.position, threshold=0.1)
+    if start_state.speed < ip.Stop.STOP_VELOCITY and goal.reached(start_state.position):
+        stop_duration = (end_state.time - start_state.time) / agent.fps
+        config = ip.MacroActionConfig({'type': 'Stop', "stop_duration": stop_duration})
+        ma = ip.MacroActionFactory.create(
+            config, agent.agent_id, start_observation.frame, start_observation.scenario_map)
+        plan = [ma]
+        trajectory = ma.get_trajectory()
+    else:
+        trajectory, plan = ip.AStar().search(
+            agent.agent_id, start_observation.frame, goal, start_observation.scenario_map)
+        trajectory, plan = trajectory[0], plan[0]
+    trajectory = ip.StateTrajectory.from_velocity_trajectory(trajectory, fps=agent.fps)
+    return trajectory, plan
 
 
 def fill_missing_actions(
@@ -21,15 +50,7 @@ def fill_missing_actions(
     assert plan is not None or agent is not None, "Either plan or agent must be provided."
 
     if agent is not None and plan is None:
-        goal = ip.PointGoal(agent.state.position, threshold=0.1)
-        if agent.state.speed < ip.Stop.STOP_VELOCITY and goal.reached(agent.state.position):
-            config = ip.MacroActionConfig({'type': 'Stop', "duration": agent.trajectory_cl.duration})
-            ma = ip.MacroActionFactory.create(
-                config, agent.agent_id, start_observation.frame, start_observation.scenario_map)
-            plan = [ma]
-        else:
-            _, plan = ip.AStar().search(agent.agent_id, start_observation.frame, goal, start_observation.scenario_map)
-            plan = plan[0]
+        _, plan = get_occluded_trajectory(agent, start_observation, agent.trajectory_cl.states[-1])
 
     ma_man_list = []
     points = None
