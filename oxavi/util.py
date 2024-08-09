@@ -1,10 +1,13 @@
 from dataclasses import dataclass
 from typing import List, Tuple
+import logging
 
 import numpy as np
 import igp2 as ip
 import xavi
 import gofi
+
+logger = logging.getLogger(__name__)
 
 
 class OXAVITree(gofi.OTree):
@@ -48,7 +51,7 @@ def get_occluded_trajectory(
         trajectory = ma.get_trajectory()
     else:
         trajectory, plan = ip.AStar().search(
-            agent.agent_id, start_observation.frame, goal, start_observation.scenario_map)
+            agent.agent_id, start_observation.frame, goal, start_observation.scenario_map, debug=False)
         trajectory, plan = trajectory[0], plan[0]
     trajectory = ip.StateTrajectory.from_velocity_trajectory(trajectory, fps=agent.fps)
     return trajectory, plan

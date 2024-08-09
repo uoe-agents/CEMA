@@ -25,7 +25,7 @@
         "box": {
           "center": [
             1.75,
-            -55
+            -45
           ],
           "length": 3.5,
           "width": 3.5,
@@ -64,7 +64,7 @@
       },
       "mcts": {
         "t_update": 1.0,
-        "n_simulations": 15,
+        "n_simulations": 30,
         "max_depth": 5,
         "store_results": "all",
         "trajectory_agents": false,
@@ -75,7 +75,12 @@
           "curvature": -0.1
         }
       },
-      "view_radius": 200,
+      "explainer": {
+        "cf_n_simulations": 30,
+        "cf_max_depth": 5,
+        "alpha_occlusion": 1.0
+      },
+      "view_radius": 500,
       "stop_goals": false,
       "occluded_factors_prior": 0.2
     },
