@@ -3,24 +3,11 @@ import logging
 
 import gofi
 import xavi
-import numpy as np
 import igp2 as ip
 from oxavi.ofeatures import OFeatures
-from oxavi.util import fill_missing_actions, get_occluded_trajectory
+from oxavi.util import fill_missing_actions, get_occluded_trajectory, OItem, OXAVITree
 
 logger = logging.getLogger(__name__)
-
-
-class OXAVITree(gofi.OTree):
-    """ Overwrite the original MCTS tree to disable give-way with some chance. """
-    STOP_CHANCE = 1.0
-
-    def select_action(self, node: ip.Node) -> ip.MCTSAction:
-        action = super(OXAVITree, self).select_action(node)
-        if action.macro_action_type == ip.Exit:
-            give_way_stop = np.random.random() >= 1.0 - OXAVITree.STOP_CHANCE
-            action.ma_args["stop"] = give_way_stop
-        return action
 
 
 class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
@@ -249,7 +236,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
             if self.query.negative:
                 y = not y
 
-            data_set_m = xavi.Item(trajectories, y, r, rollout)
+            data_set_m = OItem(trajectories, y, r, rollout, rollout.occluded_factor)
             dataset[m] = data_set_m
 
         logger.debug('Dataset generation done.')

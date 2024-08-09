@@ -1,7 +1,28 @@
+from dataclasses import dataclass
 from typing import List, Tuple
 
 import numpy as np
 import igp2 as ip
+import xavi
+import gofi
+
+
+class OXAVITree(gofi.OTree):
+    """ Overwrite the original MCTS tree to disable give-way with some chance. """
+    STOP_CHANCE = 1.0
+
+    def select_action(self, node: ip.Node) -> ip.MCTSAction:
+        action = super(OXAVITree, self).select_action(node)
+        if action.macro_action_type == ip.Exit:
+            give_way_stop = np.random.random() >= 1.0 - OXAVITree.STOP_CHANCE
+            action.ma_args["stop"] = give_way_stop
+        return action
+
+
+@dataclass
+class OItem(xavi.Item):
+    """ Extend the original item class to include occluded factors. """
+    occluded_factor: gofi.OccludedFactor
 
 
 def get_occluded_trajectory(

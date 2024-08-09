@@ -2,8 +2,10 @@ import numpy as np
 import pandas as pd
 import logging
 from typing import Dict, Any, List
+
 import igp2 as ip
-from xavi.util import most_common
+from xavi.util import most_common, Item
+from xavi.query import Query
 
 logger = logging.getLogger(__name__)
 
@@ -17,16 +19,25 @@ class Features:
 
     def to_features(self,
                     agent_id: int,
-                    trajectories: Dict[int, ip.StateTrajectory],
-                    eps: float = 1e-1) \
-            -> Dict[str, Any]:
+                    item: Item,
+                    query: Query,
+                    eps: float = 1e-1,
+                    exclude_ids: List[int] = None) -> Dict[str, Any]:
         """ Convert a joint set of trajectories to binary features.
 
         Args:
             agent_id: ID of agent for which to convert joint trajectories to features.
-            trajectories: The joint trajectories of agents
+            item: The data item to convert to features.
+            query: The query of the user to use for the conversion.
             eps: Threshold to check equality to zero
+            exclude_ids: Optionally, the IDs of agents to exclude from the features.
         """
+        trajectories = {}
+        for aid, traj in item.trajectories.items():
+            if exclude_ids and aid in exclude_ids:
+                continue
+            trajectories[aid] = traj.slice(query.t_action, None)
+
         features = {}
         agent_trajectory = trajectories[agent_id]
 
