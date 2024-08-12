@@ -50,8 +50,10 @@ def get_occluded_trajectory(
         plan = [ma]
         trajectory = ma.get_trajectory()
     else:
+        logging.disable(logging.CRITICAL)
         trajectory, plan = ip.AStar().search(
             agent.agent_id, start_observation.frame, goal, start_observation.scenario_map, debug=False)
+        logging.disable(logging.NOTSET)
         trajectory, plan = trajectory[0], plan[0]
     trajectory = ip.StateTrajectory.from_velocity_trajectory(trajectory, fps=agent.fps)
     return trajectory, plan

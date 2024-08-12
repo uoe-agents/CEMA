@@ -70,7 +70,6 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
         for rollout in self.mcts.results:
             last_node = rollout.leaf
             if len(last_node.key) == 2:
-                logger.debug("MCTS node terminated during Super, Root/OF.")
                 continue
             for agent_id, agent in last_node.run_result.agents.items():
                 agent.trajectory_cl.calculate_path_and_velocity()
