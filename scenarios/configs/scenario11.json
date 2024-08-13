@@ -9,9 +9,12 @@
   "objects": [
     {
       "type": "building",
-      "shape":  "box",
+      "shape": "box",
       "params": {
-        "center": [27, -16],
+        "center": [
+          27,
+          -16
+        ],
         "width": 22,
         "length": 44
       }
@@ -64,7 +67,7 @@
       },
       "mcts": {
         "t_update": 1.0,
-        "n_simulations": 15,
+        "n_simulations": 30,
         "max_depth": 5,
         "store_results": "all",
         "trajectory_agents": false,
@@ -75,7 +78,13 @@
           "curvature": -0.1
         }
       },
-      "view_radius": 200,
+      "explainer": {
+        "cf_n_simulations": 50,
+        "cf_max_depth": 5,
+        "alpha_occlusion": 1.0,
+        "allow_hide_occluded": false
+      },
+      "view_radius": 500,
       "stop_goals": true,
       "occluded_factors_prior": 0.2
     },

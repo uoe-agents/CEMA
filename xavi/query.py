@@ -48,7 +48,8 @@ class Query:
     exclusive: str = True
 
     fps: int = 20
-    tau_limits: np.ndarray = np.array([1, 5])  # The minimum and maximum length of tau in seconds
+    tau_limits: np.ndarray = np.array([1, 5])  # Minimum and maximum distance of tau in seconds from the current time
+    t_action_min: int = 1  # Minimum distance in seconds for the action start
     time_limits = np.array([5, 5])  # Maximum lengths of the trajectories, both in past and future, in seconds.
 
     def __post_init__(self):

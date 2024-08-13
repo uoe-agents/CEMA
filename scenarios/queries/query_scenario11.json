@@ -1,0 +1,16 @@
+[
+  {
+    "type": "why",
+    "agent_id": 0,
+    "action": "TurnLeft",
+    "t_query": 140,
+    "tense": "present"
+  },
+  {
+    "type": "why",
+    "agent_id": 1,
+    "action": "Stop",
+    "t_query": 120,
+    "tense": "present"
+  }
+]

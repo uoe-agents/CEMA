@@ -22,9 +22,14 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                  time_limits: Tuple[float, float] = (5., 5.),
                  alpha: float = 0.1,
                  alpha_occlusion: float = 0.1,
+                 allow_hide_occluded: bool = True,
                  **kwargs):
         """
-        Initialise a new OXAVIAgent. The arguments to this agent are the same as xavi.XAVIAgent.
+        Initialise a new OXAVIAgent. The arguments to this agent are the same as xavi.XAVIAgent except for the below.
+
+        ArgS:
+            alpha_occlusion: the smoothing weight for occluded factors.
+            allow_hide_occluded: whether to allow hiding the occluded factor in simulation despite it being present.
         """
         super(OXAVIAgent, self).__init__(
             occluded_factors_prior=occluded_factors_prior,
@@ -46,7 +51,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                        "tree_type": OXAVITree,
                        "action_type": xavi.XAVIAction,
                        "rollout_type": gofi.ORollout,
-                       "allow_hide_occluded": False,
+                       "allow_hide_occluded": allow_hide_occluded,
                        "trajectory_agents": False}
         self._cf_mcts_dict = {
             "tau": gofi.OMCTS(**mcts_params),
