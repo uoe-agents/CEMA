@@ -33,6 +33,8 @@ def main():
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
+    logger.info(args)
+
     scenario_map = gofi.OMap.parse_from_opendrive(config["scenario"]["map_path"])
 
     # Get run parameters
@@ -45,6 +47,7 @@ def main():
     ip_config = Configuration()
     ip_config.set_properties(**config["scenario"])
     xavi.XAVITree.STOP_CHANCE = config["scenario"].get("stop_chance", 1.0)
+    oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = config["scenario"].get("ignore_vehicle_in_front_chance", 0.0)
 
     frame = generate_random_frame(scenario_map, config)
 
@@ -126,7 +129,7 @@ def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, outpu
             if args.save_agent:
                 file_path = os.path.join(output_path, f"agent_t{t}_m{query.type}.pkl")
                 pickle.dump(xavi_agent, open(file_path, "wb"))
-
+            assert False
             causes = xavi_agent.explain_actions(query)
 
             if args.save_causes:

@@ -177,6 +177,9 @@ class ActionMatching:
                       action: Union[str, Tuple[str, ...]],
                       tense: str = "past") -> bool:
         """ determine if an action exists in the action segmentation """
+        if action is None:
+            return False
+
         iterator = action_segmentations if tense == "future" else reversed(action_segmentations)
         for seg in iterator:
             if action in seg.actions or action == seg.actions:

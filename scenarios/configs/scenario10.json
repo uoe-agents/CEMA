@@ -5,7 +5,8 @@
     "fps": 20,
     "seed": 42,
     "max_steps": 1000,
-    "give_way_distance": 20.0
+    "give_way_distance": 20.0,
+    "stop_chance": 0.8
   },
   "objects": [
     {
@@ -73,10 +74,8 @@
           "time": 1.0,
           "jerk": -0.1,
           "angular_velocity": -0.1,
-          "curvature": -0.1
-        },
-        "default_rewards": {
-          "coll": -0.5
+          "curvature": -0.1,
+          "coll": 0.5
         }
       },
       "explainer": {

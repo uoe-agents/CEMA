@@ -53,7 +53,7 @@ class Query:
     time_limits = np.array([5, 5])  # Maximum lengths of the trajectories, both in past and future, in seconds.
 
     def __post_init__(self):
-        self.__all_factual = False
+        self.__all_factual = self.type == QueryType.WHY_NOT or self.type == QueryType.WHAT_IF and not self.negative
         self.__matching = ActionMatching()
         self.type = QueryType(self.type)
         if self.negative is None:
@@ -86,8 +86,7 @@ class Query:
         self.__matching.set_scenario_map(scenario_map)
         action_segmentations = self.slice_segment_trajectory(trajectory, current_t)
 
-        if self.type == QueryType.WHAT_IF and not self.negative or \
-                self.type == QueryType.WHY_NOT:
+        if self.factual is None and self.type == QueryType.WHAT_IF:
             action_segmentations = self.__determine_matched_rollout(
                 rollouts_buffer, agent_id, current_t)
         else:
@@ -96,8 +95,11 @@ class Query:
         tau = len(trajectory) - 1
         if self.type in [QueryType.WHAT_IF, QueryType.WHY_NOT, QueryType.WHY]:
             t_actions_taus = []
+            action = self.action
+            if self.type == QueryType.WHY_NOT or self.type == QueryType.WHAT_IF and not self.negative:
+                action = self.factual
             for segmentation in action_segmentations:
-                t_actions_taus.append(self.__get_t_tau(segmentation, True))
+                t_actions_taus.append(self.__get_t_tau(action, segmentation, True))
             t_action, tau = min(t_actions_taus, key=lambda x: x[0])
         elif self.type == QueryType.WHAT:
             t_action = self.t_action
@@ -112,6 +114,7 @@ class Query:
         self.t_action = t_action
 
     def __get_t_tau(self,
+                    action: Union[str, List[str]],
                     action_segmentations: List[ActionSegment],
                     rollback: bool) -> (int, int):
         """ determine t_action for final causes, tau for efficient cause.
@@ -128,19 +131,19 @@ class Query:
         n_segments = len(action_segmentations)
 
         if self.tense == "future":
-            for i, action in enumerate(action_segmentations):
-                if self.action in action.actions or self.action == action.actions:
-                    t_action = action.times[0]
+            for i, act in enumerate(action_segmentations):
+                if action in act.actions or action == act.actions:
+                    t_action = act.times[0]
                     segment_inx = i
                     break
             else:
-                raise ValueError(f"Could not match action {self.action} to trajectory.")
+                raise ValueError(f"Could not match action {action} to trajectory.")
         else:
-            for i, action in enumerate(reversed(action_segmentations)):
-                if self.action in action.actions or self.action == action.actions:
+            for i, act in enumerate(reversed(action_segmentations)):
+                if action in act.actions or action == act.actions:
                     action_matched = True
                 elif action_matched:
-                    t_action = action.times[-1] + 1
+                    t_action = act.times[-1] + 1
                     segment_inx = i
                     break
             else:
@@ -201,23 +204,26 @@ class Query:
                 continue
 
             fallback = None
+            all_factual = True
             for rollout in rollouts.mcts_results:
                 trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
                 segmentation = self.slice_segment_trajectory(trajectory, current_t)
                 action_exists = ActionMatching.action_exists(segmentation, self.action, self.tense)
                 factual_exists = ActionMatching.action_exists(segmentation, self.factual, self.tense)
+                all_factual = all_factual and factual_exists
                 # skip the rollout that includes the factual action (unless actions can be non-exclusive)
                 if action_exists:
                     if not factual_exists or not self.exclusive:
                         segmentations.append(segmentation)
-                        self.__all_factual = factual_exists
+                        # self.__all_factual = factual_exists
                     else:
                         fallback = segmentation
             if fallback is not None:
                 # If all rollouts contain the factual but some also the counterfactual,
                 #  then use that as a fallback option.
-                self.__all_factual = True
+                # self.__all_factual = True
                 segmentations.append(fallback)
+            self.__all_factual = self.__all_factual and all_factual
         if segmentations:
             return segmentations
         raise ValueError(f"The queried action {self.action} does not exist!")

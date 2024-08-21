@@ -5,7 +5,7 @@ import gofi
 import xavi
 import igp2 as ip
 from oxavi.ofeatures import OFeatures
-from oxavi.util import fill_missing_actions, get_occluded_trajectory, OItem, OXAVITree
+from oxavi.util import fill_missing_actions, get_occluded_trajectory, OItem, OXAVITree, OFollowLaneCL
 
 logger = logging.getLogger(__name__)
 
@@ -165,12 +165,14 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
 
         # Run MCTS search for counterfactual simulations while storing run results
         agents_metadata = {aid: state.metadata for aid, state in frame.items()}
+        ip.CLManeuverFactory.maneuver_types["follow-lane"] = OFollowLaneCL
         mcts.search(
             agent_id=self.agent_id,
             goal=self.goal,
             frame=frame,
             meta=agents_metadata,
             predictions=goal_probabilities)
+        ip.CLManeuverFactory.maneuver_types["follow-lane"] = ip.FollowLaneCL
 
     def _get_dataset(self,
                      mcts_results: gofi.AllOMCTSResults,
@@ -231,7 +233,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                 if last_action == rollout.trace[-1]:
                     r = reward_value[-1]
 
-            # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
+            # Slice the trajectory according to the tense in case of multiple actions in query exist in a trajectory
             sliced_trajectory = self.query.slice_segment_trajectory(
                 trajectory_queried_agent, self._current_t, present_ref_t=reference_t)
             query_factual = self.query.factual if not self.query.all_factual and self.query.exclusive else None

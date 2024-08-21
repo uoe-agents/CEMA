@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import logging
 
 import numpy as np
@@ -18,8 +18,34 @@ class OXAVITree(gofi.OTree):
         action = super(OXAVITree, self).select_action(node)
         if action.macro_action_type == ip.Exit:
             give_way_stop = np.random.random() >= 1.0 - OXAVITree.STOP_CHANCE
+            if not give_way_stop:
+                logger.debug(f"    Ego is not giving way!")
             action.ma_args["stop"] = give_way_stop
         return action
+
+
+class OFollowLaneCL(ip.FollowLaneCL):
+    """ Extend the original FollowLaneCL class to include occluded factors. """
+    IGNORE_VEHICLE_IN_FRONT_CHANCE = 0.25
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignore_vehicle_in_front = (self.agent_id == 0 and
+                                        np.random.random() >= 1 - self.IGNORE_VEHICLE_IN_FRONT_CHANCE)
+        if self.ignore_vehicle_in_front:
+            logger.debug(f"    Ego ignores vehicle in front.")
+
+    def _get_acceleration(self, target_velocity: float, frame: Dict[int, ip.AgentState]):
+        state = frame[self.agent_id]
+        acceleration = target_velocity - state.speed
+        vehicle_in_front, dist, _ = self.get_vehicle_in_front(self.agent_id, frame, self.lane_sequence)
+        if vehicle_in_front is not None:
+            if not self.ignore_vehicle_in_front:
+                in_front_speed = frame[vehicle_in_front].speed
+                gap = dist - state.metadata.length
+                acc_acceleration = self._acc.get_acceleration(self.MAX_SPEED, state.speed, in_front_speed, gap)
+                acceleration = min(acceleration, acc_acceleration)
+        return acceleration
 
 
 @dataclass
