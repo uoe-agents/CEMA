@@ -1,11 +1,12 @@
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 import logging
 
 import gofi
 import xavi
 import igp2 as ip
 from oxavi.ofeatures import OFeatures
-from oxavi.util import fill_missing_actions, get_occluded_trajectory, OItem, OXAVITree, OFollowLaneCL
+from oxavi.util import fill_missing_actions, get_occluded_trajectory, \
+    OItem, OXAVITree, OFollowLaneCL, overwrite_predictions
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,13 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                 frame=frame,
                 visible_region=visible_region)
 
+            # For past queries, use existing most recent goal probabilities
+            latest_predictions = self.mcts_results_buffer[-1][1].predictions
+            if self.query.tense == "past" and agent_id in latest_predictions:
+                overwrite_predictions(
+                    latest_predictions[agent_id],
+                    goal_probabilities[agent_id])
+
             # Set the probabilities equal for each goal and trajectory
             #  to make sure we can sample all counterfactual scenarios
             goal_probabilities[agent_id].add_smoothing(
@@ -154,6 +162,11 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                 alpha_occlusion=self._alpha_occlusion,
                 uniform_goals=True)
             previous_agent_id = agent_id
+
+            logger.info("")
+            logger.info(f"Goals probabilities for agent {agent_id} after (possible) overriding and smoothing.")
+            goal_probabilities[agent_id].log(logger)
+            logger.info("")
 
         # Set merged beliefs to be the same for all agents, i.e., the beliefs of the last agent in the merging order
         pz = goal_probabilities[previous_agent_id].occluded_factors_probabilities

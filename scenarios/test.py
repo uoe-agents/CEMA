@@ -55,7 +55,7 @@ if __name__ == "__main__":
                 mcts.n = n
             final_causes, efficient_causes = oxavi_agent.explain_actions(query)
         else:
-            final_causes, efficient_causes = pickle.load(open(f"output/scenario_9/q_n{n}_t{query.t_query}_{query.type}.pkl", "rb"))
+            final_causes, efficient_causes = pickle.load(open(f"output/scenario_9/q_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
 
     elif scenario == 10:
         if not load_existing:
@@ -77,7 +77,7 @@ if __name__ == "__main__":
         file_path = os.path.join(output_path, f"q_n{n}_t{query.t_query}_m{query.type}.pkl")
         pickle.dump((final_causes, efficient_causes), open(file_path, "wb"))
 
-    xavi.plot_explanation(final_causes, efficient_causes[0:2])
+    xavi.plot_explanation(final_causes, efficient_causes[0:2], query)
     plt.tight_layout()
     plt.savefig(os.path.join(output_path, f"q_n{n}_t{query.t_query}_m{query.type}.png"))
     plt.show()

@@ -1,10 +1,10 @@
 import numpy as np
 import pandas as pd
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple, Optional
 
 import igp2 as ip
-from xavi.util import most_common, Item
+from xavi.util import find_common, unique_sequence, Item
 from xavi.query import Query
 
 logger = logging.getLogger(__name__)
@@ -21,6 +21,7 @@ class Features:
                     agent_id: int,
                     item: Item,
                     query: Query,
+                    t_slice: Tuple[Optional[int], Optional[int]],
                     eps: float = 1e-1,
                     exclude_ids: List[int] = None) -> Dict[str, Any]:
         """ Convert a joint set of trajectories to binary features.
@@ -29,6 +30,7 @@ class Features:
             agent_id: ID of agent for which to convert joint trajectories to features.
             item: The data item to convert to features.
             query: The query of the user to use for the conversion.
+            t_slice: The time slice to use for trajectories.
             eps: Threshold to check equality to zero
             exclude_ids: Optionally, the IDs of agents to exclude from the features.
         """
@@ -36,7 +38,7 @@ class Features:
         for aid, traj in item.trajectories.items():
             if exclude_ids and aid in exclude_ids:
                 continue
-            trajectories[aid] = traj.slice(query.t_action, None)
+            trajectories[aid] = traj.slice(*t_slice)
 
         features = {}
         agent_trajectory = trajectories[agent_id]
@@ -80,7 +82,13 @@ class Features:
                     mans.append(state.maneuver)
                 inr = self.__scenario_map.in_roundabout(
                     trajectory.path[0], trajectory.heading[0])
-                features[f"{aid}_macro"] = most_common(mas, in_roundabout=inr) or None
+                most_common = find_common(mas, False, in_roundabout=inr) or None
+                least_common = find_common(mas, True, in_roundabout=inr) or None
+                # sequence = "=>".join(unique_sequence(mas))
+                # features[f"{aid}_sequence"] = sequence
+                features[f"{aid}_xmacro"] = most_common
+                if most_common != least_common:
+                    features[f"{aid}_nmacro"] = least_common
             # cat_features[f"{aid}_maneuver"] = most_common(mans)
 
         self.__features = features
@@ -89,7 +97,7 @@ class Features:
     def binarise(self, data: List[Dict[str, Any]], labels: List[Any]) -> (pd.DataFrame, np.ndarray):
         """ Binarise a data set of features and labels. """
         data = pd.DataFrame().from_records(data)
-        macro_cols = data.filter(like="macro")
+        macro_cols = data.filter(regex="macro|sequence|maneuver")
         one_hot = pd.get_dummies(macro_cols)
         new_data = pd.concat([data, one_hot], axis=1)
         new_data = new_data.drop(columns=macro_cols.columns)

@@ -114,3 +114,12 @@ def fill_missing_actions(
     for state in trajectory:
         nearest_idx = np.argmin(np.linalg.norm(points - state.position, axis=1))
         state.macro_action, state.maneuver = ma_man_list[nearest_idx]
+
+
+def overwrite_predictions(source: gofi.OGoalsProbabilities, target: gofi.OGoalsProbabilities):
+    """ Replace the goals probabilities of the target with the goals probabilities of the source. """
+    for factor in target.occluded_factors:
+        for goal in target.goals:
+            key = (goal, factor)
+            for key_ in filter(lambda x: str(x) == str(key), source.goals_and_occluded_factors):
+                target.goals_probabilities[key] = source.goals_probabilities[key_]

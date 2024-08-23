@@ -6,7 +6,7 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 
-from xavi.simulation import Simulation
+from xavi.query import Query
 
 
 # -----------Simulation plotting functions---------------------
@@ -211,6 +211,7 @@ def plot_predictions(ego_agent: ip.MCTSAgent,
 def plot_explanation(
         d_rewards: Optional[pd.DataFrame],
         coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]],
+        query: Query,
         save_path: str = None):
     """ Plot causal attributions
 
@@ -225,14 +226,14 @@ def plot_explanation(
     fig, axs = plt.subplots(1, 3, figsize=(17, 5), gridspec_kw={'width_ratios': [3, 3, 3]})
     if d_rewards is not None:
         ax = axs[0]
-        binaries = d_rewards.loc[["coll", "dead"]]
-        d_rewards = d_rewards.drop(["coll", "dead"])
+        # binaries = d_rewards.loc[["coll", "dead"]]
+        d_rewards = d_rewards.drop(["term"])
         r_diffs = d_rewards.absolute
         rewards, widths = list(zip(*[(k, v) for (k, v) in r_diffs.items() if not np.isnan(v)]))
         ax.barh(rewards, widths, left=0, height=1.0, color=plt.cm.get_cmap("tab10").colors)
         ax.set_xlabel("(a) Cost difference")
-        ax.set_title(f"Collision possible: {'No' if binaries.loc['coll', 'reference'] == 0. else 'Yes'} \n"
-                     f"Always reaches goal: {'Yes' if binaries.loc['dead', 'reference'] == 0. else 'No'}")
+        # ax.set_title(f"Collision possible: {'No' if binaries.loc['coll', 'reference'] == 0. else 'Yes'} \n"
+        #              f"Always reaches goal: {'Yes' if binaries.loc['dead', 'reference'] == 0. else 'No'}")
 
     # plot past and future efficient causes
     for inx, coef in enumerate(coefs, 1):
@@ -251,9 +252,9 @@ def plot_explanation(
         ax.axvline(x=0, color=".5")
         ax.set_xlabel(f"({'b' if inx == 1 else 'c'}) Coefficient importance")
         if inx == 1:
-            ax.set_title("Past causes")
+            ax.set_title(f"Past causes ({query.tau})")
         else:
-            ax.set_title("Present-future causes")
+            ax.set_title(f"Present-future causes ({query.t_action})")
     fig.tight_layout()
     if save_path is not None:
         fig.savefig(save_path, bbox_inches='tight')

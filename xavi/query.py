@@ -81,6 +81,9 @@ class Query:
             observations: Trajectories observed (and possibly extended with future predictions) of the environment.
             rollouts_buffer: The actual MCTS rollouts of the agent.
         """
+        if self.t_action is not None and self.tau is not None:
+            return
+
         agent_id = self.agent_id
         trajectory = observations[agent_id][0]
         self.__matching.set_scenario_map(scenario_map)

@@ -13,7 +13,7 @@ from xavi.features import Features
 from xavi.util import fill_missing_actions, truncate_observations, \
     to_state_trajectory, find_join_index, Observations, get_coefficient_significance, \
     find_optimal_rollout_in_subset, split_by_query, list_startswith, find_matching_rollout, \
-    Item, XAVITree, XAVIAction
+    Item, XAVITree, XAVIAction, overwrite_predictions
 from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
 from xavi.language import Language
@@ -188,14 +188,15 @@ class XAVIAgent(ip.MCTSAgent):
         Returns:
             Dataframes for past and future causes with causal effect size, and optionally the linear regression models
         """
-        def process_dataset(dataset: List[Item]):
+        def process_dataset(dataset: List[Item], t_slice: Tuple[Optional[int], Optional[int]]):
             xs_, ys_ = [], []
             agent_id = self.agent_id
             if self.query.type in [QueryType.WHY, QueryType.WHY_NOT]:
                 agent_id = self.query.agent_id
             if dataset is not None:
                 for item in dataset:
-                    xs_.append(self._features.to_features(agent_id, item, self.query))
+                    xs_.append(self._features.to_features(
+                        agent_id, item, self.query, t_slice=t_slice))
                     ys_.append(item.query_present)
             return xs_, ys_
 
@@ -211,8 +212,8 @@ class XAVIAgent(ip.MCTSAgent):
             return None, None
 
         # Get past and future datasets by truncating trajectories to relevant length and getting features
-        xs_past, ys_past = process_dataset(tau_dataset)
-        xs_future, ys_future = process_dataset(t_action_dataset)
+        xs_past, ys_past = process_dataset(tau_dataset, (self.query.tau, self.query.t_action))
+        xs_future, ys_future = process_dataset(t_action_dataset, (self.query.t_action, None))
 
         # Run a logistic regression classifier
         X_past, y_past, model_past, coefs_past = get_ranking(xs_past, ys_past)
@@ -400,6 +401,11 @@ class XAVIAgent(ip.MCTSAgent):
                 frame_ini=observations[agent_id][1],
                 frame=frame,
                 visible_region=visible_region)
+
+            # For past queries, use existing most recent goal probabilities
+            latest_predictions = self.mcts_results_buffer[-1][1].predictions
+            if self.query.tense == "past" and agent_id in latest_predictions:
+                overwrite_predictions(gps, latest_predictions[agent_id])
 
             # Set the probabilities equal for each goal and trajectory
             #  to make sure we can sample all counterfactual scenarios

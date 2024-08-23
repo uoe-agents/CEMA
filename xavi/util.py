@@ -232,10 +232,9 @@ def split_by_query(dataset: List["Item"]) -> (List["Item"], List["Item"]):
     return query_present, query_not_present
 
 
-def most_common(lst: list, **kwargs):
-    """ Return the most common element in a list. """
+def find_common(lst: list, ascending, **kwargs):
     in_roundabout = kwargs.get("in_roundabout", None)
-    data = list(sorted(Counter(lst).items(), key=lambda x: -x[1])) if lst else None
+    data = list(sorted(Counter(lst).items(), key=lambda x: x[1] if ascending else -x[1])) if lst else None
     if data is None:
         raise ValueError(f"No list given.")
     if in_roundabout and any(["continue" not in k.lower() for k, cnt in data]):
@@ -243,6 +242,17 @@ def most_common(lst: list, **kwargs):
         return filtered[0]
     else:
         return data[0][0]
+
+
+def unique_sequence(lst: list):
+    """ Remove duplicate items from list such that only an order items is kept. """
+    ret = []
+    for item in lst:
+        if ret and ret[-1] == item:
+            continue
+        else:
+            ret.append(item)
+    return ret
 
 
 def list_startswith(list1: list, list2: list) -> bool:
@@ -270,3 +280,12 @@ def product_dict(**kwargs):
     vals = kwargs.values()
     for instance in itertools.product(*vals):
         yield dict(zip(keys, instance))
+
+
+def overwrite_predictions(source: ip.GoalsProbabilities, target: ip.GoalsProbabilities):
+    """ Overwrite the predictions of the source with the target. """
+    for goal_and_type in target.goals_and_types:
+        goal = goal_and_type[0]
+        for goal_and_type_ in filter(lambda x: str(x) == str(goal), source.goals_and_types):
+            goal_ = goal_and_type_[0]
+            target.goals_probabilities[goal] = source.goals_probabilities[goal_]
