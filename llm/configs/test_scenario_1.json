@@ -1,0 +1,34 @@
+{
+  "regulation": {
+    "speed_limit": 10.0,
+    "side": "right-handed"
+  },
+  "road_layout": {
+    "descriptive": {
+      "west-east": "One-way road oriented in an west-east heading with two lanes. Traffic on both lanes moves from west to east.",
+      "north-south": "Road oriented in a north-south heading with one lane in each direction.",
+      "T-crossing": "T-crossing where the west-east road and the north-south road meet."
+    },
+    "numeric": {
+
+    }
+  },
+  "observations": {
+    "actions": {
+      "0": {
+        "spawn": {
+          "position": "left lane on ",
+          "velocity": 10.0,
+          "acceleration": "maintain",
+          "heading": "east"
+        },
+        "sequence": []
+      }
+    },
+    "trajectories": {}
+  },
+  "goal": {
+    "descriptive": "reach the south end of the north-south road",
+    "numeric": [0.0, 0.0]
+  }
+}

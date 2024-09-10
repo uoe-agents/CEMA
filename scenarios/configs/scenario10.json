@@ -6,7 +6,8 @@
     "seed": 42,
     "max_steps": 1000,
     "give_way_distance": 20.0,
-    "stop_chance": 0.8
+    "stop_chance": 1.0,
+    "ignore_vehicle_in_front_chance": 0.0
   },
   "objects": [
     {
@@ -75,14 +76,15 @@
           "jerk": -0.1,
           "angular_velocity": -0.1,
           "curvature": -0.1,
-          "coll": 0.5
+          "dead": 0.5
         }
       },
       "explainer": {
         "cf_n_simulations": 50,
         "cf_max_depth": 5,
+        "alpha": 0.01,
         "alpha_occlusion": 1.0,
-        "allow_hide_occluded": false
+        "allow_hide_occluded": true
       },
       "view_radius": 500,
       "stop_goals": false,

@@ -16,7 +16,7 @@ class OXAVITree(gofi.OTree):
 
     def select_action(self, node: ip.Node) -> ip.MCTSAction:
         action = super(OXAVITree, self).select_action(node)
-        if action.macro_action_type == ip.Exit:
+        if isinstance(action, ip.MCTSAction) and action.macro_action_type == ip.Exit:
             give_way_stop = np.random.random() >= 1.0 - OXAVITree.STOP_CHANCE
             if not give_way_stop:
                 logger.debug(f"    Ego is not giving way!")

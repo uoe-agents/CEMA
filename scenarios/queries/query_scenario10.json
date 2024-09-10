@@ -3,7 +3,22 @@
     "type": "why",
     "agent_id": 0,
     "action": [
-      "Stop", "GiveWay"
+      "Stop",
+      "GiveWay"
+    ],
+    "tense": "present",
+    "t_query": 120
+  },
+  {
+    "type": "whynot",
+    "agent_id": 0,
+    "action": [
+      "Accelerate",
+      "GiveWay"
+    ],
+    "factual": [
+      "Stop",
+      "GiveWay"
     ],
     "tense": "present",
     "t_query": 120

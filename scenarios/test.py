@@ -4,10 +4,11 @@ import gofi
 import pickle
 import argparse
 import logging
-from datetime import date
 from matplotlib import pyplot as plt
 
 import xavi
+import oxavi
+import igp2 as ip
 from util import setup_xavi_logging
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ if __name__ == "__main__":
     logger.info(args)
 
     scenario_map = gofi.OMap.parse_from_opendrive(f"scenarios/maps/gofi-scenario{scenario - 8}.xodr")
+    config = json.load(open(f"scenarios/configs/scenario{scenario}.json", "r"))
     queries = json.load(open(f"scenarios/queries/query_scenario{scenario}.json", "r"))
     query = xavi.Query(**queries[query_idx])
 
@@ -54,30 +56,54 @@ if __name__ == "__main__":
                 mcts._allow_hide_occluded = allow_hide_occluded
                 mcts.n = n
             final_causes, efficient_causes = oxavi_agent.explain_actions(query)
-        else:
-            final_causes, efficient_causes = pickle.load(open(f"output/scenario_9/q_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
 
     elif scenario == 10:
         if not load_existing:
             oxavi_agent = pickle.load(open(f"output/scenario_10/agent_t{query.t_query}_mQueryType.WHY.pkl", "rb"))
+            oxavi.OXAVITree.STOP_CHANCE = 1.0
+            oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = 0.0
             for mcts in oxavi_agent.cf_mcts.values():
                 mcts._allow_hide_occluded = allow_hide_occluded
                 mcts.n = n
+                mcts.reward = ip.Reward(factors=config["agents"][0]["mcts"]["reward_factors"])
             final_causes, efficient_causes = oxavi_agent.explain_actions(query)
-        else:
-            final_causes, efficient_causes = pickle.load(open("output/scenario_10/q_t120_mQueryType.WHY_NOT.pkl", "rb"))
 
     elif scenario == 11:
         if not load_existing:
-            pass
-        else:
-            final_causes, efficient_causes = pickle.load(open("output/scenario_11/q_t140_mQueryType.WHY.pkl", "rb"))
+            oxavi_agent = pickle.load(open(f"output/scenario_11/agent_t100_mQueryType.WHY_NOT.pkl", "rb"))
+            # oxavi.OXAVITree.STOP_CHANCE = 1.0
+            # oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = 0.0
+            for mcts in oxavi_agent.cf_mcts.values():
+                mcts._allow_hide_occluded = allow_hide_occluded
+                mcts.n = n
+                mcts.reward = ip.Reward(factors=config["agents"][0]["mcts"]["reward_factors"])
+            final_causes, efficient_causes = oxavi_agent.explain_actions(query)
 
     if not load_existing:
         file_path = os.path.join(output_path, f"q_n{n}_t{query.t_query}_m{query.type}.pkl")
         pickle.dump((final_causes, efficient_causes), open(file_path, "wb"))
+    else:
+        final_causes, efficient_causes = pickle.load(
+            open(f"output/scenario_{scenario}/q_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
 
     xavi.plot_explanation(final_causes, efficient_causes[0:2], query)
+
+    # import pandas as pd
+    # from xavi.util import get_coefficient_significance
+    # from sklearn.linear_model import LogisticRegression
+    #
+    # for i in [2, 3]:
+    #     x, y, _  = efficient_causes[i]
+    #     y = pd.Series(y)
+    #     occluded = x["2_occluded"] == 1
+    #     xo, yo = x[occluded], y[occluded]
+    #     xno, yno = x[~occluded], y[~occluded]
+    #     model_o = LogisticRegression().fit(xo, yo)
+    #     coefs_o = get_coefficient_significance(xo, yo, model_o)
+    #     model_no = LogisticRegression().fit(xno, yno)
+    #     coefs_no = get_coefficient_significance(xno, yno, model_no)
+    #     xavi.plot_explanation(final_causes, (coefs_o, coefs_no), query)
+
     plt.tight_layout()
     plt.savefig(os.path.join(output_path, f"q_n{n}_t{query.t_query}_m{query.type}.png"))
     plt.show()

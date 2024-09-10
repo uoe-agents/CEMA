@@ -147,33 +147,49 @@ class XAVIAgent(ip.MCTSAgent):
         logger.debug(f"Runtime: {time.time() - t_start}")
         return causes
 
-    def _teleological_causes(self, ref_items: List[Item], alt_items: List[Item]) -> pd.DataFrame:
+    def _teleological_causes(self,
+                             tau_dataset: List[Item],
+                             t_action_dataset: List[Item]) \
+            -> Tuple[Tuple[pd.DataFrame, pd.DataFrame], Tuple[pd.DataFrame, pd.DataFrame]]:
         """ Generate final causes for the queried action.
 
         Args:
-            ref_items: The items which provide the baseline for comparison.
-            alt_items: The alternative items whose deviation we want measure from the references.
+            tau_dataset: Dataset of items for past counterfactuals.
+            t_action_dataset: Dataset of items for present counterfactuals.
 
         Returns:
             Dataframe of reward components with the absolute and relative changes for each component.
         """
-        diffs = {}
-        for component in self._reward.COMPONENTS:
-            factor = self._reward.factors.get(component, 1.0)
-            r_qp = [factor * item.reward.cost_components[component] for item in ref_items
-                    if item.reward.cost_components[component] is not None]
-            r_qp = np.sum(r_qp) / len(r_qp) if r_qp else 0.0
-            r_qnp = [factor * item.reward.cost_components[component] for item in alt_items
-                     if item.reward.cost_components[component] is not None]
-            r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else 0.0
-            diff = r_qp - r_qnp
-            rel_diff = diff / np.abs(r_qnp) if r_qnp else 0.0
-            diffs[component] = (r_qp, r_qnp,
-                                diff if not np.isnan(diff) else 0.0,
-                                rel_diff if not np.isnan(rel_diff) else 0.0)
-        columns = ["reference", "alternative", "absolute", "relative"]
-        df = pd.DataFrame.from_dict(diffs, orient="index", columns=columns)
-        return df.sort_values(ascending=False, by="absolute", key=abs)
+
+        def get_causes(ref_items, alt_items):
+            diffs = {}
+            for component in self._reward.COMPONENTS:
+                factor = self._reward.factors.get(component, 1.0)
+                r_qp = [factor * item.reward.cost_components[component] for item in ref_items
+                        if item.reward.cost_components[component] is not None]
+                r_qp = np.sum(r_qp) / len(r_qp) if r_qp else 0.0
+                r_qnp = [factor * item.reward.cost_components[component] for item in alt_items
+                         if item.reward.cost_components[component] is not None]
+                r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else 0.0
+                diff = r_qp - r_qnp
+                rel_diff = diff / np.abs(r_qnp) if r_qnp else 0.0
+                diffs[component] = (r_qp, r_qnp,
+                                    diff if not np.isnan(diff) else 0.0,
+                                    rel_diff if not np.isnan(rel_diff) else 0.0)
+            columns = ["reference", "alternative", "absolute", "relative"]
+            df = pd.DataFrame.from_dict(diffs, orient="index", columns=columns)
+            return df.sort_values(ascending=False, by="absolute", key=abs)
+
+        query_present, query_not_present = split_by_query(tau_dataset)
+        tau_rewards = pd.DataFrame([item.reward.cost_components for item in tau_dataset])
+        tau_rewards["y"] = [item.query_present for item in tau_dataset]
+        tau_causes = get_causes(query_present, query_not_present)
+
+        query_present, query_not_present = split_by_query(t_action_dataset)
+        t_action_rewards = pd.DataFrame([item.reward.cost_components for item in t_action_dataset])
+        t_action_rewards["y"] = [item.query_present for item in t_action_dataset]
+        t_action_causes = get_causes(query_present, query_not_present)
+        return (tau_causes, tau_rewards), (t_action_causes, t_action_rewards)
 
     def _mechanistic_causes(self,
                             tau_dataset: List[Item] = None,
@@ -188,6 +204,7 @@ class XAVIAgent(ip.MCTSAgent):
         Returns:
             Dataframes for past and future causes with causal effect size, and optionally the linear regression models
         """
+
         def process_dataset(dataset: List[Item], t_slice: Tuple[Optional[int], Optional[int]]):
             xs_, ys_ = [], []
             agent_id = self.agent_id
@@ -266,8 +283,7 @@ class XAVIAgent(ip.MCTSAgent):
         assert self._cf_dataset_dict["t_action"] is not None, f"Missing counterfactual dataset."
         t_action = list(self.cf_datasets["t_action"].values())
 
-        query_present, query_not_present = split_by_query(t_action)
-        final_causes = self._teleological_causes(query_present, query_not_present)
+        final_causes = self._teleological_causes(tau, t_action)
         efficient_causes = self._mechanistic_causes(tau, t_action)
 
         return final_causes, efficient_causes

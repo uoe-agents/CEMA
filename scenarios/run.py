@@ -47,6 +47,7 @@ def main():
     ip_config = Configuration()
     ip_config.set_properties(**config["scenario"])
     xavi.XAVITree.STOP_CHANCE = config["scenario"].get("stop_chance", 1.0)
+    oxavi.OXAVITree.STOP_CHANCE = config["scenario"].get("stop_chance", 1.0)
     oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = config["scenario"].get("ignore_vehicle_in_front_chance", 0.0)
 
     frame = generate_random_frame(scenario_map, config)
