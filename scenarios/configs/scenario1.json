@@ -3,7 +3,7 @@
     "map_path": "scenarios/maps/scenario1.xodr",
     "max_speed": 10.0,
     "fps": 20,
-    "seed": 21,
+    "seed": 1,
     "max_steps": 250
   },
   "agents": [
@@ -13,15 +13,15 @@
       "spawn": {
         "box": {
           "center": [
-            -20.0,
+            -25.0,
             -1.8
           ],
-          "length": 10,
+          "length": 3.5,
           "width": 3.5,
           "heading": 0.0
         },
         "velocity": [
-          5.0,
+          9.0,
           10.0
         ]
       },
@@ -49,19 +49,18 @@
       },
       "mcts": {
         "t_update": 2.0,
-        "n_simulations": 30,
+        "n_simulations": 5,
         "store_results": "all",
         "trajectory_agents": false,
         "reward_factors": {
           "time": 1.0,
-          "jerk": -1.0,
-          "angular_velocity": 0.0,
-          "curvature": 0.0,
-          "dead": 0.0
+          "jerk": -2.0,
+          "angular_velocity": -0.15,
+          "curvature": -1.0
         }
       },
       "explainer": {
-        "cf_n_simulations": 100,
+        "cf_n_simulations": 15,
         "cf_max_depth": 5,
         "tau_limits": [2.0, 5.0],
         "time_limits": [5.0, 5.0],
@@ -78,12 +77,12 @@
             -10.0,
             1.7
           ],
-          "length": 10,
+          "length": 3.5,
           "width": 3.5,
           "heading": 0.0
         },
         "velocity": [
-          5.0,
+          9.0,
           10.0
         ]
       },

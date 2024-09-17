@@ -1,0 +1,32 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "playground.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "c:\\Users\\Balint\\Documents\\Agents\\xavi\\scenarios\\playground.py",
+            "console": "integratedTerminal",
+            "args": "1"
+        },
+        {
+            "name": "run.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "c:\\Users\\Balint\\Documents\\Agents\\xavi\\scenarios\\run.py",
+            "console": "integratedTerminal",
+            "args": "1 --save_causes --save_agent"
+        },
+        {
+            "name": "test.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "c:\\Users\\Balint\\Documents\\Agents\\xavi\\scenarios\\test.py",
+            "console": "integratedTerminal",
+            "args": "--scenario 1 --load_existing --n 100 --query_idx 0"
+        }
+    ]
+}

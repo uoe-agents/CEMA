@@ -20,18 +20,21 @@ logger = logging.Logger(__name__)
 
 
 def main():
-    setup_xavi_logging()
 
     args = parse_args()
-    logger.debug(args)
-    config = load_config(args)
-    queries = parse_query(args)
 
     if not os.path.exists("output"):
         os.mkdir("output")
     output_path = os.path.join("output", f"scenario_{args.scenario}")
     if not os.path.exists(output_path):
         os.mkdir(output_path)
+    setup_xavi_logging(log_dir=os.path.join(output_path, "logs"), log_name=f"run")
+
+    logger.debug(args)
+
+    config = load_config(args)
+    queries = parse_query(args)
+
 
     logger.info(args)
 
@@ -82,12 +85,12 @@ def create_agent(agent_config, scenario_map, frame, fps, args):
                   "kinematic": not args.carla,
                   "velocity_smoother": agent_config.get("velocity_smoother", None),
                   "goal_recognition": agent_config.get("goal_recognition", None),
-                  "stop_goals": agent_config.get("stop_goals", False),
-                  "occluded_factors_prior": agent_config.get("occluded_factors_prior", 0.1)}
+                  "stop_goals": agent_config.get("stop_goals", False)}
 
     agent_type = agent_config["type"]
 
     if agent_type == "OXAVIAgent":
+        mcts_agent["occluded_factors_prior"] = agent_config.get("occluded_factors_prior", 0.1)
         agent = oxavi.OXAVIAgent(**base_agent, **mcts_agent, **agent_config["explainer"], **agent_config["mcts"])
         rolename = "ego"
     elif agent_type == "XAVIAgent":
@@ -128,13 +131,14 @@ def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, outpu
     for query in queries:
         if t > 0 and t == query.t_query:
             if args.save_agent:
-                file_path = os.path.join(output_path, f"agent_t{t}_m{query.type}.pkl")
+                file_name = f"agent_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl"
+                file_path = os.path.join(output_path, file_name)
                 pickle.dump(xavi_agent, open(file_path, "wb"))
-            assert False
+
             causes = xavi_agent.explain_actions(query)
 
             if args.save_causes:
-                file_path = os.path.join(output_path, f"q_t{t}_m{query.type}.pkl")
+                file_path = os.path.join(output_path, f"q_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl")
                 pickle.dump(causes, open(file_path, "wb"))
 
 

@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any, List, Tuple, Optional
 
 import igp2 as ip
-from xavi.util import find_common, unique_sequence, Item
+from xavi.util import find_common, Item
 from xavi.query import Query
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ class Features:
         self.__features = features
         return features
 
-    def binarise(self, data: List[Dict[str, Any]], labels: List[Any]) -> (pd.DataFrame, np.ndarray):
+    def binarise(self, data: List[Dict[str, Any]], labels: List[Any]) -> Tuple[pd.DataFrame, np.ndarray]:
         """ Binarise a data set of features and labels. """
         data = pd.DataFrame().from_records(data)
         macro_cols = data.filter(regex="macro|sequence|maneuver")

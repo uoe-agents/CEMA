@@ -158,43 +158,44 @@ class XAVIAgent(ip.MCTSAgent):
             t_action_dataset: Dataset of items for present counterfactuals.
 
         Returns:
-            Dataframe of reward components with the absolute and relative changes for each component.
+            Dataframe of reward components with the absolute and relative changes for each component
+            and probability of occurrences.
         """
 
         def get_causes(ref_items, alt_items):
+            def get_values(items, comp):
+                r = [item.reward.reward_components[comp] for item in items
+                     if item.reward.reward_components[comp] is not None]
+                p = len(r) / len(items) if r else 0.0
+                r = np.sum(r) / len(r) if r else 0.0
+                return r, p
             diffs = {}
-            for component in self._reward.COMPONENTS:
-                factor = self._reward.factors.get(component, 1.0)
-                r_qp = [factor * item.reward.cost_components[component] for item in ref_items
-                        if item.reward.cost_components[component] is not None]
-                r_qp = np.sum(r_qp) / len(r_qp) if r_qp else 0.0
-                r_qnp = [factor * item.reward.cost_components[component] for item in alt_items
-                         if item.reward.cost_components[component] is not None]
-                r_qnp = np.sum(r_qnp) / len(r_qnp) if r_qnp else 0.0
+            for component in self._reward.reward_components:
+                r_qp, p_qp = get_values(ref_items, component)
+                r_qnp, p_qnp = get_values(alt_items, component)
                 diff = r_qp - r_qnp
-                rel_diff = diff / np.abs(r_qnp) if r_qnp else 0.0
                 diffs[component] = (r_qp, r_qnp,
                                     diff if not np.isnan(diff) else 0.0,
-                                    rel_diff if not np.isnan(rel_diff) else 0.0)
-            columns = ["reference", "alternative", "absolute", "relative"]
+                                    p_qp, p_qnp)
+            columns = ["r_qp", "r_qnp", "d_abs", "p_r_qp", "p_r_qnp"]
             df = pd.DataFrame.from_dict(diffs, orient="index", columns=columns)
-            return df.sort_values(ascending=False, by="absolute", key=abs)
+            return df.sort_values(ascending=False, by="d_abs", key=abs)
 
         query_present, query_not_present = split_by_query(tau_dataset)
-        tau_rewards = pd.DataFrame([item.reward.cost_components for item in tau_dataset])
-        tau_rewards["y"] = [item.query_present for item in tau_dataset]
+        tau_rewards = pd.DataFrame([item.reward.reward_components for item in tau_dataset])
+        tau_rewards["query_present"] = [item.query_present for item in tau_dataset]
         tau_causes = get_causes(query_present, query_not_present)
 
         query_present, query_not_present = split_by_query(t_action_dataset)
-        t_action_rewards = pd.DataFrame([item.reward.cost_components for item in t_action_dataset])
-        t_action_rewards["y"] = [item.query_present for item in t_action_dataset]
+        t_action_rewards = pd.DataFrame([item.reward.reward_components for item in t_action_dataset])
+        t_action_rewards["query_present"] = [item.query_present for item in t_action_dataset]
         t_action_causes = get_causes(query_present, query_not_present)
         return (tau_causes, tau_rewards), (t_action_causes, t_action_rewards)
 
     def _mechanistic_causes(self,
                             tau_dataset: List[Item] = None,
                             t_action_dataset: List[Item] = None) \
-            -> (Optional[pd.DataFrame], pd.DataFrame, (Optional[LogisticRegression], LogisticRegression)):
+            -> Tuple[Optional[pd.DataFrame], pd.DataFrame, Tuple[Optional[LogisticRegression], LogisticRegression]]:
         """ Generate efficient causes for the queried action.
 
         Args:
@@ -267,7 +268,7 @@ class XAVIAgent(ip.MCTSAgent):
             start_t = len(trajectory) - 1
         return [seg for seg in grouped_segments if seg.start <= start_t <= seg.end]
 
-    def _explain_why(self) -> (pd.DataFrame, (pd.DataFrame, pd.DataFrame)):
+    def _explain_why(self) -> Tuple[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame]]:
         """ Generate a why explanation.
 
         Returns: The final and past and future efficient causes for the query.
@@ -288,7 +289,7 @@ class XAVIAgent(ip.MCTSAgent):
 
         return final_causes, efficient_causes
 
-    def _explain_whatif(self) -> (ActionGroup, pd.DataFrame, (pd.DataFrame, pd.DataFrame)):
+    def _explain_whatif(self) -> Tuple[ActionGroup, pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame]]:
         """ Generate an explanation to a whatif query.
         Labels trajectories in query and finding optimal one among them, then compares the optimal one with
         factual optimal one regarding their reward components to extract final causes.
@@ -498,7 +499,7 @@ class XAVIAgent(ip.MCTSAgent):
         logger.debug('Dataset generation done.')
         return dataset
 
-    def _get_total_trajectories(self) -> [Observations, List]:
+    def _get_total_trajectories(self) -> Tuple[Observations, List]:
         """ Return the optimal predicted trajectories for all agents. This would be the optimal MCTS plan for
         the ego and the MAP predictions for non-ego agents.
 

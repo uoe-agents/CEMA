@@ -274,10 +274,10 @@ def find_matching_rollout(rollouts: List[ip.MCTSResult], samples: Dict[int, ip.G
             return rollout
 
 
-def product_dict(**kwargs):
+def product_dict(dictionary: dict):
     """ Take a cross-product of a dictionary of lists. """
-    keys = kwargs.keys()
-    vals = kwargs.values()
+    keys = dictionary.keys()
+    vals = dictionary.values()
     for instance in itertools.product(*vals):
         yield dict(zip(keys, instance))
 
@@ -289,3 +289,47 @@ def overwrite_predictions(source: ip.GoalsProbabilities, target: ip.GoalsProbabi
         for goal_and_type_ in filter(lambda x: str(x) == str(goal), source.goals_and_types):
             goal_ = goal_and_type_[0]
             target.goals_probabilities[goal] = source.goals_probabilities[goal_]
+
+
+def get_deterministic_trajectories(goal_probabilities: Dict[int, ip.GoalsProbabilities]) -> List[Dict[int, ip.GoalsProbabilities]]:
+    """ Retrieve all combinations of deterministic trajectories from the goal probabilities. """
+    ret = []
+    agent_goals = {aid: [goal for goal in gp.goals_and_types if gp.optimum_trajectory[goal] is not None] for aid, gp in goal_probabilities.items()}
+    agent_trajectories = {aid: {goal: gp.all_trajectories[goal] for goal in agent_goals[aid]} for aid, gp in goal_probabilities.items()}
+    for combination in product_dict(agent_goals):
+        new_gps = {aid: [] for aid in goal_probabilities}
+        for aid, goal in combination.items():
+            for i, trajectory in enumerate(agent_trajectories[aid][goal]):
+                new_gp = ip.GoalsProbabilities([goal[0]])
+                new_gp.goals_probabilities[goal] = 1.0
+                new_gp.all_trajectories[goal] = [trajectory]
+                new_gp.trajectories_probabilities[goal] = [1.0]
+                new_gp.all_plans[goal] = [goal_probabilities[aid].all_plans[goal][i]]
+                new_gps[aid].append(new_gp)
+        ret.extend(product_dict(new_gps))
+    return ret
+
+
+def get_visit_probabilities(rollouts: ip.AllMCTSResult) -> Dict[int, List[float]]:
+    """ Retrieve the visit probabilities of each full trajectory in the MCTS tree. """
+    n_runs = len(rollouts.mcts_results)
+    final_tree = rollouts.mcts_results[-1].tree
+    plan_probabilities = {}
+    data = {}
+    for key, node in final_tree.tree.items():
+        collisions_at_node = {action: sum(reward.reward_components["coll"] is not None for reward in rewards) 
+                              for action, rewards in node.reward_results.items()}
+        if node.is_leaf:
+            for i, actions in enumerate(node.actions_names):
+                trace = key + (actions, )
+                plan_probabilities[trace] = node.action_visits[i] / n_runs
+            data[trace] = node
+        elif any(colls > 0 for colls in collisions_at_node):
+            for action, n_collisions in filter(lambda x: x[1] > 0, collisions_at_node.items()):
+                trace = key + (action, )
+                plan_probabilities[trace] = n_collisions / n_runs
+                data[trace] = node
+
+    assert sum(plan_probabilities.values()) == 1.0, f"Sum of probabilities is not 1.0: {sum(plan_probabilities.values())}"
+
+    return plan_probabilities, data

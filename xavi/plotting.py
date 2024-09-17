@@ -212,7 +212,8 @@ def plot_explanation(
         d_rewards_tuple: Optional[Tuple[pd.DataFrame, pd.DataFrame]],
         coefs: Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]],
         query: Query,
-        save_path: str = None):
+        save_path: str = None,
+        uniform_teleological: bool = False):
     """ Plot causal attributions
 
     Args:
@@ -225,7 +226,7 @@ def plot_explanation(
     reward_map = {
         "dead": "Goal not\nreached",
         "coll": "Collision",
-        "time": "Time to goal",
+        "time": "Time Efficiency",
         "angular_velocity": "Angular velocity",
         "curvature": "Curvature",
         "jerk": "Jolt"
@@ -235,19 +236,21 @@ def plot_explanation(
         for inx, (d_causes, d_rewards) in enumerate(d_rewards_tuple):
             ax = axs[inx, 0]
             d_rewards = d_rewards.drop("term", axis=1)
+            if not uniform_teleological:
+                qp = d_rewards["query_present"]
+                a = d_rewards[qp].mul(d_causes["p_r_qp"], axis=1)
+                b = d_rewards[~qp].mul(d_causes["p_r_qnp"], axis=1)
+                d_rewards = pd.concat([a, b], axis=0).sort_index()[d_rewards.columns]
+                d_rewards["query_present"] = qp
             d_rewards = d_rewards.rename(reward_map, axis=1)
-            d_rewards = d_rewards.melt(id_vars="y", var_name="Factor", value_name="Reward")
+            d_rewards = d_rewards.melt(id_vars="query_present", var_name="Factor", value_name="Reward")
             d_rewards = d_rewards.dropna(subset="Reward", axis=0)
             d_causes = d_causes.drop("term", axis=0)
             d_causes = d_causes.rename(reward_map, axis=0)
-            sns.barplot(d_rewards, x="Reward", y="Factor", hue="y",
+            sns.barplot(d_rewards, x="Reward", y="Factor", hue="query_present",
                         order=d_causes.index, ax=ax, palette=["red", "blue"])
-            if inx == 1:
-                handles, labels = ax.get_legend_handles_labels()
-                ax.legend(handles=handles, labels=["Not present", "Present"], title="Query")
-            else:
-                ax.get_legend().remove()
-                ax.set_xlabel("")
+            # handles, labels = ax.get_legend_handles_labels()
+            # ax.legend(handles=handles, labels=["Not present", "Present"], title="Query")
             ax.axvline(x=0, color=".5")
             ax.set_title(f"{'Past' if inx == 0 else 'Present-future'} teleological causes")
 

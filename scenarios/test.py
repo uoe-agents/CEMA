@@ -40,16 +40,23 @@ if __name__ == "__main__":
     logger_path = os.path.join(output_path, "logs")
     if not os.path.exists(logger_path):
         os.makedirs(logger_path, exist_ok=True)
-    setup_xavi_logging(log_dir=logger_path, log_name=f"scenario_{scenario}")
+    setup_xavi_logging(log_dir=logger_path, log_name=f"test_s{scenario}")
 
     logger.info(args)
 
-    scenario_map = gofi.OMap.parse_from_opendrive(f"scenarios/maps/gofi-scenario{scenario - 8}.xodr")
+    scenario_map = gofi.OMap.parse_from_opendrive(f"scenarios/maps/scenario{scenario}.xodr")
     config = json.load(open(f"scenarios/configs/scenario{scenario}.json", "r"))
     queries = json.load(open(f"scenarios/queries/query_scenario{scenario}.json", "r"))
     query = xavi.Query(**queries[query_idx])
 
-    if scenario == 9:
+    if scenario == 1:
+        if not load_existing:
+            xavi_agent = pickle.load(open(f"output/scenario_1/agent_t{query.t_query}_m{query.type}.pkl", "rb"))
+            for mcts in xavi_agent.cf_mcts.values():
+                mcts._allow_hide_occluded = allow_hide_occluded
+                mcts.n = n
+            final_causes, efficient_causes = xavi_agent.explain_actions(query)
+    elif scenario == 9:
         if not load_existing:
             oxavi_agent = pickle.load(open("output/scenario_9/agent_t100_mQueryType.WHY_NOT.pkl", "rb"))
             for mcts in oxavi_agent.cf_mcts.values():
@@ -86,7 +93,7 @@ if __name__ == "__main__":
         final_causes, efficient_causes = pickle.load(
             open(f"output/scenario_{scenario}/q_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
 
-    xavi.plot_explanation(final_causes, efficient_causes[0:2], query)
+    xavi.plot_explanation(final_causes, efficient_causes[0:2], query, uniform_teleological=False)
 
     # import pandas as pd
     # from xavi.util import get_coefficient_significance

@@ -1,0 +1,62 @@
+[
+  {
+    "type": "what",
+    "agent_id": 0,
+    "t_action": 80,
+    "t_query": 10
+  },
+  {
+    "type": "what",
+    "agent_id": 0,
+    "t_action": 85,
+    "t_query": 85
+  },
+  {
+    "type": "whynot",
+    "agent_id": 0,
+    "action": "TurnLeft",
+    "t_query": 45,
+    "tense": "future",
+    "factual": "TurnRight"
+  },
+  {
+    "type": "whatif",
+    "agent_id": 1,
+    "action": "GoStraightJunction",
+    "t_query": 110,
+    "tense": "past",
+    "negative": false,
+    "factual": "TurnLeft"
+  },
+  {
+    "type": "whatif",
+    "agent_id": 1,
+    "action": "TurnLeft",
+    "t_query": 220,
+    "tense": "past",
+    "negative": true
+  },
+  {
+    "type": "whatif",
+    "agent_id": 1,
+    "action": "Stop",
+    "t_query": 80,
+    "tense": "future",
+    "negative": true
+  },
+  {
+    "type": "why",
+    "agent_id": 0,
+    "action": "Stop",
+    "t_query": 90,
+    "tense": "present",
+    "factual": "TurnRight"
+  },
+  {
+    "type": "why",
+    "agent_id": 0,
+    "action": "TurnRight",
+    "t_query": 200,
+    "tense": "past"
+  }
+]
