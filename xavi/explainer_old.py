@@ -1,3 +1,5 @@
+""" Old implementation of the XAVIAgent class that was used for the AANMAS 2024 paper. """
+
 import numpy as np
 import pandas as pd
 import logging
@@ -13,7 +15,7 @@ from xavi.features import Features
 from xavi.util import fill_missing_actions, truncate_observations, \
     to_state_trajectory, find_join_index, Observations, get_coefficient_significance, \
     find_optimal_rollout_in_subset, split_by_query, list_startswith, find_matching_rollout, \
-    Item, XAVITree, XAVIAction, overwrite_predictions, get_deterministic_trajectories, get_visit_probabilities
+    Item, XAVITree, XAVIAction, overwrite_predictions
 from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
 from xavi.language import Language
@@ -71,7 +73,6 @@ class XAVIAgent(ip.MCTSAgent):
             "tau": ip.MCTS(**mcts_params),
             "t_action": ip.MCTS(**mcts_params),
         }
-        self._cf_sampling_distribution = {"tau": None, "t_action": None}
 
         self._features = Features(self._scenario_map)
         self._matching = ActionMatching(scenario_map=self._scenario_map)
@@ -367,14 +368,14 @@ class XAVIAgent(ip.MCTSAgent):
                 observation = ip.Observation(previous_frame, self._scenario_map)
                 goal_probabilities = self._get_goals_probabilities(observation, previous_frame)
 
-                ref_t = self.query.t_action if time_reference == "t_action" else self.query.tau
                 self._generate_rollouts(previous_frame,
                                         truncated_observations,
                                         goal_probabilities,
-                                        mcts,
-                                        ref_t,
-                                        time_reference)
+                                        mcts)
                 self._cf_goal_probabilities_dict[time_reference] = goal_probabilities
+            ref_t = self.query.t_action if time_reference == "t_action" else self.query.tau
+            self._cf_dataset_dict[time_reference] = self._get_dataset(
+                mcts.results, goal_probabilities, truncated_observations, ref_t)
 
     def _get_goals_probabilities(self,
                                  observation: ip.Observation,
@@ -392,17 +393,13 @@ class XAVIAgent(ip.MCTSAgent):
                            frame: Dict[int, ip.AgentState],
                            observations: Observations,
                            goal_probabilities: Dict[int, ip.GoalsProbabilities],
-                           mcts: ip.MCTS,
-                           ref_t: int,
-                           time_reference: str):
+                           mcts: ip.MCTS):
         """ Runs MCTS to generate a new sequence of macro actions to execute using previous observations.
 
         Args:
             frame: Observation of the env tau time steps back.
             observations: Dictionary of observation history.
             goal_probabilities: Dictionary of predictions for each non-ego agent.
-            ref_t: The time reference point to start the counterfactual simulation.
-            time_reference: The time reference point to generate counterfactuals.
         """
         visible_region = ip.Circle(frame[self.agent_id].position, self.view_radius)
 
@@ -438,29 +435,18 @@ class XAVIAgent(ip.MCTSAgent):
 
         # Run MCTS search for counterfactual simulations while storing run results
         agents_metadata = {aid: state.metadata for aid, state in frame.items()}
-        all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
-        for deterministic_trajectories in all_deterministic_trajectories:
-            mcts.search(
-                agent_id=self.agent_id,
-                goal=self.goal,
-                frame=frame,
-                meta=agents_metadata,
-                predictions=deterministic_trajectories)
-            # dataset = self._cf_dataset_dict[time_reference]
-            # start_ix = 0 if dataset is None else max(self._cf_dataset_dict[time_reference])
-            # if dataset is None:
-            #     dataset = self._get_dataset(
-            #         mcts.results, goal_probabilities, observations, ref_t, start_ix)
-            # else:
-            #     dataset.update(self._get_dataset(
-            #         mcts.results, goal_probabilities, observations, ref_t, start_ix))
+        mcts.search(
+            agent_id=self.agent_id,
+            goal=self.goal,
+            frame=frame,
+            meta=agents_metadata,
+            predictions=goal_probabilities)
 
     def _get_dataset(self,
                      mcts_results: ip.AllMCTSResult,
                      goal_probabilities: Dict[int, ip.GoalsProbabilities],
                      observations: Observations,
-                     reference_t: int,
-                     start_ix: int = 0) \
+                     reference_t: int) \
             -> Dict[int, Item]:
         """ Return dataset recording states, boolean feature, and reward
 
@@ -471,7 +457,7 @@ class XAVIAgent(ip.MCTSAgent):
              reference_t: The time of the start of the counterfactual simulation.
          """
         dataset = {}
-        for m, rollout in enumerate(mcts_results, start_ix):
+        for m, rollout in enumerate(mcts_results):
             trajectories = {}
             r = []
             last_node = rollout.leaf
