@@ -3,7 +3,7 @@
     "map_path": "scenarios/maps/scenario1.xodr",
     "max_speed": 10.0,
     "fps": 20,
-    "seed": 1,
+    "seed": 21,
     "max_steps": 250
   },
   "agents": [
@@ -13,7 +13,7 @@
       "spawn": {
         "box": {
           "center": [
-            -25.0,
+            -20.0,
             -1.8
           ],
           "length": 3.5,
@@ -40,30 +40,37 @@
         "time": 3.0,
         "velocity": 0.0,
         "acceleration": 0.1,
-        "jerk": 0.0,
+        "jerk": 0.1,
         "heading": 0.0,
-        "angular_velocity": 1.0,
+        "angular_velocity": 0.1,
         "angular_acceleration": 0.1,
         "curvature": 0.0,
         "safety": 0.0
       },
       "mcts": {
         "t_update": 2.0,
-        "n_simulations": 5,
+        "n_simulations": 30,
         "store_results": "all",
         "trajectory_agents": false,
         "reward_factors": {
           "time": 1.0,
-          "jerk": -2.0,
-          "angular_velocity": -0.15,
-          "curvature": -1.0
+          "jerk": -0.2,
+          "angular_velocity": -0.03,
+          "curvature": 0.0,
+          "coll": 0.0
         }
       },
       "explainer": {
         "cf_n_simulations": 15,
         "cf_max_depth": 5,
-        "tau_limits": [2.0, 5.0],
-        "time_limits": [5.0, 5.0],
+        "tau_limits": [
+          2.0,
+          5.0
+        ],
+        "time_limits": [
+          5.0,
+          5.0
+        ],
         "alpha": 0.1
       },
       "view_radius": 500
@@ -74,7 +81,7 @@
       "spawn": {
         "box": {
           "center": [
-            -10.0,
+            -8.0,
             1.7
           ],
           "length": 3.5,
@@ -94,33 +101,6 @@
           ],
           "length": 3.5,
           "width": 5,
-          "heading": 0.0
-        }
-      }
-    },
-    {
-      "id": 2,
-      "type": "TrafficAgent",
-      "spawn": {
-        "box": {
-          "center": [51.75, -30.5],
-          "length": 3.5,
-          "width": 10.0,
-          "heading": 0.0
-        },
-        "velocity": [
-          5.0,
-          10.0
-        ]
-      },
-      "goal": {
-        "box": {
-          "center": [
-            70,
-            0.0
-          ],
-          "length": 5,
-          "width": 7,
           "heading": 0.0
         }
       }

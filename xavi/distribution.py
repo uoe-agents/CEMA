@@ -24,12 +24,12 @@ class Distribution:
         """ Sample goals and trajectories for all non-ego agents using the given agent distributions. """
         ret = {}
         for aid, gp in self.agent_distributions.items():
-            goal = gp.sample_goals()
-            trajectory = gp.sample_trajectory(goal)
+            goal = gp.sample_goals()[0]
+            trajectory = gp.sample_trajectories_to_goal(goal)[0][0]
             ret[aid] = (goal, trajectory)
         return ret
 
-    def sample_plan(self, goal_trajectory: Dict[int, Tuple[ip.Goal, ip.VelocityTrajectory]], k: int):
+    def sample_plan(self, goal_trajectory: Dict[int, Tuple[ip.Goal, ip.VelocityTrajectory]], k: int = 1):
         """ Sample from the plan distribution given a fixed setting of non-ego agent goals and trajectories. """
         distribution_idx = self.agent_trajectories.index(goal_trajectory)
         distribution = self.plan_distribution[distribution_idx]
@@ -41,9 +41,9 @@ class Distribution:
     def sample_dataset(self, k: int):
         """ Sample k datasets from the distribution. """
         ret = []
-        for i in range(k):
+        for _ in range(k):
             goal_trajectories = self.sample_agents()
-            trace = self.sample_plan(goal_trajectories, 1)[0]
+            trace = self.sample_plan(goal_trajectories)[0]
             data = self.plan_data[self.agent_trajectories.index(goal_trajectories)][trace]
             ret.append((goal_trajectories, trace, data))
         return ret

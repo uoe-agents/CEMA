@@ -51,10 +51,11 @@ if __name__ == "__main__":
 
     if scenario == 1:
         if not load_existing:
-            xavi_agent = pickle.load(open(f"output/scenario_1/agent_t{query.t_query}_m{query.type}.pkl", "rb"))
+            xavi_agent = pickle.load(open(f"output/scenario_1/agent_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
             for mcts in xavi_agent.cf_mcts.values():
                 mcts._allow_hide_occluded = allow_hide_occluded
                 mcts.n = n
+            xavi_agent._n_samples = 100
             final_causes, efficient_causes = xavi_agent.explain_actions(query)
     elif scenario == 9:
         if not load_existing:

@@ -66,7 +66,36 @@ def main():
         if args.plot:
             xavi.plot_simulation(simulation, debug=False)
             plt.show()
-        result = run_simple_simulation(simulation, args, queries, config, output_path)
+
+        simulation.step()
+
+        ego = simulation.agents[0]
+        ego.mcts.n = 15
+
+        # Run MCTS search for counterfactual simulations while storing run results
+        if not os.path.exists(f"output/scenario_{args.scenario}/distribution.pkl"):
+            agents_metadata = {aid: state.metadata for aid, state in frame.items()}
+            all_deterministic_trajectories = xavi.util.get_deterministic_trajectories(ego.goal_probabilities)
+            distribution = xavi.Distribution(ego.goal_probabilities)
+            for i, deterministic_trajectories in enumerate(all_deterministic_trajectories):
+                logger.info(f"Running deterministic simulations {i + 1}/{len(all_deterministic_trajectories)}")
+                ego.mcts.search(
+                    agent_id=ego.agent_id,
+                    goal=ego.goal,
+                    frame=frame,
+                    meta=agents_metadata,
+                    predictions=deterministic_trajectories)
+                goal_trajectories = {aid: (gp.goals_and_types[0], gp.all_trajectories[gp.goals_and_types[0]][0]) 
+                                    for aid, gp in deterministic_trajectories.items()}
+                probabilities, data = xavi.util.get_visit_probabilities(ego.mcts.results)
+                distribution.add_distribution(goal_trajectories, probabilities, data)
+            pickle.dump(distribution, open(f"output/scenario_{args.scenario}/distribution.pkl", "wb"))
+        else:
+            distribution = pickle.load(open(f"output/scenario_{args.scenario}/distribution.pkl", "rb"))
+        dataset = distribution.sample_dataset(30)
+
+        
+
     except Exception as e:
         logger.exception(msg=str(e), exc_info=e)
         result = False
@@ -114,36 +143,6 @@ def create_agent(agent_config, scenario_map, frame, fps, args):
     else:
         raise ValueError(f"Unsupported agent type {agent_config['type']}")
     return agent, rolename
-
-
-def run_simple_simulation(simulation, args, queries, config, output_path) -> bool:
-    for t in range(config["scenario"]["max_steps"]):
-        simulation.step()
-        if t % 20 == 0 and args.plot:
-            xavi.plot_simulation(simulation, debug=False)
-            plt.show()
-        if not args.sim_only:
-            explain(queries, simulation.agents[0], t, output_path, args)
-    return True
-
-
-def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, output_path: str, args):
-    for query in queries:
-        if t > 0 and t == query.t_query:
-            if args.save_agent:
-                file_name = f"agent_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl"
-                file_path = os.path.join(output_path, file_name)
-                pickle.dump(xavi_agent, open(file_path, "wb"))
-            
-            causes = xavi_agent.explain_actions(query)
-
-            if args.save_causes:
-                file_path = os.path.join(output_path, f"q_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl")
-                pickle.dump(causes, open(file_path, "wb"))
-                file_path = os.path.join(output_path, f"sd_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl")
-                pickle.dump(xavi_agent.sampling_distributions, open(file_path, "wb"))
-            
-            assert False
 
 
 

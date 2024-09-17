@@ -1,3 +1,5 @@
+""" Old implementation of the XAVIAgent class that was used for the AANMAS 2024 paper. """
+
 import numpy as np
 import pandas as pd
 import logging
@@ -13,11 +15,10 @@ from xavi.features import Features
 from xavi.util import fill_missing_actions, truncate_observations, \
     to_state_trajectory, find_join_index, Observations, get_coefficient_significance, \
     find_optimal_rollout_in_subset, split_by_query, list_startswith, find_matching_rollout, \
-    Item, XAVITree, XAVIAction, overwrite_predictions, get_deterministic_trajectories, get_visit_probabilities
+    Item, XAVITree, XAVIAction, overwrite_predictions
 from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
 from xavi.language import Language
-from xavi.distribution import Distribution
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,6 @@ class XAVIAgent(ip.MCTSAgent):
     """ Generate new rollouts and save results after MCTS in the observation tau time before. """
 
     def __init__(self,
-                 cf_n_samples: int = 100,
                  cf_n_trajectories: int = 3,
                  cf_n_simulations: int = 15,
                  cf_max_depth: int = 5,
@@ -37,7 +37,7 @@ class XAVIAgent(ip.MCTSAgent):
         """ Create a new XAVIAgent.
 
         Args:
-            cf_n_samples: Number of samples to generate from the counterfactual distribution.
+            tau: The interval to roll back for counterfactual generation. By default set to FPS.
             cf_n_trajectories: Number of maximum trajectories to generate with A*.
             cf_n_simulations: Number of MCTS simulations to run for counterfactual generation.
             cf_d_max: Maximum MCTS search depth for counterfactual simulations.
@@ -56,7 +56,6 @@ class XAVIAgent(ip.MCTSAgent):
         self._scenario_map = kwargs["scenario_map"]
         self._alpha = alpha
 
-        self._cf_n_samples = cf_n_samples
         self._cf_n_simulations = kwargs.get("cf_n_simulations", cf_n_simulations)
         self._cf_max_depth = kwargs.get("cf_max_depth", cf_max_depth)
         self._cf_goal_probabilities_dict = {"tau": None, "t_action": None}
@@ -74,7 +73,6 @@ class XAVIAgent(ip.MCTSAgent):
             "tau": ip.MCTS(**mcts_params),
             "t_action": ip.MCTS(**mcts_params),
         }
-        self._cf_sampling_distribution = {"tau": None, "t_action": None}
 
         self._features = Features(self._scenario_map)
         self._matching = ActionMatching(scenario_map=self._scenario_map)
@@ -114,9 +112,6 @@ class XAVIAgent(ip.MCTSAgent):
         Returns: A natural language explanation of the query, and the causes that generated the sentence.
         """
         t_start = time.time()
-
-        # import pickle
-        # self._cf_sampling_distribution = pickle.load(open(f"output/scenario_1/sampling_distributions.pkl", "rb"))
 
         self._user_query = user_query
         self._user_query.fps = self.fps
@@ -311,11 +306,11 @@ class XAVIAgent(ip.MCTSAgent):
         cf_items, f_items = split_by_query(list(self.cf_datasets["t_action"].values()))
 
         # Find the maximum q-value and the corresponding action sequence of the ego for ea
-        cf_optimal_trace, cf_optimal_rollout = find_optimal_rollout_in_subset(cf_items, self._reward.factors)
-        f_optimal_trace, f_optimal_rollout = find_optimal_rollout_in_subset(f_items, self._reward.factors)
+        cf_optimal_rollout = find_optimal_rollout_in_subset(cf_items, self._reward.factors)
+        f_optimal_rollout = find_optimal_rollout_in_subset(f_items, self._reward.factors)
 
         # Retrieve ego's action plan in the counterfactual case
-        cf_ego_agent = cf_optimal_rollout.run_result.agents[self.agent_id]
+        cf_ego_agent = cf_optimal_rollout.leaf.run_result.agents[self.agent_id]
         cf_optimal_trajectory = cf_ego_agent.trajectory_cl
         observed_segments = self._matching.action_segmentation(cf_optimal_trajectory)
         observed_grouped_segments = ActionGroup.group_by_maneuver(observed_segments)
@@ -328,9 +323,9 @@ class XAVIAgent(ip.MCTSAgent):
 
         # Determine the actual optimal maneuver and rewards
         f_optimal_items = [it for it in f_items if
-                           list_startswith(f_optimal_trace, it.trace)]
+                           list_startswith(f_optimal_rollout.trace, it.rollout.trace)]
         cf_optimal_items = [it for it in cf_items if
-                            list_startswith(cf_optimal_trace, it.trace)]
+                            list_startswith(cf_optimal_rollout.trace, it.rollout.trace)]
 
         # compare reward initial and reward counter
         final_causes = self._teleological_causes(cf_optimal_items, f_optimal_items)
@@ -373,16 +368,14 @@ class XAVIAgent(ip.MCTSAgent):
                 observation = ip.Observation(previous_frame, self._scenario_map)
                 goal_probabilities = self._get_goals_probabilities(observation, previous_frame)
 
-                ref_t = self.query.t_action if time_reference == "t_action" else self.query.tau
                 self._generate_rollouts(previous_frame,
                                         truncated_observations,
                                         goal_probabilities,
-                                        mcts,
-                                        time_reference)
+                                        mcts)
                 self._cf_goal_probabilities_dict[time_reference] = goal_probabilities
             ref_t = self.query.t_action if time_reference == "t_action" else self.query.tau
             self._cf_dataset_dict[time_reference] = self._get_dataset(
-                self._cf_sampling_distribution[time_reference], goal_probabilities, truncated_observations, ref_t)
+                mcts.results, goal_probabilities, truncated_observations, ref_t)
 
     def _get_goals_probabilities(self,
                                  observation: ip.Observation,
@@ -400,16 +393,13 @@ class XAVIAgent(ip.MCTSAgent):
                            frame: Dict[int, ip.AgentState],
                            observations: Observations,
                            goal_probabilities: Dict[int, ip.GoalsProbabilities],
-                           mcts: ip.MCTS,
-                           time_reference: str):
+                           mcts: ip.MCTS):
         """ Runs MCTS to generate a new sequence of macro actions to execute using previous observations.
 
         Args:
             frame: Observation of the env tau time steps back.
             observations: Dictionary of observation history.
             goal_probabilities: Dictionary of predictions for each non-ego agent.
-            ref_t: The time reference point to start the counterfactual simulation.
-            time_reference: The time reference point to generate counterfactuals.
         """
         visible_region = ip.Circle(frame[self.agent_id].position, self.view_radius)
 
@@ -440,37 +430,20 @@ class XAVIAgent(ip.MCTSAgent):
             #  to make sure we can sample all counterfactual scenarios
             gps.add_smoothing(self._alpha, uniform_goals=True)
 
-            logger.info("")
-            logger.info(f"Goals probabilities for agent {agent_id} after (possible) overriding and smoothing.")
-            goal_probabilities[agent_id].log(logger)
-            logger.info("")
-
-
         # Reset the number of trajectories for goal generation
         self._goal_recognition._n_trajectories = n_trajectories
 
         # Run MCTS search for counterfactual simulations while storing run results
         agents_metadata = {aid: state.metadata for aid, state in frame.items()}
-        all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
-        distribution = Distribution(goal_probabilities)
-        for i, deterministic_trajectories in enumerate(all_deterministic_trajectories):
-            logger.info(f"Running deterministic simulations {i + 1}/{len(all_deterministic_trajectories)}")
-            mcts.search(
-                agent_id=self.agent_id,
-                goal=self.goal,
-                frame=frame,
-                meta=agents_metadata,
-                predictions=deterministic_trajectories)
-            
-            # Record rollout data for sampling
-            goal_trajectories = {aid: (gp.goals_and_types[0], gp.all_trajectories[gp.goals_and_types[0]][0]) 
-                                for aid, gp in deterministic_trajectories.items()}
-            probabilities, data = get_visit_probabilities(mcts.results)
-            distribution.add_distribution(goal_trajectories, probabilities, data)
-        self._cf_sampling_distribution[time_reference] = distribution
+        mcts.search(
+            agent_id=self.agent_id,
+            goal=self.goal,
+            frame=frame,
+            meta=agents_metadata,
+            predictions=goal_probabilities)
 
     def _get_dataset(self,
-                     sampling_distribution: Distribution,
+                     mcts_results: ip.AllMCTSResult,
                      goal_probabilities: Dict[int, ip.GoalsProbabilities],
                      observations: Observations,
                      reference_t: int) \
@@ -483,11 +456,11 @@ class XAVIAgent(ip.MCTSAgent):
              observations: The observations that preceded the planning step.
              reference_t: The time of the start of the counterfactual simulation.
          """
-        raw_samples = sampling_distribution.sample_dataset(self._cf_n_samples)
         dataset = {}
-        for m, (goal_trajectories, trace, last_node) in enumerate(raw_samples):
+        for m, rollout in enumerate(mcts_results):
             trajectories = {}
             r = []
+            last_node = rollout.leaf
             trajectory_queried_agent = None
 
             # save trajectories of each agent
@@ -499,8 +472,7 @@ class XAVIAgent(ip.MCTSAgent):
 
                 # Retrieve maneuvers and macro actions for non-ego vehicles
                 if isinstance(agent, ip.TrafficAgent):
-                    # plan = goal_probabilities[agent_id].trajectory_to_plan(*goal_trajectories[agent_id])
-                    plan = sampling_distribution.agent_distributions[agent_id].trajectory_to_plan(*goal_trajectories[agent_id])
+                    plan = goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
                     fill_missing_actions(sim_trajectory, plan)
 
                 if agent_id == self.query.agent_id:
@@ -511,7 +483,7 @@ class XAVIAgent(ip.MCTSAgent):
 
             # save reward for each component
             for last_action, reward_value, in last_node.reward_results.items():
-                if last_action == trace[-1]:
+                if last_action == rollout.trace[-1]:
                     r = reward_value[-1]
 
             # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
@@ -523,7 +495,7 @@ class XAVIAgent(ip.MCTSAgent):
             if self.query.negative:
                 y = not y
 
-            data_set_m = Item(trajectories, y, r, trace, last_node)
+            data_set_m = Item(trajectories, y, r, rollout)
             dataset[m] = data_set_m
 
         logger.debug('Dataset generation done.')
@@ -625,8 +597,3 @@ class XAVIAgent(ip.MCTSAgent):
     def mcts_results_buffer(self) -> List[Tuple[int, ip.AllMCTSResult]]:
         """ The results buffer for all previous MCTS planning steps. """
         return self._mcts_results_buffer
-
-    @property
-    def sampling_distributions(self) -> Dict[str, Distribution]:
-        """ The sampling distribution for each time reference point. """
-        return self._cf_sampling_distribution

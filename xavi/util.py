@@ -23,7 +23,8 @@ class Item:
     trajectories: Dict[int, ip.StateTrajectory]
     query_present: bool
     reward: ip.Reward
-    rollout: ip.MCTSResult
+    trace: Tuple[str, ...]
+    last_node: ip.Node
 
 
 class XAVITree(ip.Tree):
@@ -198,26 +199,25 @@ def get_coefficient_significance(data: pd.DataFrame,
 
 
 def find_optimal_rollout_in_subset(subset: List["Item"],
-                                   reward_factors: Dict[str, float]) -> "Item":
+                                   reward_factors: Dict[str, float]) -> Tuple[Tuple[str, ...], ip.Node]:
     """ Find the most optimal action from a subset of MTCS rollouts based on average rewards.
 
     Returns: The rollout with the maximum average reward.
     """
     rollouts = defaultdict(list)
     for m, item in enumerate(subset):
-        rollout = item.rollout
         sum_reward = 0.0
         for component, factor in reward_factors.items():
             reward = item.reward.reward_components[component] \
                 if item.reward.reward_components[component] is not None else 0.0
             sum_reward += factor * reward
-        rollouts[rollout.trace].append((rollout, sum_reward))
+        rollouts[item.trace].append((item.last_node, sum_reward))
     means = {trace: np.mean(list(zip(*items))[1]) for trace, items in rollouts.items()}
     max_mean_trace = max(means, key=means.get)
-    return max(rollouts[max_mean_trace], key=lambda x: x[1])[0]
+    return max_mean_trace, max(rollouts[max_mean_trace], key=lambda x: x[1])[0]
 
 
-def split_by_query(dataset: List["Item"]) -> (List["Item"], List["Item"]):
+def split_by_query(dataset: List["Item"]) -> Tuple[List["Item"], List["Item"]]:
     """ Split a dataset by the presence of a the query.
 
     Returns: A pair as (query_present, query_not_present).
@@ -323,13 +323,13 @@ def get_visit_probabilities(rollouts: ip.AllMCTSResult) -> Dict[int, List[float]
             for i, actions in enumerate(node.actions_names):
                 trace = key + (actions, )
                 plan_probabilities[trace] = node.action_visits[i] / n_runs
-            data[trace] = node
+                data[trace] = node
         elif any(colls > 0 for colls in collisions_at_node):
             for action, n_collisions in filter(lambda x: x[1] > 0, collisions_at_node.items()):
                 trace = key + (action, )
                 plan_probabilities[trace] = n_collisions / n_runs
                 data[trace] = node
 
-    assert sum(plan_probabilities.values()) == 1.0, f"Sum of probabilities is not 1.0: {sum(plan_probabilities.values())}"
+    assert np.isclose(sum(plan_probabilities.values()), 1.0), f"Sum of probabilities is not 1.0: {sum(plan_probabilities.values())}"
 
     return plan_probabilities, data
