@@ -473,7 +473,8 @@ class XAVIAgent(ip.MCTSAgent):
                      sampling_distribution: Distribution,
                      goal_probabilities: Dict[int, ip.GoalsProbabilities],
                      observations: Observations,
-                     reference_t: int) \
+                     reference_t: int,
+                     start_ix: int = 0) \
             -> Dict[int, Item]:
         """ Return dataset recording states, boolean feature, and reward
 
