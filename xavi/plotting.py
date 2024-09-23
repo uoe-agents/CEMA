@@ -234,6 +234,9 @@ def plot_explanation(
     fig, axs = plt.subplots(2, 2, figsize=(10, 10))
     if d_rewards_tuple is not None:
         for inx, (d_causes, d_rewards) in enumerate(d_rewards_tuple):
+            if d_causes is None:
+                axs[inx, 0].text(0.2, 0.45, "No past causes because \n action starts from $t=1$.", fontsize=14)
+                continue
             ax = axs[inx, 0]
             d_rewards = d_rewards.drop("term", axis=1)
             if not uniform_teleological:

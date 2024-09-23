@@ -9,16 +9,19 @@ class Distribution:
         self.agent_trajectories = []
         self.plan_distribution = []
         self.plan_data = []
+        self.reward_data = []
 
 
     def add_distribution(self, 
                          agent_trajectories: Dict[int, ip.VelocityTrajectory], 
                          plan_distribution: Dict[Any, float],
-                         plan_data: Dict[Any, ip.Node]):
+                         plan_data: Dict[Any, ip.Node],
+                         reward_data: Dict[Any, ip.Reward]):
         """ Add a new plan distribution to the list of distributions given fixed agent trajectories. """
         self.agent_trajectories.append(agent_trajectories)
         self.plan_distribution.append(plan_distribution)
         self.plan_data.append(plan_data)
+        self.reward_data.append(reward_data)
 
     def sample_agents(self) -> Dict[int, ip.VelocityTrajectory]:
         """ Sample goals and trajectories for all non-ego agents using the given agent distributions. """
@@ -44,6 +47,7 @@ class Distribution:
         for _ in range(k):
             goal_trajectories = self.sample_agents()
             trace = self.sample_plan(goal_trajectories)[0]
-            data = self.plan_data[self.agent_trajectories.index(goal_trajectories)][trace]
-            ret.append((goal_trajectories, trace, data))
+            ix = self.agent_trajectories.index(goal_trajectories)
+            data = self.plan_data[ix][trace]
+            ret.append((goal_trajectories, trace, data, self.reward_data[ix][trace]))
         return ret

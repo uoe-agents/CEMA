@@ -130,6 +130,9 @@ def run_simple_simulation(simulation, args, queries, config, output_path) -> boo
 def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, output_path: str, args):
     for query in queries:
         if t > 0 and t == query.t_query:
+            if query.type != xavi.QueryType.WHY_NOT:
+                continue
+
             if args.save_agent:
                 file_name = f"agent_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl"
                 file_path = os.path.join(output_path, file_name)
@@ -142,10 +145,7 @@ def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, outpu
                 pickle.dump(causes, open(file_path, "wb"))
                 file_path = os.path.join(output_path, f"sd_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl")
                 pickle.dump(xavi_agent.sampling_distributions, open(file_path, "wb"))
-            
             assert False
-
-
 
 if __name__ == '__main__':
     sys.exit(main())

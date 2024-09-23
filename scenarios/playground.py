@@ -87,8 +87,8 @@ def main():
                     predictions=deterministic_trajectories)
                 goal_trajectories = {aid: (gp.goals_and_types[0], gp.all_trajectories[gp.goals_and_types[0]][0]) 
                                     for aid, gp in deterministic_trajectories.items()}
-                probabilities, data = xavi.util.get_visit_probabilities(ego.mcts.results)
-                distribution.add_distribution(goal_trajectories, probabilities, data)
+                probabilities, data, reward_data = xavi.util.get_visit_probabilities(ego.mcts.results)
+                distribution.add_distribution(goal_trajectories, probabilities, data, reward_data)
             pickle.dump(distribution, open(f"output/scenario_{args.scenario}/distribution.pkl", "wb"))
         else:
             distribution = pickle.load(open(f"output/scenario_{args.scenario}/distribution.pkl", "rb"))

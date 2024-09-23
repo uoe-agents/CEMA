@@ -55,15 +55,18 @@ if __name__ == "__main__":
             for mcts in xavi_agent.cf_mcts.values():
                 mcts._allow_hide_occluded = allow_hide_occluded
                 mcts.n = n
-            xavi_agent._n_samples = 100
-            final_causes, efficient_causes = xavi_agent.explain_actions(query)
+            xavi_agent._cf_n_samples = 100
+            xavi_agent._cf_sampling_distribution = pickle.load(open(f"output/scenario_1/sd_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
+            causes = xavi_agent.explain_actions(query)
+            file_path = os.path.join(output_path, f"sd_n{xavi_agent.cf_n_simulations}_t{query.t_query}_m{query.type}.pkl")
+            pickle.dump(xavi_agent.sampling_distributions, open(file_path, "wb"))
     elif scenario == 9:
         if not load_existing:
             oxavi_agent = pickle.load(open("output/scenario_9/agent_t100_mQueryType.WHY_NOT.pkl", "rb"))
             for mcts in oxavi_agent.cf_mcts.values():
                 mcts._allow_hide_occluded = allow_hide_occluded
                 mcts.n = n
-            final_causes, efficient_causes = oxavi_agent.explain_actions(query)
+            causes = oxavi_agent.explain_actions(query)
 
     elif scenario == 10:
         if not load_existing:
@@ -74,7 +77,7 @@ if __name__ == "__main__":
                 mcts._allow_hide_occluded = allow_hide_occluded
                 mcts.n = n
                 mcts.reward = ip.Reward(factors=config["agents"][0]["mcts"]["reward_factors"])
-            final_causes, efficient_causes = oxavi_agent.explain_actions(query)
+            causes = oxavi_agent.explain_actions(query)
 
     elif scenario == 11:
         if not load_existing:
@@ -85,14 +88,23 @@ if __name__ == "__main__":
                 mcts._allow_hide_occluded = allow_hide_occluded
                 mcts.n = n
                 mcts.reward = ip.Reward(factors=config["agents"][0]["mcts"]["reward_factors"])
-            final_causes, efficient_causes = oxavi_agent.explain_actions(query)
+            causes = oxavi_agent.explain_actions(query)
 
     if not load_existing:
         file_path = os.path.join(output_path, f"q_n{n}_t{query.t_query}_m{query.type}.pkl")
-        pickle.dump((final_causes, efficient_causes), open(file_path, "wb"))
+        pickle.dump((causes), open(file_path, "wb"))
     else:
-        final_causes, efficient_causes = pickle.load(
+        causes = pickle.load(
             open(f"output/scenario_{scenario}/q_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
+
+    if query.type == xavi.QueryType.WHAT_IF:
+        cf_action_group = causes[0]
+        logger.info(cf_action_group)
+        final_causes = causes[1]
+        efficient_causes = causes[2]
+    else:
+        final_causes = causes[0]
+        efficient_causes = causes[1]
 
     xavi.plot_explanation(final_causes, efficient_causes[0:2], query, uniform_teleological=False)
 

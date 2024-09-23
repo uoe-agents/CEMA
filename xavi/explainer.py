@@ -33,6 +33,7 @@ class XAVIAgent(ip.MCTSAgent):
                  tau_limits: Tuple[float, float] = (1., 5.),
                  time_limits: Tuple[float, float] = (5., 5.),
                  alpha: float = 0.1,
+                 cf_reward_factors: Dict[str, Dict[str, float]] = None,
                  **kwargs):
         """ Create a new XAVIAgent.
 
@@ -70,10 +71,11 @@ class XAVIAgent(ip.MCTSAgent):
                        "tree_type": XAVITree,
                        "action_type": XAVIAction,
                        "trajectory_agents": False}
-        self._cf_mcts_dict = {
-            "tau": ip.MCTS(**mcts_params),
-            "t_action": ip.MCTS(**mcts_params),
-        }
+        self._cf_mcts_dict = {}
+        for time_reference in ["tau", "t_action"]:
+            self._cf_mcts_dict[time_reference] = ip.MCTS(**mcts_params)
+            if cf_reward_factors is not None and time_reference in cf_reward_factors:
+                self._cf_mcts_dict[time_reference].reward = ip.Reward(factors=cf_reward_factors[time_reference])
         self._cf_sampling_distribution = {"tau": None, "t_action": None}
 
         self._features = Features(self._scenario_map)
@@ -114,9 +116,6 @@ class XAVIAgent(ip.MCTSAgent):
         Returns: A natural language explanation of the query, and the causes that generated the sentence.
         """
         t_start = time.time()
-
-        # import pickle
-        # self._cf_sampling_distribution = pickle.load(open(f"output/scenario_1/sampling_distributions.pkl", "rb"))
 
         self._user_query = user_query
         self._user_query.fps = self.fps
@@ -171,11 +170,12 @@ class XAVIAgent(ip.MCTSAgent):
 
         def get_causes(ref_items, alt_items):
             def get_values(items, comp):
-                r = [item.reward.reward_components[comp] for item in items
-                     if item.reward.reward_components[comp] is not None]
-                p = len(r) / len(items) if r else 0.0
+                r = [reward.reward_components[comp] for item in items for reward in item.rewards
+                     if reward.reward_components[comp] is not None]
+                p = len(r) / len([reward.reward_components[comp] for item in items for reward in item.rewards]) if r else 0.0
                 r = np.sum(r) / len(r) if r else 0.0
                 return r, p
+            
             diffs = {}
             for component in self._reward.reward_components:
                 r_qp, p_qp = get_values(ref_items, component)
@@ -188,16 +188,31 @@ class XAVIAgent(ip.MCTSAgent):
             df = pd.DataFrame.from_dict(diffs, orient="index", columns=columns)
             return df.sort_values(ascending=False, by="d_abs", key=abs)
 
-        query_present, query_not_present = split_by_query(tau_dataset)
-        tau_rewards = pd.DataFrame([item.reward.reward_components for item in tau_dataset])
-        tau_rewards["query_present"] = [item.query_present for item in tau_dataset]
-        tau_causes = get_causes(query_present, query_not_present)
+        if tau_dataset is None:
+            tau_causes, tau_rewards = None, None
+        else:   
+            query_present, query_not_present = split_by_query(tau_dataset)
+            tau_rewards = []
+            for item in tau_dataset:
+                for reward in item.rewards:
+                    new_row = reward.reward_components.copy()
+                    new_row["query_present"] = item.query_present
+                    tau_rewards.append(new_row)
+            tau_causes = get_causes(query_present, query_not_present)
 
-        query_present, query_not_present = split_by_query(t_action_dataset)
-        t_action_rewards = pd.DataFrame([item.reward.reward_components for item in t_action_dataset])
-        t_action_rewards["query_present"] = [item.query_present for item in t_action_dataset]
-        t_action_causes = get_causes(query_present, query_not_present)
-        return (tau_causes, tau_rewards), (t_action_causes, t_action_rewards)
+        if t_action_dataset is None:
+            t_action_causes, t_action_rewards = None, None
+        else:
+            query_present, query_not_present = split_by_query(t_action_dataset)
+            t_action_rewards = []
+            for item in t_action_dataset:
+                for reward in item.rewards:
+                    new_row = reward.reward_components.copy()
+                    new_row["query_present"] = item.query_present
+                    t_action_rewards.append(new_row)
+            t_action_causes = get_causes(query_present, query_not_present)
+            
+        return (tau_causes, pd.DataFrame(tau_rewards)), (t_action_causes, pd.DataFrame(t_action_rewards))
 
     def _mechanistic_causes(self,
                             tau_dataset: List[Item] = None,
@@ -233,18 +248,18 @@ class XAVIAgent(ip.MCTSAgent):
                 coefs_ = get_coefficient_significance(X_, y_, model_)
             return X_, y_, model_, coefs_
 
-        if tau_dataset is None and t_action_dataset is None:
-            return None, None
+        if tau_dataset is None:
+            X_past, y_past, model_past, coefs_past = None, None, None, None
+        else:
+            xs_past, ys_past = process_dataset(tau_dataset, (self.query.tau, self.query.t_action))
+            X_past, y_past, model_past, coefs_past = get_ranking(xs_past, ys_past)
 
-        # Get past and future datasets by truncating trajectories to relevant length and getting features
-        xs_past, ys_past = process_dataset(tau_dataset, (self.query.tau, self.query.t_action))
-        xs_future, ys_future = process_dataset(t_action_dataset, (self.query.t_action, None))
+        if t_action_dataset is None:
+            X_future, y_future, model_future, coefs_future = None, None, None, None
+        else:
+            xs_future, ys_future = process_dataset(t_action_dataset, (self.query.t_action, None))
+            X_future, y_future, model_future, coefs_future = get_ranking(xs_future, ys_future)
 
-        # Run a logistic regression classifier
-        X_past, y_past, model_past, coefs_past = get_ranking(xs_past, ys_past)
-        X_future, y_future, model_future, coefs_future = get_ranking(xs_future, ys_future)
-
-        # Get coefficients using K-fold cross validation
         return coefs_past, coefs_future, (X_past, y_past, model_past), (X_future, y_future, model_future)
 
     # ---------Explanation generation functions---------------
@@ -310,9 +325,11 @@ class XAVIAgent(ip.MCTSAgent):
         self._get_counterfactuals(["t_action"])
         cf_items, f_items = split_by_query(list(self.cf_datasets["t_action"].values()))
 
-        # Find the maximum q-value and the corresponding action sequence of the ego for ea
-        cf_optimal_trace, cf_optimal_rollout = find_optimal_rollout_in_subset(cf_items, self._reward.factors)
-        f_optimal_trace, f_optimal_rollout = find_optimal_rollout_in_subset(f_items, self._reward.factors)
+        # Find the most likely action for the ego in both cases
+        cf_counts = Counter([(it.trace, it.last_node) for it in cf_items])
+        cf_optimal_trace, cf_optimal_rollout =  max(cf_counts, key=cf_counts.get)
+        f_counts = Counter([(it.trace, it.last_node) for it in f_items])
+        f_optimal_trace, f_optimal_rollout = max(f_counts, key=f_counts.get)
 
         # Retrieve ego's action plan in the counterfactual case
         cf_ego_agent = cf_optimal_rollout.run_result.agents[self.agent_id]
@@ -323,7 +340,7 @@ class XAVIAgent(ip.MCTSAgent):
                            if g.start <= self.query.t_action <= g.end][0]
 
         # Check if the change in the non-ego action did not change the observed ego actions
-        if cf_optimal_rollout.trace == self.mcts.results.optimal_trace:
+        if cf_optimal_trace == f_optimal_trace:
             logger.info("Ego actions remain the same even in counterfactual case.")
 
         # Determine the actual optimal maneuver and rewards
@@ -333,7 +350,7 @@ class XAVIAgent(ip.MCTSAgent):
                             list_startswith(cf_optimal_trace, it.trace)]
 
         # compare reward initial and reward counter
-        final_causes = self._teleological_causes(cf_optimal_items, f_optimal_items)
+        final_causes = self._teleological_causes(None, cf_optimal_items + f_optimal_items)
         efficient_causes = self._mechanistic_causes(None, cf_optimal_items + f_optimal_items)
 
         return cf_action_group, final_causes, efficient_causes
@@ -367,7 +384,8 @@ class XAVIAgent(ip.MCTSAgent):
             goal_probabilities = self._cf_goal_probabilities_dict[time_reference]
 
             previous_query = self._previous_queries[-1] if self._previous_queries else None
-            if self.cf_datasets[time_reference] is None or not previous_query or \
+            if self.cf_datasets[time_reference] is None or \
+                    not previous_query or \
                     previous_query.t_query != self.query.t_query or \
                     previous_query.type != self.query.type:
                 observation = ip.Observation(previous_frame, self._scenario_map)
@@ -434,11 +452,11 @@ class XAVIAgent(ip.MCTSAgent):
             # For past queries, use existing most recent goal probabilities
             latest_predictions = self.mcts_results_buffer[-1][1].predictions
             if self.query.tense == "past" and agent_id in latest_predictions:
-                overwrite_predictions(gps, latest_predictions[agent_id])
+                overwrite_predictions(latest_predictions[agent_id], gps)
 
             # Set the probabilities equal for each goal and trajectory
             #  to make sure we can sample all counterfactual scenarios
-            gps.add_smoothing(self._alpha, uniform_goals=True)
+            gps.add_smoothing(self._alpha, uniform_goals=False)
 
             logger.info("")
             logger.info(f"Goals probabilities for agent {agent_id} after (possible) overriding and smoothing.")
@@ -450,24 +468,25 @@ class XAVIAgent(ip.MCTSAgent):
         self._goal_recognition._n_trajectories = n_trajectories
 
         # Run MCTS search for counterfactual simulations while storing run results
-        agents_metadata = {aid: state.metadata for aid, state in frame.items()}
-        all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
-        distribution = Distribution(goal_probabilities)
-        for i, deterministic_trajectories in enumerate(all_deterministic_trajectories):
-            logger.info(f"Running deterministic simulations {i + 1}/{len(all_deterministic_trajectories)}")
-            mcts.search(
-                agent_id=self.agent_id,
-                goal=self.goal,
-                frame=frame,
-                meta=agents_metadata,
-                predictions=deterministic_trajectories)
-            
-            # Record rollout data for sampling
-            goal_trajectories = {aid: (gp.goals_and_types[0], gp.all_trajectories[gp.goals_and_types[0]][0]) 
-                                for aid, gp in deterministic_trajectories.items()}
-            probabilities, data = get_visit_probabilities(mcts.results)
-            distribution.add_distribution(goal_trajectories, probabilities, data)
-        self._cf_sampling_distribution[time_reference] = distribution
+        if self._cf_sampling_distribution[time_reference] is None:
+            agents_metadata = {aid: state.metadata for aid, state in frame.items()}
+            all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
+            distribution = Distribution(goal_probabilities)
+            for i, deterministic_trajectories in enumerate(all_deterministic_trajectories):
+                logger.info(f"Running deterministic simulations {i + 1}/{len(all_deterministic_trajectories)}")
+                mcts.search(
+                    agent_id=self.agent_id,
+                    goal=self.goal,
+                    frame=frame,
+                    meta=agents_metadata,
+                    predictions=deterministic_trajectories)
+                
+                # Record rollout data for sampling
+                goal_trajectories = {aid: (gp.goals_and_types[0], gp.all_trajectories[gp.goals_and_types[0]][0]) 
+                                    for aid, gp in deterministic_trajectories.items()}
+                probabilities, data, reward_data = get_visit_probabilities(mcts.results)
+                distribution.add_distribution(goal_trajectories, probabilities, data, reward_data)
+            self._cf_sampling_distribution[time_reference] = distribution
 
     def _get_dataset(self,
                      sampling_distribution: Distribution,
@@ -486,7 +505,7 @@ class XAVIAgent(ip.MCTSAgent):
          """
         raw_samples = sampling_distribution.sample_dataset(self._cf_n_samples)
         dataset = {}
-        for m, (goal_trajectories, trace, last_node) in enumerate(raw_samples):
+        for m, (goal_trajectories, trace, last_node, rewards) in enumerate(raw_samples):
             trajectories = {}
             r = []
             trajectory_queried_agent = None
@@ -510,11 +529,6 @@ class XAVIAgent(ip.MCTSAgent):
                 trajectory.extend(sim_trajectory, reload_path=True)
                 trajectories[agent_id] = trajectory
 
-            # save reward for each component
-            for last_action, reward_value, in last_node.reward_results.items():
-                if last_action == trace[-1]:
-                    r = reward_value[-1]
-
             # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
             sliced_trajectory = self.query.slice_segment_trajectory(
                 trajectory_queried_agent, self._current_t, present_ref_t=reference_t)
@@ -524,7 +538,7 @@ class XAVIAgent(ip.MCTSAgent):
             if self.query.negative:
                 y = not y
 
-            data_set_m = Item(trajectories, y, r, trace, last_node)
+            data_set_m = Item(trajectories, y, rewards, trace, last_node)
             dataset[m] = data_set_m
 
         logger.debug('Dataset generation done.')
