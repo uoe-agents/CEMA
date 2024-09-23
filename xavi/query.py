@@ -83,6 +83,9 @@ class Query:
         """
         if self.t_action is not None and self.tau is not None:
             return
+        
+        if self.factual is not None:
+            self.__get_all_factual(rollouts_buffer, self.agent_id, current_t)
 
         agent_id = self.agent_id
         trajectory = observations[agent_id][0]
@@ -106,7 +109,8 @@ class Query:
 
         if self.tau is None:
             self.tau = tau  # If user gave fixed tau then we shouldn't override that.
-        self.t_action = t_action
+        if self.t_action is None:
+            self.t_action = t_action
 
     def __get_t_tau(self,
                     action: Union[str, List[str]],
@@ -146,7 +150,7 @@ class Query:
                     t_action = action_segmentations[0].times[0]  # t at the beginning
                     segment_inx = n_segments - 1
                 else:
-                    raise ValueError(f"Could not match action {self.action} to trajectory.")
+                    raise ValueError(f"Could not match action {action} to trajectory.")
 
         if rollback and segment_inx >= 0:
             # In case one extra segment is too short, then lower limit is used.
@@ -167,6 +171,23 @@ class Query:
 
         t_action = max(1, t_action)
         return t_action, tau
+
+    def __get_all_factual(self, rollouts_buffer: List[Tuple[int, ip.AllMCTSResult]], agent_id: int, current_t: int):
+        """ Return whether the query factual appears in all rollouts or not. """
+        past_limit = self.time_limits[0] * self.fps
+        for start_t, rollouts in rollouts_buffer[::-1]:
+            if start_t == current_t:
+                continue  # Ignore rollout of current time step as no action would have been taken.
+            if start_t < current_t - past_limit:
+                break  # Limit the amount of time we look back into the past.
+
+            # determine if factual action exist in this rollouts
+            for rollout in rollouts.mcts_results:
+                trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
+                segmentation = self.slice_segment_trajectory(trajectory, current_t)
+                if not ActionMatching.action_exists(segmentation, self.factual, self.tense):
+                    self.__all_factual = False
+                    return
 
     def slice_segment_trajectory(self,
                                  trajectory: ip.StateTrajectory,

@@ -43,13 +43,13 @@ class XAVIAction(ip.MCTSAction):
     """Overwrite MCTSAction to exclude give-way stop from planning trace. """
 
     def __repr__(self) -> str:
-        stop_val = None
-        if "stop" in self.ma_args:
-            stop_val = self.ma_args["stop"]
-            del self.ma_args["stop"]
+        # stop_val = None
+        # if "stop" in self.ma_args:
+        #     stop_val = self.ma_args["stop"]
+        #     del self.ma_args["stop"]
         repr = super(XAVIAction, self).__repr__()
-        if stop_val is not None:
-            self.ma_args["stop"] = stop_val
+        # if stop_val is not None:
+        #     self.ma_args["stop"] = stop_val
         return repr
 
 
@@ -281,9 +281,14 @@ def product_dict(dictionary: dict):
 
 def overwrite_predictions(source: ip.GoalsProbabilities, target: ip.GoalsProbabilities):
     """ Overwrite the predictions of the source with the target. """
-    for goal_and_type in target.goals_and_types:
+    for goal_and_type in filter(lambda x: len(target.all_trajectories[x]) > 0, target.goals_and_types):
         for goal_and_type_ in filter(lambda x: str(x) == str(goal_and_type), source.goals_and_types):
             target.goals_probabilities[goal_and_type] = source.goals_probabilities[goal_and_type_]
+
+    # Renormalise distribution
+    total = sum(target.goals_probabilities.values())
+    for goal_and_type in target.goals_probabilities:
+        target.goals_probabilities[goal_and_type] /= total
 
 
 def get_deterministic_trajectories(goal_probabilities: Dict[int, ip.GoalsProbabilities]) -> List[Dict[int, ip.GoalsProbabilities]]:
@@ -305,29 +310,25 @@ def get_deterministic_trajectories(goal_probabilities: Dict[int, ip.GoalsProbabi
     return ret
 
 
-def get_visit_probabilities(rollouts: ip.AllMCTSResult, optimal: bool = True) -> Dict[int, List[float]]:
+def get_visit_probabilities(rollouts: ip.AllMCTSResult, p_optimal: bool = 0.75) -> Dict[int, List[float]]:
     """ Retrieve the visit probabilities of each full trajectory in the MCTS tree. """
     n_runs = len(rollouts.mcts_results)
     final_tree = rollouts.mcts_results[-1].tree
     plan_probabilities = {}
     data = {}
     for key, node in final_tree.tree.items():
-        if optimal:
-            plan_probabilities[rollouts.optimal_trace] = 1.0
-            data[rollouts.optimal_trace] = rollouts.optimal_rollouts[-1].leaf
-        else:
-            collisions_at_node = {action: sum(reward.reward_components["coll"] is not None for reward in rewards) 
-                                for action, rewards in node.reward_results.items()}
-            if node.is_leaf:
-                for i, actions in enumerate(node.actions_names):
-                    trace = key + (actions, )
-                    plan_probabilities[trace] = node.action_visits[i] / n_runs
-                    data[trace] = node
-            elif any(colls > 0 for colls in collisions_at_node):
-                for action, n_collisions in filter(lambda x: x[1] > 0, collisions_at_node.items()):
-                    trace = key + (action, )
-                    plan_probabilities[trace] = n_collisions / n_runs
-                    data[trace] = node
+        collisions_at_node = {action: sum(reward.reward_components["coll"] is not None for reward in rewards) 
+                            for action, rewards in node.reward_results.items()}
+        if node.is_leaf:
+            for i, actions in enumerate(node.actions_names):
+                trace = key + (actions, )
+                plan_probabilities[trace] = 0.
+                data[trace] = node
+        elif any(colls > 0 for colls in collisions_at_node.values()):
+            for action, n_collisions in filter(lambda x: x[1] > 0, collisions_at_node.items()):
+                trace = key + (action, )
+                plan_probabilities[trace] = 0.
+                data[trace] = node
     
     reward_data = defaultdict(list)
     for m, rollout in enumerate(rollouts):
@@ -336,6 +337,13 @@ def get_visit_probabilities(rollouts: ip.AllMCTSResult, optimal: bool = True) ->
             if last_action == rollout.trace[-1]:
                 r = reward_value[-1]
                 reward_data[rollout.trace].append(r)
+
+    # Set optimal plan probability and normalise probabilities
+    if len(plan_probabilities) > 1:
+        plan_probabilities = {trace: p_optimal if trace == rollouts.optimal_trace else 
+                              (1.0 - p_optimal) / (len(plan_probabilities) - 1) for trace in plan_probabilities}
+    else:
+        plan_probabilities[rollouts.optimal_trace] = 1.
 
     assert np.isclose(sum(plan_probabilities.values()), 1.0), f"Sum of probabilities is not 1.0: {sum(plan_probabilities.values())}"
 

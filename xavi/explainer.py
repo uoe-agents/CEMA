@@ -33,6 +33,7 @@ class XAVIAgent(ip.MCTSAgent):
                  tau_limits: Tuple[float, float] = (1., 5.),
                  time_limits: Tuple[float, float] = (5., 5.),
                  alpha: float = 0.1,
+                 p_optimal: float = 0.75,
                  cf_reward_factors: Dict[str, Dict[str, float]] = None,
                  **kwargs):
         """ Create a new XAVIAgent.
@@ -45,6 +46,7 @@ class XAVIAgent(ip.MCTSAgent):
             tau_limits: Lower and upper bounds on the distance of tau from t_action.
             time_limits: The maximal amount of time to look back in the past and future.
             alpha: The distribution smoothing weight
+            p_optimal: The probability of the optimal action in the counterfactual distribution.
 
         Keyword Args: See arguments of parent-class MCTSAgent.
         """
@@ -56,6 +58,7 @@ class XAVIAgent(ip.MCTSAgent):
         self._time_limits = np.array(time_limits)
         self._scenario_map = kwargs["scenario_map"]
         self._alpha = alpha
+        self._p_optimal = p_optimal
 
         self._cf_n_samples = cf_n_samples
         self._cf_n_simulations = kwargs.get("cf_n_simulations", cf_n_simulations)
@@ -211,7 +214,7 @@ class XAVIAgent(ip.MCTSAgent):
                     new_row["query_present"] = item.query_present
                     t_action_rewards.append(new_row)
             t_action_causes = get_causes(query_present, query_not_present)
-            
+
         return (tau_causes, pd.DataFrame(tau_rewards)), (t_action_causes, pd.DataFrame(t_action_rewards))
 
     def _mechanistic_causes(self,
@@ -484,7 +487,7 @@ class XAVIAgent(ip.MCTSAgent):
                 # Record rollout data for sampling
                 goal_trajectories = {aid: (gp.goals_and_types[0], gp.all_trajectories[gp.goals_and_types[0]][0]) 
                                     for aid, gp in deterministic_trajectories.items()}
-                probabilities, data, reward_data = get_visit_probabilities(mcts.results)
+                probabilities, data, reward_data = get_visit_probabilities(mcts.results, p_optimal=self._p_optimal)
                 distribution.add_distribution(goal_trajectories, probabilities, data, reward_data)
             self._cf_sampling_distribution[time_reference] = distribution
 
@@ -492,8 +495,7 @@ class XAVIAgent(ip.MCTSAgent):
                      sampling_distribution: Distribution,
                      goal_probabilities: Dict[int, ip.GoalsProbabilities],
                      observations: Observations,
-                     reference_t: int,
-                     start_ix: int = 0) \
+                     reference_t: int) \
             -> Dict[int, Item]:
         """ Return dataset recording states, boolean feature, and reward
 
@@ -645,3 +647,8 @@ class XAVIAgent(ip.MCTSAgent):
     def sampling_distributions(self) -> Dict[str, Distribution]:
         """ The sampling distribution for each time reference point. """
         return self._cf_sampling_distribution
+    
+    @property
+    def p_optimal(self) -> float:
+        """ The probability of the optimal action in the counterfactual distribution. """
+        return self._p_optimal

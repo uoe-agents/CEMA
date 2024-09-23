@@ -44,22 +44,27 @@ if __name__ == "__main__":
 
     logger.info(args)
 
+    xavi.XAVITree.STOP_CHANCE = 0.8
+
     scenario_map = gofi.OMap.parse_from_opendrive(f"scenarios/maps/scenario{scenario}.xodr")
     config = json.load(open(f"scenarios/configs/scenario{scenario}.json", "r"))
     queries = json.load(open(f"scenarios/queries/query_scenario{scenario}.json", "r"))
     query = xavi.Query(**queries[query_idx])
 
-    if scenario == 1:
+    if scenario in [1, 2, 3, 4]:
         if not load_existing:
-            xavi_agent = pickle.load(open(f"output/scenario_1/agent_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
+            xavi_agent = pickle.load(open(f"output/scenario_{scenario}/agent_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
             for mcts in xavi_agent.cf_mcts.values():
                 mcts._allow_hide_occluded = allow_hide_occluded
-                mcts.n = n
+                mcts.n = 15
             xavi_agent._cf_n_samples = 100
-            xavi_agent._cf_sampling_distribution = pickle.load(open(f"output/scenario_1/sd_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
+            sd_path = os.path.join(output_path, f"sd_n{xavi_agent.cf_n_simulations}_t{query.t_query}_m{query.type}.pkl")
+            if os.path.exists(sd_path):
+                xavi_agent._cf_sampling_distribution = pickle.load(open(sd_path, "rb"))
             causes = xavi_agent.explain_actions(query)
-            file_path = os.path.join(output_path, f"sd_n{xavi_agent.cf_n_simulations}_t{query.t_query}_m{query.type}.pkl")
-            pickle.dump(xavi_agent.sampling_distributions, open(file_path, "wb"))
+            if not os.path.exists(sd_path):
+                pickle.dump(xavi_agent.sampling_distributions, open(sd_path, "wb"))
+
     elif scenario == 9:
         if not load_existing:
             oxavi_agent = pickle.load(open("output/scenario_9/agent_t100_mQueryType.WHY_NOT.pkl", "rb"))
