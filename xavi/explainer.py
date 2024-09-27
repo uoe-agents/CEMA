@@ -4,7 +4,6 @@ import logging
 import time
 import igp2 as ip
 from typing import Dict, List, Tuple, Optional, Any
-from dataclasses import dataclass
 from collections import Counter
 
 from sklearn.linear_model import LogisticRegression
@@ -12,8 +11,8 @@ from sklearn.linear_model import LogisticRegression
 from xavi.features import Features
 from xavi.util import fill_missing_actions, truncate_observations, \
     to_state_trajectory, find_join_index, Observations, get_coefficient_significance, \
-    find_optimal_rollout_in_subset, split_by_query, list_startswith, find_matching_rollout, \
-    Item, XAVITree, XAVIAction, overwrite_predictions, get_deterministic_trajectories, get_visit_probabilities
+    split_by_query, list_startswith, find_matching_rollout, Exit_, \
+    Item, overwrite_predictions, get_deterministic_trajectories, get_visit_probabilities
 from xavi.matching import ActionMatching, ActionGroup, ActionSegment
 from xavi.query import Query, QueryType
 from xavi.language import Language
@@ -35,6 +34,7 @@ class XAVIAgent(ip.MCTSAgent):
                  alpha: float = 0.1,
                  p_optimal: float = 0.75,
                  cf_reward_factors: Dict[str, Dict[str, float]] = None,
+                 always_check_stop: bool = True,
                  **kwargs):
         """ Create a new XAVIAgent.
 
@@ -59,6 +59,7 @@ class XAVIAgent(ip.MCTSAgent):
         self._scenario_map = kwargs["scenario_map"]
         self._alpha = alpha
         self._p_optimal = p_optimal
+        self._always_check_stop = always_check_stop
 
         self._cf_n_samples = cf_n_samples
         self._cf_n_simulations = kwargs.get("cf_n_simulations", cf_n_simulations)
@@ -71,8 +72,6 @@ class XAVIAgent(ip.MCTSAgent):
                        "max_depth": self._cf_max_depth,
                        "reward": self.mcts.reward,
                        "store_results": "all",
-                       "tree_type": XAVITree,
-                       "action_type": XAVIAction,
                        "trajectory_agents": False}
         self._cf_mcts_dict = {}
         for time_reference in ["tau", "t_action"]:
@@ -120,11 +119,18 @@ class XAVIAgent(ip.MCTSAgent):
         """
         t_start = time.time()
 
+        if self.query is None or self.query.t_query != user_query.t_query or \
+                self.query.tau != user_query.tau or self.query.t_action != user_query.t_action:
+            logger.debug("Resetting agent sampling state.")
+            self._cf_sampling_distribution = {"tau": None, "t_action": None}
+            self._cf_dataset_dict = {"tau": None, "t_action": None}
+
         self._user_query = user_query
         self._user_query.fps = self.fps
         self._user_query.tau_limits = self.tau_limits
 
         self._current_t = int(self.observations[self.agent_id][0].states[-1].time)
+
         if self._observations_segments is None or user_query.t_query != self._current_t:
             self._observations_segments = {}
             for aid, obs in self.observations.items():
@@ -304,6 +310,7 @@ class XAVIAgent(ip.MCTSAgent):
             tau = None
         else:
             self._get_counterfactuals(["t_action", "tau"])
+            # self._get_counterfactuals(["tau"])
             tau = list(self.cf_datasets["tau"].values())
 
         assert self._cf_dataset_dict["t_action"] is not None, f"Missing counterfactual dataset."
@@ -475,8 +482,12 @@ class XAVIAgent(ip.MCTSAgent):
             agents_metadata = {aid: state.metadata for aid, state in frame.items()}
             all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
             distribution = Distribution(goal_probabilities)
+
+            ip.MacroActionFactory.macro_action_types["Exit"] = Exit_
+            Exit_.ALWAYS_STOPS = self._always_check_stop
             for i, deterministic_trajectories in enumerate(all_deterministic_trajectories):
                 logger.info(f"Running deterministic simulations {i + 1}/{len(all_deterministic_trajectories)}")
+
                 mcts.search(
                     agent_id=self.agent_id,
                     goal=self.goal,
@@ -489,6 +500,8 @@ class XAVIAgent(ip.MCTSAgent):
                                     for aid, gp in deterministic_trajectories.items()}
                 probabilities, data, reward_data = get_visit_probabilities(mcts.results, p_optimal=self._p_optimal)
                 distribution.add_distribution(goal_trajectories, probabilities, data, reward_data)
+            ip.MacroActionFactory.macro_action_types["Exit"] = ip.Exit
+
             self._cf_sampling_distribution[time_reference] = distribution
 
     def _get_dataset(self,
@@ -534,7 +547,7 @@ class XAVIAgent(ip.MCTSAgent):
             # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
             sliced_trajectory = self.query.slice_segment_trajectory(
                 trajectory_queried_agent, self._current_t, present_ref_t=reference_t)
-            query_factual = self.query.factual if not self.query.all_factual and self.query.exclusive else None
+            query_factual = None  # self.query.factual if not self.query.all_factual and self.query.exclusive else None
             y = self._matching.action_matching(
                 self.query.action, sliced_trajectory, query_factual)
             if self.query.negative:

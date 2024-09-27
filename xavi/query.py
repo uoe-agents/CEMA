@@ -84,9 +84,6 @@ class Query:
         if self.t_action is not None and self.tau is not None:
             return
         
-        if self.factual is not None:
-            self.__get_all_factual(rollouts_buffer, self.agent_id, current_t)
-
         agent_id = self.agent_id
         trajectory = observations[agent_id][0]
         self.__matching.set_scenario_map(scenario_map)
@@ -111,6 +108,10 @@ class Query:
             self.tau = tau  # If user gave fixed tau then we shouldn't override that.
         if self.t_action is None:
             self.t_action = t_action
+
+        if self.factual is not None:
+            self.__get_all_factual(rollouts_buffer, self.agent_id, current_t)
+
 
     def __get_t_tau(self,
                     action: Union[str, List[str]],

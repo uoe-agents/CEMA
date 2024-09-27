@@ -49,7 +49,6 @@ def main():
 
     ip_config = Configuration()
     ip_config.set_properties(**config["scenario"])
-    xavi.XAVITree.STOP_CHANCE = config["scenario"].get("stop_chance", 1.0)
     oxavi.OXAVITree.STOP_CHANCE = config["scenario"].get("stop_chance", 1.0)
     oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = config["scenario"].get("ignore_vehicle_in_front_chance", 0.0)
 
@@ -130,8 +129,8 @@ def run_simple_simulation(simulation, args, queries, config, output_path) -> boo
 def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, output_path: str, args):
     for query in queries:
         if t > 0 and t == query.t_query:
-            if query.type != xavi.QueryType.WHY_NOT:
-                continue
+            # if query.type != xavi.QueryType.WHAT_IF:
+                # continue
 
             if args.save_agent:
                 file_name = f"agent_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl"
@@ -145,7 +144,8 @@ def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, outpu
                 pickle.dump(causes, open(file_path, "wb"))
                 file_path = os.path.join(output_path, f"sd_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl")
                 pickle.dump(xavi_agent.sampling_distributions, open(file_path, "wb"))
-            assert False
+            # assert False
+
 
 if __name__ == '__main__':
     sys.exit(main())

@@ -27,31 +27,23 @@ class Item:
     last_node: ip.Node
 
 
-class XAVITree(ip.Tree):
-    """ Overwrite the original MCTS tree to disable give-way with some chance. """
-    STOP_CHANCE = 1.0
+class Exit_(ip.Exit):
+    """ Overwrite Exit to optinally include give-way not stopping in possible arguments. """
+    ALWAYS_STOPS = True
 
-    def select_action(self, node: ip.Node) -> ip.MCTSAction:
-        action = super(XAVITree, self).select_action(node)
-        if action.macro_action_type == ip.Exit:
-            give_way_stop = np.random.random() >= 1.0 - XAVITree.STOP_CHANCE
-            action.ma_args["stop"] = give_way_stop
-        return action
-
-
-class XAVIAction(ip.MCTSAction):
-    """Overwrite MCTSAction to exclude give-way stop from planning trace. """
-
-    def __repr__(self) -> str:
-        # stop_val = None
-        # if "stop" in self.ma_args:
-        #     stop_val = self.ma_args["stop"]
-        #     del self.ma_args["stop"]
-        repr = super(XAVIAction, self).__repr__()
-        # if stop_val is not None:
-        #     self.ma_args["stop"] = stop_val
-        return repr
-
+    @staticmethod
+    def get_possible_args(state: ip.AgentState, scenario_map: ip.Map, goal: ip.Goal = None) -> List[Dict]:
+        possible_args = ip.Exit.get_possible_args(state, scenario_map, goal)
+        new_possible_args = []
+        if not Exit_.ALWAYS_STOPS:
+            for args in possible_args:
+                args["stop"] = False
+                new_possible_args.append(args.copy())
+                args["stop"] = True
+                new_possible_args.append(args.copy())
+        else:
+            new_possible_args = possible_args
+        return new_possible_args
 
 
 def to_state_trajectory(
@@ -70,7 +62,7 @@ def to_state_trajectory(
     return trajectory
 
 
-def truncate_observations(observations: Observations, tau: int) -> (Observations, Dict[int, ip.AgentState]):
+def truncate_observations(observations: Observations, tau: int) -> Tuple[Observations, Dict[int, ip.AgentState]]:
     """ Truncate all observations from the end down to timestep tau.
 
      Args:
@@ -328,7 +320,12 @@ def get_visit_probabilities(rollouts: ip.AllMCTSResult, p_optimal: bool = 0.75) 
             for action, n_collisions in filter(lambda x: x[1] > 0, collisions_at_node.items()):
                 trace = key + (action, )
                 plan_probabilities[trace] = 0.
-                data[trace] = node
+                matching_rollouts = [rollout for rollout in rollouts if rollout.trace == trace]
+                if matching_rollouts:
+                    rollout = matching_rollouts[0]
+                    data[trace] = rollout.leaf
+                else:
+                    raise ValueError(f"No rollout found for collision trace {trace}.")
     
     reward_data = defaultdict(list)
     for m, rollout in enumerate(rollouts):

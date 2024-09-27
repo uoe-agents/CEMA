@@ -224,13 +224,14 @@ def plot_explanation(
     Returns:
     """
     reward_map = {
-        "dead": "Goal not\nreached",
+        # "dead": "Goal not\nreached",
         "coll": "Collision",
         "time": "Time Efficiency",
         "angular_velocity": "Angular velocity",
         "curvature": "Curvature",
         "jerk": "Jolt"
     }
+    to_drop = ["term", "dead"]
     fig, axs = plt.subplots(2, 2, figsize=(10, 10))
     if d_rewards_tuple is not None:
         for inx, (d_causes, d_rewards) in enumerate(d_rewards_tuple):
@@ -238,7 +239,7 @@ def plot_explanation(
                 axs[inx, 0].text(0.2, 0.45, "No past causes because \n action starts from $t=1$.", fontsize=14)
                 continue
             ax = axs[inx, 0]
-            d_rewards = d_rewards.drop("term", axis=1)
+            d_rewards = d_rewards.drop(to_drop, axis=1)
             if not uniform_teleological:
                 qp = d_rewards["query_present"]
                 a = d_rewards[qp].mul(d_causes["p_r_qp"], axis=1)
@@ -248,7 +249,7 @@ def plot_explanation(
             d_rewards = d_rewards.rename(reward_map, axis=1)
             d_rewards = d_rewards.melt(id_vars="query_present", var_name="Factor", value_name="Reward")
             d_rewards = d_rewards.dropna(subset="Reward", axis=0)
-            d_causes = d_causes.drop("term", axis=0)
+            d_causes = d_causes.drop(to_drop, axis=0)
             d_causes = d_causes.rename(reward_map, axis=0)
             sns.barplot(d_rewards, x="Reward", y="Factor", hue="query_present",
                         order=d_causes.index, ax=ax, palette=["red", "blue"])

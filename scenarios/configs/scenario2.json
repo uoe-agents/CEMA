@@ -5,8 +5,7 @@
     "fps": 20,
     "seed": 21,
     "max_steps": 250,
-    "velocity_stop": 0.05,
-    "stop_chance": 0.8
+    "velocity_stop": 0.05
   },
   "agents": [
     {
@@ -66,7 +65,8 @@
         "cf_max_depth": 5,
         "cf_n_samples": 100,
         "alpha": 0.1,
-        "p_optimal": 0.75
+        "p_optimal": 0.75,
+        "always_check_stop": false
       },
       "view_radius": 500
     },
