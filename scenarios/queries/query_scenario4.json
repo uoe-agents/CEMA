@@ -11,10 +11,9 @@
   {
     "type": "whatif",
     "agent_id": 3,
-    "action": "GoStraightJunction",
-    "negative": false,
+    "action": "Stop",
     "t_query": 100,
-    "factual": "Stop",
+    "negative": true,
     "tense": "future"
   }
 ]

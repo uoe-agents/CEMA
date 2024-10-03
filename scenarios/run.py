@@ -129,14 +129,15 @@ def run_simple_simulation(simulation, args, queries, config, output_path) -> boo
 def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, output_path: str, args):
     for query in queries:
         if t > 0 and t == query.t_query:
-            # if query.type != xavi.QueryType.WHAT_IF:
-                # continue
+            if query.type != xavi.QueryType.WHY_NOT:
+                continue
 
             if args.save_agent:
                 file_name = f"agent_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl"
                 file_path = os.path.join(output_path, file_name)
                 pickle.dump(xavi_agent, open(file_path, "wb"))
             
+            assert False
             causes = xavi_agent.explain_actions(query)
 
             if args.save_causes:

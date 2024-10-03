@@ -54,8 +54,8 @@ if __name__ == "__main__":
             xavi_agent = pickle.load(open(f"output/scenario_{scenario}/agent_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
             for mcts in xavi_agent.cf_mcts.values():
                 mcts._allow_hide_occluded = allow_hide_occluded
-                # mcts.n = 15
-            xavi_agent._cf_n_samples = 50
+                mcts.n = 15
+            xavi_agent._cf_n_samples = 100
             sd_path = os.path.join(output_path, f"sd_n{xavi_agent.cf_n_simulations}_t{query.t_query}_m{query.type}.pkl")
             if os.path.exists(sd_path):
                 xavi_agent._cf_sampling_distribution = pickle.load(open(sd_path, "rb"))

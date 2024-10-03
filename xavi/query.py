@@ -87,7 +87,11 @@ class Query:
         agent_id = self.agent_id
         trajectory = observations[agent_id][0]
         self.__matching.set_scenario_map(scenario_map)
-        action_segmentations = [self.slice_segment_trajectory(trajectory, current_t)]
+        if self.tense == "future":
+            action = self.action if self.factual is None else self.factual
+            action_segmentations = self.__get_future_rollouts(action, rollouts_buffer, agent_id, current_t)
+        else:
+            action_segmentations = [self.slice_segment_trajectory(trajectory, current_t)]
 
         tau = len(trajectory) - 1
         if self.type in [QueryType.WHAT_IF, QueryType.WHY_NOT, QueryType.WHY]:
@@ -173,6 +177,15 @@ class Query:
         t_action = max(1, t_action)
         return t_action, tau
 
+    def __get_factual_exists(self, rollouts: ip.AllMCTSResult, agent_id: int, current_t: int) -> List[bool]:
+        """ Determine if factual action exist in these rollouts """
+        exists = []
+        for rollout in rollouts.mcts_results:
+            trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
+            segmentation = self.slice_segment_trajectory(trajectory, current_t)
+            exists.append(ActionMatching.action_exists(segmentation, self.factual, self.tense))
+        return exists
+
     def __get_all_factual(self, rollouts_buffer: List[Tuple[int, ip.AllMCTSResult]], agent_id: int, current_t: int):
         """ Return whether the query factual appears in all rollouts or not. """
         past_limit = self.time_limits[0] * self.fps
@@ -181,14 +194,46 @@ class Query:
                 continue  # Ignore rollout of current time step as no action would have been taken.
             if start_t < current_t - past_limit:
                 break  # Limit the amount of time we look back into the past.
+            all_factual = all(self.__get_factual_exists(rollouts, agent_id, current_t))
+            self.__all_factual = self.__all_factual or all_factual
 
-            # determine if factual action exist in this rollouts
+
+    def __get_future_rollouts(self,
+                              action: List[str],
+                              rollouts_buffer: List[Tuple[int, ip.AllMCTSResult]],
+                              agent_id: int,
+                              current_t: int) -> List[List[ActionSegment]]:
+        """ determine the action segmentation of the rollout that matches the query for whynot and what-if questions.
+        Args:
+            rollouts_buffer: all previous rollouts from MCTS.
+            agent_id: the agent id in query
+            current_t: current time, unit:s
+
+        Returns:
+            action_segmentations: the action segmentation of a rollout matched with the query
+        """
+        segmentations = []
+        past_limit = self.time_limits[0] * self.fps
+        for start_t, rollouts in rollouts_buffer[::-1]:
+            if start_t == current_t:
+                continue  # Ignore rollout of current time step as no action would have been taken.
+            if start_t < current_t - past_limit:
+                break  # Limit the amount of time we look back into the past.
+
+            if self.factual is not None and not any(self.__get_factual_exists(rollouts, agent_id, current_t)):
+                continue  # Skip rollouts that do not contain the factual action.
+
             for rollout in rollouts.mcts_results:
                 trajectory = rollout.leaf.run_result.agents[agent_id].trajectory_cl
                 segmentation = self.slice_segment_trajectory(trajectory, current_t)
-                if not ActionMatching.action_exists(segmentation, self.factual, self.tense):
-                    self.__all_factual = False
-                    return
+                action_exists = ActionMatching.action_exists(segmentation, action, self.tense)
+                if action_exists:
+                    segmentations.append(segmentation)
+
+            if segmentations:
+                return segmentations
+        raise ValueError(f"The queried action {self.action} does not exist in future rollouts!")
+    
 
     def slice_segment_trajectory(self,
                                  trajectory: ip.StateTrajectory,
