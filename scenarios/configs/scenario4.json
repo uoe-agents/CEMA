@@ -67,7 +67,9 @@
       "explainer": {
         "cf_n_simulations": 30,
         "cf_max_depth": 5,
-        "cf_n_samples": 100
+        "cf_n_samples": 100,
+        "always_check_stop": false,
+        "cf_n_trajectories": 2
       },
       "view_radius": 500,
       "stop_goals": true

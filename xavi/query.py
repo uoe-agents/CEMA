@@ -266,6 +266,7 @@ class Query:
         elif self.tense == "future":
             if present_ref_t is not None:
                 t_action_inx = int(present_ref_t - trajectory[0].time + 1)
+                if t_action_inx >= end_inx: t_action_inx = 0
                 trajectory = trajectory.slice(t_action_inx, end_inx)
             else:
                 trajectory = trajectory.slice(current_inx, end_inx)
