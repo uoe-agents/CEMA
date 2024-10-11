@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Tuple, Dict
+from itertools import product
 import logging
 
 import numpy as np
@@ -123,3 +124,31 @@ def overwrite_predictions(source: gofi.OGoalsProbabilities, target: gofi.OGoalsP
             key = (goal, factor)
             for key_ in filter(lambda x: str(x) == str(key), source.goals_and_occluded_factors):
                 target.goals_probabilities[key] = source.goals_probabilities[key_]
+
+
+def get_deterministic_trajectories(goal_probabilities: Dict[int, gofi.OGoalsProbabilities]) -> List[Dict[int, gofi.OGoalsProbabilities]]:
+    """ Retrieve all combinations of deterministic trajectories from the goal probabilities. """
+    ret = []
+    agent_keys = {
+        aid: [key for key in product(gp.goals, gp.occluded_factors) if gp.optimum_trajectory[key] is not None] 
+        for aid, gp in goal_probabilities.items()
+        }
+    agent_trajectories = {
+        aid: {key: gp.all_trajectories[key] for key in agent_keys[aid]} 
+        for aid, gp in goal_probabilities.items()
+        }
+    
+    for combination in xavi.util.product_dict(agent_keys):
+        new_gps = {aid: [] for aid in goal_probabilities}
+        for aid, key in combination.items():
+            for i, trajectory in enumerate(agent_trajectories[aid][key]):
+                new_gp = gofi.OGoalsProbabilities([key[0]], [key[1]])
+                new_gp.occluded_factors_probabilities[key[1]] = 1.0
+                new_gp.merged_occluded_factors_probabilities[key[1]] = 1.0
+                new_gp.goals_probabilities[key] = 1.0
+                new_gp.all_trajectories[key] = [trajectory]
+                new_gp.trajectories_probabilities[key] = [1.0]
+                new_gp.all_plans[key] = [goal_probabilities[aid].all_plans[key][i]]
+                new_gps[aid].append(new_gp)
+        ret.extend(xavi.util.product_dict(new_gps))
+    return ret

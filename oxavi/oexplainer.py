@@ -6,7 +6,7 @@ import xavi
 import igp2 as ip
 from oxavi.ofeatures import OFeatures
 from oxavi.util import fill_missing_actions, get_occluded_trajectory, \
-    OItem, OXAVITree, OFollowLaneCL, overwrite_predictions
+    OItem, OFollowLaneCL, overwrite_predictions, get_deterministic_trajectories
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +43,14 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
             **kwargs)
 
         self._alpha_occlusion = alpha_occlusion
+        self._allow_hide_occluded = allow_hide_occluded
 
         mcts_params = {"scenario_map": self._scenario_map,
                        "n_simulations": self._cf_n_simulations,
                        "max_depth": self._cf_max_depth,
                        "reward": self.mcts.reward,
                        "store_results": "all",
-                       "tree_type": OXAVITree,
-                       "action_type": xavi.XAVIAction,
+                       "tree_type": gofi.OTree,
                        "rollout_type": gofi.ORollout,
                        "allow_hide_occluded": allow_hide_occluded,
                        "trajectory_agents": False}
@@ -115,7 +115,8 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                            frame: Dict[int, ip.AgentState],
                            observations: xavi.Observations,
                            goal_probabilities: Dict[int, gofi.OGoalsProbabilities],
-                           mcts: gofi.OMCTS):
+                           mcts: gofi.OMCTS,
+                           time_reference: str):
         """ Runs OMCTS to generate a new sequence of macro actions to execute using previous observations.
 
         Args:
@@ -177,18 +178,39 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
         self._goal_recognition._n_trajectories = n_trajectories
 
         # Run MCTS search for counterfactual simulations while storing run results
-        agents_metadata = {aid: state.metadata for aid, state in frame.items()}
+
         ip.CLManeuverFactory.maneuver_types["follow-lane"] = OFollowLaneCL
-        mcts.search(
-            agent_id=self.agent_id,
-            goal=self.goal,
-            frame=frame,
-            meta=agents_metadata,
-            predictions=goal_probabilities)
+        if self._cf_sampling_distribution[time_reference] is None:
+            agents_metadata = {aid: state.metadata for aid, state in frame.items()}
+            all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
+            distribution = xavi.Distribution(goal_probabilities)
+
+            ip.MacroActionFactory.macro_action_types["Exit"] = xavi.util.Exit_
+            xavi.util.Exit_.ALWAYS_STOPS = self._always_check_stop
+            for i, deterministic_trajectories in enumerate(all_deterministic_trajectories):
+                logger.info(f"Running deterministic simulations {i + 1}/{len(all_deterministic_trajectories)}")
+
+                mcts.search(
+                    agent_id=self.agent_id,
+                    goal=self.goal,
+                    frame=frame,
+                    meta=agents_metadata,
+                    predictions=deterministic_trajectories)
+                
+                # Record rollout data for sampling
+                key_trajectories = {}
+                for aid, gp in deterministic_trajectories.items():
+                    key = (gp.goals[0], gp.occluded_factors[0])
+                    key_trajectories[aid] = (key, gp.all_trajectories[key][0])
+                probabilities, data, reward_data = xavi.util.get_visit_probabilities(mcts.results, p_optimal=self._p_optimal)
+                distribution.add_distribution(key_trajectories, probabilities, data, reward_data)
+            ip.MacroActionFactory.macro_action_types["Exit"] = ip.Exit
+
+            self._cf_sampling_distribution[time_reference] = distribution
         ip.CLManeuverFactory.maneuver_types["follow-lane"] = ip.FollowLaneCL
 
     def _get_dataset(self,
-                     mcts_results: gofi.AllOMCTSResults,
+                     sampling_distribution: xavi.Distribution,
                      goal_probabilities: Dict[int, gofi.OGoalsProbabilities],
                      observations: xavi.Observations,
                      reference_t: int) \
@@ -201,11 +223,10 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
              observations: The observations that preceded the planning step.
              reference_t: The time of the start of the counterfactual simulation.
          """
+        raw_samples = sampling_distribution.sample_dataset(self._cf_n_samples)
         dataset = {}
-        for m, rollout in enumerate(mcts_results):
+        for m, (goal_trajectories, trace, last_node, rewards) in enumerate(raw_samples):            
             trajectories = {}
-            r = []
-            last_node = rollout.leaf
             trajectory_queried_agent = None
 
             # save trajectories of each agent
@@ -232,7 +253,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                     start_observation = ip.Observation(start_frame, self._scenario_map)
                     fill_missing_actions(sim_trajectory, None, agent, start_observation)
                 elif isinstance(agent, ip.TrafficAgent):
-                    plan = goal_probabilities[agent_id].trajectory_to_plan(*rollout.samples[agent_id])
+                    plan = sampling_distribution.agent_distributions[agent_id].trajectory_to_plan(*goal_trajectories[agent_id])
                     fill_missing_actions(sim_trajectory, plan)
 
                 if agent_id == self.query.agent_id:
@@ -240,11 +261,6 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
 
                 trajectory.extend(sim_trajectory, reload_path=True)
                 trajectories[agent_id] = trajectory
-
-            # save reward for each component
-            for last_action, reward_value, in last_node.reward_results.items():
-                if last_action == rollout.trace[-1]:
-                    r = reward_value[-1]
 
             # Slice the trajectory according to the tense in case of multiple actions in query exist in a trajectory
             sliced_trajectory = self.query.slice_segment_trajectory(
@@ -255,8 +271,12 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
             if self.query.negative:
                 y = not y
 
-            data_set_m = OItem(trajectories, y, r, rollout, rollout.occluded_factor)
+
+            data_set_m = OItem(trajectories, y, rewards, trace, last_node, rollout.occluded_factor)
             dataset[m] = data_set_m
+
+            # data_set_m = OItem(trajectories, y, r, rollout, rollout.occluded_factor)
+            # dataset[m] = data_set_m
 
         logger.debug('Dataset generation done.')
         return dataset

@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 
 import xavi
 import oxavi
+import gofi
 import igp2 as ip
 from util import setup_xavi_logging
 
@@ -49,49 +50,47 @@ if __name__ == "__main__":
     queries = json.load(open(f"scenarios/queries/query_scenario{scenario}.json", "r"))
     query = xavi.Query(**queries[query_idx])
 
-    if scenario in [1, 2, 3, 4]:
-        if not load_existing:
+    if not load_existing:
             xavi_agent = pickle.load(open(f"output/scenario_{scenario}/agent_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
-            for mcts in xavi_agent.cf_mcts.values():
-                mcts._allow_hide_occluded = allow_hide_occluded
-                mcts.n = 15
-            xavi_agent._cf_n_samples = 100
-            sd_path = os.path.join(output_path, f"sd_n{xavi_agent.cf_n_simulations}_t{query.t_query}_m{query.type}.pkl")
-            if os.path.exists(sd_path):
-                xavi_agent._cf_sampling_distribution = pickle.load(open(sd_path, "rb"))
-            causes = xavi_agent.explain_actions(query)
-            if not os.path.exists(sd_path):
-                pickle.dump(xavi_agent.sampling_distributions, open(sd_path, "wb"))
 
-    elif scenario == 9:
-        if not load_existing:
-            oxavi_agent = pickle.load(open("output/scenario_9/agent_t100_mQueryType.WHY_NOT.pkl", "rb"))
-            for mcts in oxavi_agent.cf_mcts.values():
-                mcts._allow_hide_occluded = allow_hide_occluded
-                mcts.n = n
-            causes = oxavi_agent.explain_actions(query)
+    if scenario in [1, 2, 3, 4] and not load_existing:
+        for mcts in xavi_agent.cf_mcts.values():
+            mcts._allow_hide_occluded = allow_hide_occluded
+            mcts.n = n
+        xavi_agent._cf_n_samples = 100
+        xavi_agent._n_trajectories = 2
+        sd_path = os.path.join(output_path, f"sd_n{xavi_agent.cf_n_simulations}_t{query.t_query}_m{query.type}.pkl")
+        if os.path.exists(sd_path):
+            xavi_agent._cf_sampling_distribution = pickle.load(open(sd_path, "rb"))
+        causes = xavi_agent.explain_actions(query)
+        if not os.path.exists(sd_path):
+            pickle.dump(xavi_agent.sampling_distributions, open(sd_path, "wb"))
 
-    elif scenario == 10:
-        if not load_existing:
-            oxavi_agent = pickle.load(open(f"output/scenario_10/agent_t{query.t_query}_mQueryType.WHY.pkl", "rb"))
-            oxavi.OXAVITree.STOP_CHANCE = 1.0
-            oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = 0.0
-            for mcts in oxavi_agent.cf_mcts.values():
-                mcts._allow_hide_occluded = allow_hide_occluded
-                mcts.n = n
-                mcts.reward = ip.Reward(factors=config["agents"][0]["mcts"]["reward_factors"])
-            causes = oxavi_agent.explain_actions(query)
+    elif scenario == 9 and not load_existing:
+        for mcts in xavi_agent.cf_mcts.values():
+            mcts._allow_hide_occluded = allow_hide_occluded
+            mcts.n = 15  # n 
+            mcts.tree_type = gofi.OTree
+        xavi_agent._always_check_stop = True
+        causes = xavi_agent.explain_actions(query)
 
-    elif scenario == 11:
-        if not load_existing:
-            oxavi_agent = pickle.load(open(f"output/scenario_11/agent_t100_mQueryType.WHY_NOT.pkl", "rb"))
-            # oxavi.OXAVITree.STOP_CHANCE = 1.0
-            # oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = 0.0
-            for mcts in oxavi_agent.cf_mcts.values():
-                mcts._allow_hide_occluded = allow_hide_occluded
-                mcts.n = n
-                mcts.reward = ip.Reward(factors=config["agents"][0]["mcts"]["reward_factors"])
-            causes = oxavi_agent.explain_actions(query)
+    elif scenario == 10 and not load_existing:
+        oxavi.OXAVITree.STOP_CHANCE = 1.0
+        oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = 0.0
+        for mcts in xavi_agent.cf_mcts.values():
+            mcts._allow_hide_occluded = allow_hide_occluded
+            mcts.n = n
+            mcts.reward = ip.Reward(factors=config["agents"][0]["mcts"]["reward_factors"])
+        causes = xavi_agent.explain_actions(query)
+
+    elif scenario == 11 and not load_existing:
+        # oxavi.OXAVITree.STOP_CHANCE = 1.0
+        # oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = 0.0
+        for mcts in xavi_agent.cf_mcts.values():
+            mcts._allow_hide_occluded = allow_hide_occluded
+            mcts.n = n
+            mcts.reward = ip.Reward(factors=config["agents"][0]["mcts"]["reward_factors"])
+        causes = xavi_agent.explain_actions(query)
 
     if not load_existing:
         file_path = os.path.join(output_path, f"q_n{n}_t{query.t_query}_m{query.type}.pkl")
