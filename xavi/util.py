@@ -304,32 +304,35 @@ def get_deterministic_trajectories(goal_probabilities: Dict[int, ip.GoalsProbabi
 
 def get_visit_probabilities(rollouts: ip.AllMCTSResult, p_optimal: bool = 0.75) -> Dict[int, List[float]]:
     """ Retrieve the visit probabilities of each full trajectory in the MCTS tree. """
-    n_runs = len(rollouts.mcts_results)
     final_tree = rollouts.mcts_results[-1].tree
     plan_probabilities = {}
     data = {}
-    for key, node in final_tree.tree.items():
-        collisions_at_node = {action: sum(reward.reward_components["coll"] is not None for reward in rewards) 
-                            for action, rewards in node.reward_results.items()}
-        if node.is_leaf:
-            for i, actions in enumerate(node.actions_names):
-                trace = key + (actions, )
-                plan_probabilities[trace] = 0.
-                data[trace] = node
-        elif any(colls > 0 for colls in collisions_at_node.values()):
-            for action, n_collisions in filter(lambda x: x[1] > 0, collisions_at_node.items()):
-                trace = key + (action, )
-                plan_probabilities[trace] = 0.
-                matching_rollouts = [rollout for rollout in rollouts if rollout.trace == trace]
-                if matching_rollouts:
-                    rollout = matching_rollouts[0]
-                    data[trace] = rollout.leaf
-                else:
-                    raise ValueError(f"No rollout found for collision trace {trace}.")
+
+    # for key, node in final_tree.tree.items():
+    #     collisions_at_node = {action: sum(reward.reward_components["coll"] is not None for reward in rewards) 
+    #                         for action, rewards in node.reward_results.items()}
+    #     if node.is_leaf:
+    #         for i, actions in enumerate(node.actions_names):
+    #             trace = key + (actions, )
+    #             plan_probabilities[trace] = 0.
+    #             data[trace] = node
+    #     elif any(colls > 0 for colls in collisions_at_node.values()):
+    #         for action, n_collisions in filter(lambda x: x[1] > 0, collisions_at_node.items()):
+    #             trace = key + (action, )
+    #             plan_probabilities[trace] = 0.
+    #             matching_rollouts = [rollout for rollout in rollouts if rollout.trace == trace]
+    #             if matching_rollouts:
+    #                 rollout = matching_rollouts[0]
+    #                 data[trace] = rollout.leaf
+    #             else:
+    #                 raise ValueError(f"No rollout found for collision trace {trace}.")
     
     reward_data = defaultdict(list)
-    for m, rollout in enumerate(rollouts):
+    for rollout in rollouts:
         last_node = rollout.leaf
+        key = rollout.trace
+        plan_probabilities[key] = 0.
+        data[key] = last_node
         for last_action, reward_value, in last_node.reward_results.items():
             if last_action == rollout.trace[-1]:
                 r = reward_value[-1]
