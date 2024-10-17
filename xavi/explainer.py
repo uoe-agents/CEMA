@@ -142,12 +142,12 @@ class XAVIAgent(ip.MCTSAgent):
             self.query.get_tau(
                 self._current_t, self._scenario_map,
                 self.total_observations, self._mcts_results_buffer)
-            logger.info(f"t_action is {self.query.t_action}, tau is {self.query.tau}")
+            logger.info("t_action is %s, tau is %s", self.query.t_action, self.query.tau)
         except ValueError as ve:
             logger.exception(str(ve), exc_info=ve)
             return str(ve), None
 
-        logger.info(f"Running explanation for {self.query}.")
+        logger.info("Running explanation for %s.", self.query)
 
         if self.query.type == QueryType.WHAT:
             causes = self._explain_what()
@@ -159,7 +159,7 @@ class XAVIAgent(ip.MCTSAgent):
             raise ValueError(f"Unknown query type: {self.query.type}")
 
         self._previous_queries.append(self._user_query)
-        logger.debug(f"Runtime: {time.time() - t_start}")
+        logger.debug("Runtime: %s", time.time() - t_start)
         return causes
 
     def _teleological_causes(self,
@@ -378,6 +378,7 @@ class XAVIAgent(ip.MCTSAgent):
         for time_reference in times:
             self._generate_counterfactuals_from_time(time_reference)
 
+
     def _generate_counterfactuals_from_time(self, time_reference: str):
         """ Generate a counterfactual dataset from the time reference point.
 
@@ -410,7 +411,7 @@ class XAVIAgent(ip.MCTSAgent):
                 self._cf_goal_probabilities_dict[time_reference] = goal_probabilities
             ref_t = self.query.t_action if time_reference == "t_action" else self.query.tau
             self._cf_dataset_dict[time_reference] = self._get_dataset(
-                self._cf_sampling_distribution[time_reference], goal_probabilities, truncated_observations, ref_t)
+                self._cf_sampling_distribution[time_reference], truncated_observations, ref_t)
 
     def _get_goals_probabilities(self,
                                  observation: ip.Observation,
@@ -504,9 +505,9 @@ class XAVIAgent(ip.MCTSAgent):
 
             self._cf_sampling_distribution[time_reference] = distribution
 
+
     def _get_dataset(self,
                      sampling_distribution: Distribution,
-                     goal_probabilities: Dict[int, ip.GoalsProbabilities],
                      observations: Observations,
                      reference_t: int) \
             -> Dict[int, Item]:
@@ -522,7 +523,6 @@ class XAVIAgent(ip.MCTSAgent):
         dataset = {}
         for m, (goal_trajectories, trace, last_node, rewards) in enumerate(raw_samples):
             trajectories = {}
-            r = []
             trajectory_queried_agent = None
 
             # save trajectories of each agent
@@ -543,6 +543,10 @@ class XAVIAgent(ip.MCTSAgent):
 
                 trajectory.extend(sim_trajectory, reload_path=True)
                 trajectories[agent_id] = trajectory
+
+            if len(trajectory_queried_agent.states) == 0:
+                logger.warning(f"No trajectory given for agent {self.query.agent_id} in counterfactual.")
+                continue
 
             # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
             sliced_trajectory = self.query.slice_segment_trajectory(
