@@ -3,24 +3,24 @@ import os.path
 import pickle
 import sys
 from typing import List
+import random
 
 import igp2 as ip
 from igp2.core.config import Configuration
-import xavi
-import oxavi
 import gofi
 import numpy as np
-import random
 import matplotlib.pyplot as plt
 
 from util import generate_random_frame, setup_xavi_logging, parse_args, \
     load_config, parse_query, to_ma_list
 
+import xavi
+import oxavi
+
 logger = logging.Logger(__name__)
 
 
 def main():
-
     args = parse_args()
 
     if not os.path.exists("output"):
@@ -28,7 +28,7 @@ def main():
     output_path = os.path.join("output", f"scenario_{args.scenario}")
     if not os.path.exists(output_path):
         os.mkdir(output_path)
-    setup_xavi_logging(log_dir=os.path.join(output_path, "logs"), log_name=f"run")
+    setup_xavi_logging(log_dir=os.path.join(output_path, "logs"), log_name="run")
 
     logger.debug(args)
 
@@ -49,7 +49,6 @@ def main():
 
     ip_config = Configuration()
     ip_config.set_properties(**config["scenario"])
-    oxavi.OXAVITree.STOP_CHANCE = config["scenario"].get("stop_chance", 1.0)
     oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = config["scenario"].get("ignore_vehicle_in_front_chance", 0.0)
 
     frame = generate_random_frame(scenario_map, config)
@@ -107,9 +106,6 @@ def create_agent(agent_config, scenario_map, frame, fps, args):
                 agent_config["macro_actions"], agent_config["id"], frame, scenario_map)
         agent = gofi.OccludedAgent(occlusions=agent_config["occlusions"], **base_agent)
         rolename = agent_config.get("rolename", "occluded")
-    elif agent_type == "StaticObject":
-        agent = gofi.StaticObject(**base_agent)
-        rolename = agent_config.get("rolename", "object")
     else:
         raise ValueError(f"Unsupported agent type {agent_config['type']}")
     return agent, rolename
@@ -129,15 +125,11 @@ def run_simple_simulation(simulation, args, queries, config, output_path) -> boo
 def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, output_path: str, args):
     for query in queries:
         if t > 0 and t == query.t_query:
-            if query.type != xavi.QueryType.WHY_NOT:
-                continue
-
             if args.save_agent:
                 file_name = f"agent_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl"
                 file_path = os.path.join(output_path, file_name)
                 pickle.dump(xavi_agent, open(file_path, "wb"))
             
-            assert False
             causes = xavi_agent.explain_actions(query)
 
             if args.save_causes:
@@ -145,7 +137,6 @@ def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, outpu
                 pickle.dump(causes, open(file_path, "wb"))
                 file_path = os.path.join(output_path, f"sd_n{xavi_agent.cf_n_simulations}_t{t}_m{query.type}.pkl")
                 pickle.dump(xavi_agent.sampling_distributions, open(file_path, "wb"))
-            # assert False
 
 
 if __name__ == '__main__':

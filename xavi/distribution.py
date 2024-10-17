@@ -23,7 +23,7 @@ class Distribution:
         self.plan_data.append(plan_data)
         self.reward_data.append(reward_data)
 
-    def sample_agents(self) -> Dict[int, ip.VelocityTrajectory]:
+    def sample_agents(self) -> Dict[int, Tuple[ip.Goal, ip.VelocityTrajectory]]:
         """ Sample goals and trajectories for all non-ego agents using the given agent distributions. """
         ret = {}
         for aid, gp in self.agent_distributions.items():

@@ -5,9 +5,7 @@
     "fps": 20,
     "seed": 42,
     "max_steps": 1000,
-    "give_way_distance": 20.0,
-    "stop_chance": 1.0,
-    "ignore_vehicle_in_front_chance": 0.0
+    "give_way_distance": 20.0
   },
   "objects": [
     {
@@ -80,7 +78,7 @@
         }
       },
       "explainer": {
-        "cf_n_simulations": 50,
+        "cf_n_simulations": 30,
         "cf_max_depth": 5,
         "alpha": 0.01,
         "alpha_occlusion": 1.0,

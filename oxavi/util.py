@@ -11,23 +11,9 @@ import gofi
 logger = logging.getLogger(__name__)
 
 
-class OXAVITree(gofi.OTree):
-    """ Overwrite the original MCTS tree to disable give-way with some chance. """
-    STOP_CHANCE = 1.0
-
-    def select_action(self, node: ip.Node) -> ip.MCTSAction:
-        action = super(OXAVITree, self).select_action(node)
-        if isinstance(action, ip.MCTSAction) and action.macro_action_type == ip.Exit:
-            give_way_stop = np.random.random() >= 1.0 - OXAVITree.STOP_CHANCE
-            if not give_way_stop:
-                logger.debug(f"    Ego is not giving way!")
-            action.ma_args["stop"] = give_way_stop
-        return action
-
-
 class OFollowLaneCL(ip.FollowLaneCL):
     """ Extend the original FollowLaneCL class to include occluded factors. """
-    IGNORE_VEHICLE_IN_FRONT_CHANCE = 0.25
+    IGNORE_VEHICLE_IN_FRONT_CHANCE = 0.0
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

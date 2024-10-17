@@ -18,7 +18,7 @@
             "request": "launch",
             "program": "c:\\Users\\Balint\\Documents\\Agents\\xavi\\scenarios\\run.py",
             "console": "integratedTerminal",
-            "args": "9 --save_causes --save_agent --plot"
+            "args": "11 --save_causes --save_agent"
         },
         {
             "name": "test.py",
@@ -26,7 +26,7 @@
             "request": "launch",
             "program": "c:\\Users\\Balint\\Documents\\Agents\\xavi\\scenarios\\test.py",
             "console": "integratedTerminal",
-            "args": "--scenario 9 --n 30 --query_idx 0"
+            "args": "--scenario 11 --n 30 --query_idx 0"
         }
     ]
 }

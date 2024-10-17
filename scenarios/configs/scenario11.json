@@ -79,7 +79,7 @@
         }
       },
       "explainer": {
-        "cf_n_simulations": 50,
+        "cf_n_simulations": 30,
         "cf_max_depth": 5,
         "alpha_occlusion": 1.0,
         "allow_hide_occluded": false

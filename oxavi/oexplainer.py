@@ -1,10 +1,11 @@
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict
 import logging
 
 import gofi
 import xavi
 import igp2 as ip
 from oxavi.ofeatures import OFeatures
+from oxavi.odistribution import ODistribution
 from oxavi.util import fill_missing_actions, get_occluded_trajectory, \
     OItem, OFollowLaneCL, overwrite_predictions, get_deterministic_trajectories
 
@@ -32,7 +33,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
             alpha_occlusion: the smoothing weight for occluded factors.
             allow_hide_occluded: whether to allow hiding the occluded factor in simulation despite it being present.
         """
-        super(OXAVIAgent, self).__init__(
+        super().__init__(
             occluded_factors_prior=occluded_factors_prior,
             cf_n_trajectories=cf_n_trajectories,
             cf_n_simulations=cf_n_simulations,
@@ -161,11 +162,11 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
             goal_probabilities[agent_id].add_smoothing(
                 alpha_goal=self._alpha,
                 alpha_occlusion=self._alpha_occlusion,
-                uniform_goals=True)
+                uniform_goals=False)
             previous_agent_id = agent_id
 
             logger.info("")
-            logger.info(f"Goals probabilities for agent {agent_id} after (possible) overriding and smoothing.")
+            logger.info("Goals probabilities for agent %s after (possible) overriding and smoothing.", agent_id)
             goal_probabilities[agent_id].log(logger)
             logger.info("")
 
@@ -183,7 +184,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
         if self._cf_sampling_distribution[time_reference] is None:
             agents_metadata = {aid: state.metadata for aid, state in frame.items()}
             all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
-            distribution = xavi.Distribution(goal_probabilities)
+            distribution = ODistribution(goal_probabilities)
 
             ip.MacroActionFactory.macro_action_types["Exit"] = xavi.util.Exit_
             xavi.util.Exit_.ALWAYS_STOPS = self._always_check_stop
@@ -210,8 +211,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
         ip.CLManeuverFactory.maneuver_types["follow-lane"] = ip.FollowLaneCL
 
     def _get_dataset(self,
-                     sampling_distribution: xavi.Distribution,
-                     goal_probabilities: Dict[int, gofi.OGoalsProbabilities],
+                     sampling_distribution: ODistribution,
                      observations: xavi.Observations,
                      reference_t: int) \
             -> Dict[int, xavi.Item]:
@@ -225,7 +225,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
          """
         raw_samples = sampling_distribution.sample_dataset(self._cf_n_samples)
         dataset = {}
-        for m, (goal_trajectories, trace, last_node, rewards) in enumerate(raw_samples):            
+        for m, (goal_trajectories, trace, last_node, rewards, occluded_factor) in enumerate(raw_samples):
             trajectories = {}
             trajectory_queried_agent = None
 
@@ -272,7 +272,7 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
                 y = not y
 
 
-            data_set_m = OItem(trajectories, y, rewards, trace, last_node, rollout.occluded_factor)
+            data_set_m = OItem(trajectories, y, rewards, trace, last_node, occluded_factor)
             dataset[m] = data_set_m
 
             # data_set_m = OItem(trajectories, y, r, rollout, rollout.occluded_factor)
