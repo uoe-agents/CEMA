@@ -82,8 +82,7 @@ if __name__ == "__main__":
         final_causes = causes[0]
         efficient_causes = causes[1]
 
-    xavi.plot_explanation(final_causes, efficient_causes[0:2], query, uniform_teleological=False)
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_path, f"q_n{n}_t{query.t_query}_m{query.type}.png"))
-    plt.show()
+    # xavi.plot_explanation(final_causes, efficient_causes[0:2], query, uniform_teleological=False)
+    # plt.tight_layout()
+    # plt.savefig(os.path.join(output_path, f"q_n{n}_t{query.t_query}_m{query.type}.png"))
+    # plt.show()

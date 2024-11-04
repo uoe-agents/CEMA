@@ -14,7 +14,7 @@ from shapely.geometry import Polygon
 from xavi import Query
 
 logger = logging.getLogger(__name__)
-
+    
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()

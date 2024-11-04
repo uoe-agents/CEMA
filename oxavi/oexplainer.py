@@ -181,34 +181,33 @@ class OXAVIAgent(gofi.GOFIAgent, xavi.XAVIAgent):
         # Run MCTS search for counterfactual simulations while storing run results
 
         ip.CLManeuverFactory.maneuver_types["follow-lane"] = OFollowLaneCL
-        if self._cf_sampling_distribution[time_reference] is None:
-            agents_metadata = {aid: state.metadata for aid, state in frame.items()}
-            all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
-            distribution = ODistribution(goal_probabilities)
+        agents_metadata = {aid: state.metadata for aid, state in frame.items()}
+        all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
+        distribution = ODistribution(goal_probabilities)
 
-            ip.MacroActionFactory.macro_action_types["Exit"] = xavi.util.Exit_
-            xavi.util.Exit_.ALWAYS_STOPS = self._always_check_stop
-            for i, deterministic_trajectories in enumerate(all_deterministic_trajectories):
-                logger.info(f"Running deterministic simulations {i + 1}/{len(all_deterministic_trajectories)}")
+        ip.MacroActionFactory.macro_action_types["Exit"] = xavi.util.Exit_
+        xavi.util.Exit_.ALWAYS_STOPS = self._always_check_stop
+        for i, deterministic_trajectories in enumerate(all_deterministic_trajectories):
+            logger.info(f"Running deterministic simulations {i + 1}/{len(all_deterministic_trajectories)}")
 
-                mcts.search(
-                    agent_id=self.agent_id,
-                    goal=self.goal,
-                    frame=frame,
-                    meta=agents_metadata,
-                    predictions=deterministic_trajectories)
-                
-                # Record rollout data for sampling
-                key_trajectories = {}
-                for aid, gp in deterministic_trajectories.items():
-                    key = (gp.goals[0], gp.occluded_factors[0])
-                    key_trajectories[aid] = (key, gp.all_trajectories[key][0])
-                probabilities, data, reward_data = xavi.util.get_visit_probabilities(mcts.results, p_optimal=self._p_optimal)
-                distribution.add_distribution(key_trajectories, probabilities, data, reward_data)
-            ip.MacroActionFactory.macro_action_types["Exit"] = ip.Exit
+            mcts.search(
+                agent_id=self.agent_id,
+                goal=self.goal,
+                frame=frame,
+                meta=agents_metadata,
+                predictions=deterministic_trajectories)
+            
+            # Record rollout data for sampling
+            key_trajectories = {}
+            for aid, gp in deterministic_trajectories.items():
+                key = (gp.goals[0], gp.occluded_factors[0])
+                key_trajectories[aid] = (key, gp.all_trajectories[key][0])
+            probabilities, data, reward_data = xavi.util.get_visit_probabilities(mcts.results, p_optimal=self._p_optimal)
+            distribution.add_distribution(key_trajectories, probabilities, data, reward_data)
+        ip.MacroActionFactory.macro_action_types["Exit"] = ip.Exit
 
-            self._cf_sampling_distribution[time_reference] = distribution
-        ip.CLManeuverFactory.maneuver_types["follow-lane"] = ip.FollowLaneCL
+        self._cf_sampling_distribution[time_reference] = distribution
+    ip.CLManeuverFactory.maneuver_types["follow-lane"] = ip.FollowLaneCL
 
     def _get_dataset(self,
                      sampling_distribution: ODistribution,

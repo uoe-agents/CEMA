@@ -403,12 +403,13 @@ class XAVIAgent(ip.MCTSAgent):
                 goal_probabilities = self._get_goals_probabilities(observation, previous_frame)
 
                 ref_t = self.query.t_action if time_reference == "t_action" else self.query.tau
-                self._generate_rollouts(previous_frame,
-                                        truncated_observations,
-                                        goal_probabilities,
-                                        mcts,
-                                        time_reference)
-                self._cf_goal_probabilities_dict[time_reference] = goal_probabilities
+                if self._cf_sampling_distribution[time_reference] is None:
+                    self._generate_rollouts(previous_frame,
+                                            truncated_observations,
+                                            goal_probabilities,
+                                            mcts,
+                                            time_reference)
+                    self._cf_goal_probabilities_dict[time_reference] = goal_probabilities
             ref_t = self.query.t_action if time_reference == "t_action" else self.query.tau
             self._cf_dataset_dict[time_reference] = self._get_dataset(
                 self._cf_sampling_distribution[time_reference], truncated_observations, ref_t)
@@ -470,7 +471,7 @@ class XAVIAgent(ip.MCTSAgent):
             gps.add_smoothing(self._alpha, uniform_goals=False)
 
             logger.info("")
-            logger.info(f"Goals probabilities for agent {agent_id} after (possible) overriding and smoothing.")
+            logger.info("Goals probabilities for agent %s after (possible) overriding and smoothing.", agent_id)
             goal_probabilities[agent_id].log(logger)
             logger.info("")
 
@@ -479,31 +480,30 @@ class XAVIAgent(ip.MCTSAgent):
         self._goal_recognition._n_trajectories = n_trajectories
 
         # Run MCTS search for counterfactual simulations while storing run results
-        if self._cf_sampling_distribution[time_reference] is None:
-            agents_metadata = {aid: state.metadata for aid, state in frame.items()}
-            all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
-            distribution = Distribution(goal_probabilities)
+        agents_metadata = {aid: state.metadata for aid, state in frame.items()}
+        all_deterministic_trajectories = get_deterministic_trajectories(goal_probabilities)
+        distribution = Distribution(goal_probabilities)
 
-            ip.MacroActionFactory.macro_action_types["Exit"] = Exit_
-            Exit_.ALWAYS_STOPS = self._always_check_stop
-            for i, deterministic_trajectories in enumerate(all_deterministic_trajectories):
-                logger.info(f"Running deterministic simulations {i + 1}/{len(all_deterministic_trajectories)}")
+        ip.MacroActionFactory.macro_action_types["Exit"] = Exit_
+        Exit_.ALWAYS_STOPS = self._always_check_stop
+        for i, deterministic_trajectories in enumerate(all_deterministic_trajectories):
+            logger.info("Running deterministic simulations %d/%d", i + 1, len(all_deterministic_trajectories))
 
-                mcts.search(
-                    agent_id=self.agent_id,
-                    goal=self.goal,
-                    frame=frame,
-                    meta=agents_metadata,
-                    predictions=deterministic_trajectories)
-                
-                # Record rollout data for sampling
-                goal_trajectories = {aid: (gp.goals_and_types[0], gp.all_trajectories[gp.goals_and_types[0]][0]) 
-                                    for aid, gp in deterministic_trajectories.items()}
-                probabilities, data, reward_data = get_visit_probabilities(mcts.results, p_optimal=self._p_optimal)
-                distribution.add_distribution(goal_trajectories, probabilities, data, reward_data)
-            ip.MacroActionFactory.macro_action_types["Exit"] = ip.Exit
+            mcts.search(
+                agent_id=self.agent_id,
+                goal=self.goal,
+                frame=frame,
+                meta=agents_metadata,
+                predictions=deterministic_trajectories)
+            
+            # Record rollout data for sampling
+            goal_trajectories = {aid: (gp.goals_and_types[0], gp.all_trajectories[gp.goals_and_types[0]][0]) 
+                                for aid, gp in deterministic_trajectories.items()}
+            probabilities, data, reward_data = get_visit_probabilities(mcts.results, p_optimal=self._p_optimal)
+            distribution.add_distribution(goal_trajectories, probabilities, data, reward_data)
+        ip.MacroActionFactory.macro_action_types["Exit"] = ip.Exit
 
-            self._cf_sampling_distribution[time_reference] = distribution
+        self._cf_sampling_distribution[time_reference] = distribution
 
 
     def _get_dataset(self,
@@ -545,7 +545,7 @@ class XAVIAgent(ip.MCTSAgent):
                 trajectories[agent_id] = trajectory
 
             if len(trajectory_queried_agent.states) == 0:
-                logger.warning(f"No trajectory given for agent {self.query.agent_id} in counterfactual.")
+                logger.warning("No trajectory given for agent %s in counterfactual.", self.query.agent_id)
                 continue
 
             # Slice the trajectory according to the tense in case of multiply actions in query exist in a trajectory
@@ -575,9 +575,9 @@ class XAVIAgent(ip.MCTSAgent):
         ret = {}
         map_predictions = {aid: p.map_prediction() for aid, p in self.goal_probabilities.items()}
 
-        for agent_id in self.observations:
+        for agent_id, observations in self.observations.items():
             trajectory = ip.StateTrajectory(self.fps)
-            trajectory.extend(self.observations[agent_id][0], reload_path=False)
+            trajectory.extend(observations[0], reload_path=False)
 
             # Find simulated trajectory that matches best with observations and predictions
             if agent_id == self.agent_id:
