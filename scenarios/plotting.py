@@ -198,6 +198,7 @@ def plot_distribution_results(distribution_results: Dict[float, List[Any]], outp
         time_str = "Past" if time == "past" else "Present-Future"
         g.figure.suptitle(f"{time_str} teleological causes")
         g.set_ylabels(r"$\Delta$Reward")
+        g.set_xlabels(r"Smoothing $\alpha$")
         g.tight_layout()
         plt.savefig(os.path.join(output_path, f"distribution_{time}_teleological_{query_str}.pdf"), bbox_inches='tight')
     # plt.show()
@@ -211,6 +212,7 @@ def plot_distribution_results(distribution_results: Dict[float, List[Any]], outp
                         style="Feature", kind="line", markers=True, hue_order=hue_order)
         time_str = "Past" if time == "past" else "Present-Future"
         g.figure.suptitle(f"{time_str} mechanistic causes")
+        g.set_xlabels(r"Smoothing $\alpha$")
         g.tight_layout()
         plt.savefig(os.path.join(output_path, f"distribution_{time}_mechanistic_{query_str}.pdf"), bbox_inches='tight')
     # plt.show()

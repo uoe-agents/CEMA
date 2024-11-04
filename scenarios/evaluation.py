@@ -65,6 +65,8 @@ def distribution_robustness(n_resamples: int, agent: Union[xavi.XAVIAgent, oxavi
             pbar.set_description_str(f"Distribution alpha {alpha} iteration {i}")
             try:
                 agent._alpha = alpha
+                if isinstance(agent, oxavi.OXAVIAgent):
+                    agent._alpha_occlusion = alpha
                 causes = agent.explain_actions(query)
                 results.append(causes)
             except ValueError:
@@ -92,6 +94,7 @@ def main(args) -> int:
 
     # Setup logging
     setup_xavi_logging(log_dir=logger_path, log_name="evaluation")
+    logging.getLogger("xavi.explainer").setLevel(logging.WARNING)
     logger.info(args)
 
 
