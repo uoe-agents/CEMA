@@ -664,8 +664,13 @@ class XAVIAgent(ip.MCTSAgent):
     def sampling_distributions(self) -> Dict[str, Distribution]:
         """ The sampling distribution for each time reference point. """
         return self._cf_sampling_distribution
-    
+
     @property
     def p_optimal(self) -> float:
         """ The probability of the optimal action in the counterfactual distribution. """
         return self._p_optimal
+
+    @property
+    def scenario_map(self) -> ip.Map:
+        """ The road layout of the environment. """
+        return self._scenario_map

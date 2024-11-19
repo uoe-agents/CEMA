@@ -1,70 +1,93 @@
-import os
-import openai
-import logging
-import argparse
-import json
-import itertools
+""" Helper classes and functions for interacting with the OpenAI API over multiple turns. """
 
+import logging
+import json
+from itertools import chain
 from typing import List, Dict
+import openai
+
 
 logger = logging.getLogger(__name__)
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(description="Parse scenario and temperature.")
-    parser.add_argument('--scenario', type=int, default=1,
-                        help='Scenario ID')
-    parser.add_argument('--temperature', type=float, default=1.0,
-                        help='Temperature value')
-    parser.add_argument('--test', action='store_true', default=False,
-                        help='Whether to use test scenarios')
-    args = parser.parse_args()
-    return args
+class Chat:
+    """ Helper class to manage a conversation with the OpenAI API over multiple turns. """
 
+    def __init__(self, system_prompt: str = None):
+        """ Initialize the Chat class."""
+        self._client = openai.OpenAI(api_key=openai.api_key)
 
-def get_system_prompts(system_config: Dict, scenario_config: Dict) -> List[str]:
-    variables = system_config["variables"]
-    variables_combinations = [dict(zip(variables.keys(), a)) for a in itertools.product(*variables.values())]
+        if system_prompt is None:
+            system_prompt = "You are a helpful assistant."
+        self._system = system_prompt
+        self._user_history = []
+        self._assistant_history = []
 
-    ret = []
-    for combination in variables_combinations:
-        base_str = base_dict["base"]
-        for var, val in combination.items():
-            base_str = base_str.replace(f"<-{var}->", base_dict["variables"][var][val])
-        base_str = base_str.replace("  ", " ")
-        ret.append({"config": combination, "system": base_str})
+    def send(self, prompt: str, use_history: bool = True, **gpt_kwargs):
+        """ Send a message to the OpenAI API and return the response. 
+        
+        Args:
+            prompt: The message to send to the API.
+            use_history: Whether to use the chat history in the prompt.
 
-    scenario_str = (f"Driving side: {scenario_config['regulations']['side']} traffic;\n"
-                    f"Speed limit: {scenario_config['regulations']['speed_limit']} m/s;\n")
+        Keyword Args:
+            gpt_kwargs: Additional arguments to pass to the OpenAI API.
+        """
+        # Setup message history if needed
+        messages = [
+            {"role": "system", "content": self._system},
+        ] + self.history if use_history else []
 
-    return ret
+        # Create user message
+        user_message = {"role": "user", "content": prompt}
+        messages.append(user_message)
+        self._user_history.append(user_message)
 
+        # Send message to API and store response if not empty
+        response = self.client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            **gpt_kwargs
+        )
+        response = response.choices[0].message.content
+        if response:
+            self.assistant_history.append({"role": "assistant", "content": response})
+        else:
+            logger.warning("Empty response from OpenAI API.")
 
-def communicate_with_gpt4(system: str, prompt: str, **gpt_kwargs):
-    client = openai.OpenAI(api_key=openai.api_key)
-    response = openai.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt}
-        ],
-        **gpt_kwargs
-    )
-    message = response.choices[0].message.content
-    return message
+        return response
 
+    def reset_history(self):
+        """ Reset all of the chat history. """
+        self._user_history = []
+        self._assistant_history = []
 
-if __name__ == '__main__':
-    args = parse_arguments()
-    scenario_id = args.scenario
-    temperature = args.temperature
+    def save_chat_history(self, path: str):
+        """ Save the chat history to a file. """
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.history, f)
 
-    base_path = os.path.join("configs", "base", ".json")
-    base_dict = json.load(open(base_path, "r"))
-    scenario_path = os.path.join("configs", f"{'test_' if args.test else ''}scenario_{scenario_id}", ".json")
-    scenario_dict = json.load(open(scenario_path, "r"))
-    system_prompt_combinations = get_system_prompts(base_dict, scenario_dict)
+    @property
+    def client(self) -> openai.Client:
+        """ Return the OpenAI client. """
+        return self._client
 
-    response = communicate_with_gpt4(
-        system_prompt, user_prompt, temperature=temperature)
-    print(response)
+    @property
+    def system_prompt(self) -> str:
+        """ Return the system prompt. """
+        return self._system
+
+    @property
+    def history(self) -> Dict[str, List[Dict[str, str]]]:
+        """ Return the combined user and assisstant chat history as alternating messages. """
+        return list(chain.from_iterable(zip(self._user_history, self._assistant_history)))
+
+    @property
+    def user_history(self) -> List[Dict[str, str]]:
+        """ Return the message history of the user. """
+        return self._user_history
+
+    @property
+    def assistant_history(self) -> List[Dict[str, str]]:
+        """ Return the message history of the assistant. """
+        return self._assistant_history

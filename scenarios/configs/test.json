@@ -1,0 +1,111 @@
+{
+    "scenario": {
+        "map_path": "scenarios\\maps\\scenario1.xodr",
+        "max_speed": 10.0,
+        "fps": 20,
+        "seed": 42,
+        "max_steps": 1000
+    },
+    "agents": [
+        {
+            "id": 0,
+            "type": "XAVIAgent",
+            "spawn": {
+              "box": {
+                "center": [
+                  -10.0,
+                  -1.8
+                ],
+                "length": 3.5,
+                "width": 3.5,
+                "heading": 0.0
+              },
+              "velocity": [
+                9.9,
+                10.0
+              ]
+            },
+            "goal": {
+              "box": {
+                "center": [
+                  70.0,
+                  0.0
+                ],
+                "length": 5,
+                "width": 7,
+                "heading": 0.0
+              }
+            },
+            "cost_factors": {
+              "time": 3.0,
+              "velocity": 0.0,
+              "acceleration": 0.1,
+              "jerk": 0.0,
+              "heading": 0.0,
+              "angular_velocity": 1.0,
+              "angular_acceleration": 0.1,
+              "curvature": 0.0,
+              "safety": 0.0
+            },
+            "mcts": {
+              "t_update": 2.0,
+              "n_simulations": 30,
+              "store_results": "all",
+              "trajectory_agents": false,
+              "reward_factors": {
+                "time": 1.0,
+                "jerk": -0.01,
+                "angular_velocity": -0.03,
+                "curvature": -0.01
+              } 
+            },
+            "explainer": {
+              "cf_n_simulations": 30,
+              "cf_max_depth": 5,
+              "cf_n_samples": 100,
+              "tau_limits": [2.0, 5.0],
+              "time_limits": [5.0, 5.0],
+              "alpha": 0.5,
+              "p_optimal": 0.75,
+              "cf_reward_factors": {
+                "tau": {
+                  "time": 1.0,
+                  "jerk": -0.01,
+                  "angular_velocity": -0.01,
+                  "curvature": -0.01
+                }
+              }
+            },
+            "view_radius": 500
+          },
+          {
+            "id": 1,
+            "type": "TrafficAgent",
+            "spawn": {
+              "box": {
+                "center": [
+                  0.0,
+                  1.7
+                ],
+                "length": 3.5,
+                "width": 3.5,
+                "heading": 0.0
+              },
+              "velocity": [
+                9.9,
+                10.0
+              ]
+            },
+            "goal": {
+              "box": {
+                "center": [
+                    95.0
+                ],
+                "length": 3.5,
+                "width": 7.0,
+                "heading": 0.0
+              }
+            }
+          }
+    ]
+}
