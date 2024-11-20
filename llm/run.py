@@ -58,11 +58,13 @@ def main(args) -> int:
     logger.info("Current arguments: %s", args)
 
     # Load scenario and query
+    config = sutil.load_config(args)
     agent, query = load_scenario(args.sid, args.qid)
     scenario_map = agent.scenario_map
     query_str = f"n30_t{query.t_query}_m{query.type}"
 
     # Verbalize the road layout for the scenario
+    scenario = verbalize.scenario(config)
     road_layout = verbalize.road_layout(scenario_map)
 
     return 1

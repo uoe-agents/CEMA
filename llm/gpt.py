@@ -23,8 +23,8 @@ class Chat:
         self._user_history = []
         self._assistant_history = []
 
-    def send(self, prompt: str, use_history: bool = True, **gpt_kwargs):
-        """ Send a message to the OpenAI API and return the response. 
+    def prompt(self, prompt: str, use_history: bool = True, **gpt_kwargs):
+        """ Send a prompt to the OpenAI API and return the response. 
         
         Args:
             prompt: The message to send to the API.
