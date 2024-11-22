@@ -63,7 +63,8 @@
       },
       "explainer": {
         "cf_n_simulations": 30,
-        "cf_max_depth": 5
+        "cf_max_depth": 5,
+        "cf_n_trajectories": 2
       },
       "view_radius": 500
     },

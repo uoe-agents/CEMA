@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "c:\\Users\\Balint\\Documents\\Agents\\xavi\\scenarios\\evaluation.py",
             "console": "integratedTerminal",
-            "args": "--sid 9 --qid 0"
+            "args": "--sid 6 --qid 0"
         },
         {
             "name": "run.py",
@@ -18,7 +18,7 @@
             "request": "launch",
             "program": "c:\\Users\\Balint\\Documents\\Agents\\xavi\\scenarios\\run.py",
             "console": "integratedTerminal",
-            "args": "11 --save_causes --save_agent"
+            "args": "8 --save_causes --save_agent"
         },
         {
             "name": "test.py",
@@ -26,7 +26,7 @@
             "request": "launch",
             "program": "c:\\Users\\Balint\\Documents\\Agents\\xavi\\scenarios\\test.py",
             "console": "integratedTerminal",
-            "args": "--scenario 2 --n 30 --query_idx 1"
+            "args": "--scenario 8 --n 30 --query_idx 0"
         },
         {
             "name": "playground.py",

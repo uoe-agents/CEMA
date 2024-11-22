@@ -6,7 +6,7 @@ $scenarios = 1..4 + 9..11
 
 # Define a dictionary to map scenarios to query numbers
 $scenarioQueryMap = @{
-    # 1 = 0..3
+    1 = 0..3
     2 = @(0, 1)
     3 = @(1)
     4 = @(0)

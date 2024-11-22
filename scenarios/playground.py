@@ -32,8 +32,8 @@ def main(args):
     agent.cf_datasets["tau"] = {k: v for k, v in dataset_backup["tau"].items() if not v.occluded_factor.no_occlusions}
     agent.cf_datasets["t_action"] = {k: v for k, v in dataset_backup["t_action"].items() if not v.occluded_factor.no_occlusions}
     causes_occlusions = agent.explain_actions(query)
-    plot_explanation(causes_no_occlusions[0], causes_no_occlusions[1][0:2], query, "noc_" + query_str, "output/test")
-    plot_explanation(causes_occlusions[0], causes_occlusions[1][0:2], query, "oc_" + query_str, "output/test")
+    plot_explanation(causes_no_occlusions[0], causes_no_occlusions[1][0:2], "noc_" + query_str, "output/test")
+    plot_explanation(causes_occlusions[0], causes_occlusions[1][0:2], "oc_" + query_str, "output/test")
 
     # teleological_causes = causes[0]
     # occluded_past_present = []

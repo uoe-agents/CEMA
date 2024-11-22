@@ -12,6 +12,7 @@ from typing import Tuple, Union, Dict, Any
 import numpy as np
 from tqdm import trange, tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
+import matplotlib
 from util import setup_xavi_logging
 from plotting import plot_sampling_results, plot_distribution_results, plot_explanation
 import xavi
@@ -80,6 +81,9 @@ def main(args) -> int:
     """ Evaluate the robustness of the explanation generation with increasing sample sizes
     and distribution smoothing. Also plot explanation reults."""
 
+    matplotlib.rcParams['pdf.fonttype'] = 42
+    matplotlib.rcParams['ps.fonttype'] = 42
+
     # Setup output directories
     output_path = os.path.join("output", f"scenario_{args.sid}")
     if not os.path.exists(output_path):
@@ -95,16 +99,33 @@ def main(args) -> int:
     # Setup logging
     setup_xavi_logging(log_dir=logger_path, log_name="evaluation")
     logging.getLogger("xavi.explainer").setLevel(logging.WARNING)
+    logging.getLogger("oxavi.oexplainer").setLevel(logging.WARNING)
     logger.info(args)
 
 
     # Load scenario and query
+    logger.info("Loading scenario and query . . .")
     agent, query = load_scenario(args.sid, args.qid)
     query_str = f"n30_t{query.t_query}_m{query.type}"
 
     plot_path_query = os.path.join(plot_path, query_str)
     if not os.path.exists(plot_path_query):
         os.makedirs(plot_path_query, exist_ok=True)
+
+
+    # Plot causal attributions
+    logger.info("Generating plots of explanation for query . . .")
+    causes = pickle.load(open(os.path.join(output_path, f"q_{query_str}.pkl"), "rb"))
+    if query.type == xavi.QueryType.WHAT_IF:
+        cf_action_group = causes[0]
+        logger.info(cf_action_group)
+        final_causes = causes[1]
+        efficient_causes = causes[2]
+    else:
+        final_causes = causes[0]
+        efficient_causes = causes[1]
+    plot_explanation(final_causes, efficient_causes[0:2], query_str, plot_path_query)
+
 
     # Run explanation generation with increasing uniformity
     logger.info("Running alpha smoothing robustness evaluation . . .")
@@ -128,20 +149,6 @@ def main(args) -> int:
     else:
         sampling_results = pickle.load(open(sampling_path, "rb"))
     plot_sampling_results(sampling_results, plot_path_query, query_str)
-
-
-    # Plot causal attributions
-    logger.info("Generating plots of explanation for query . . .")
-    causes = pickle.load(open(os.path.join(output_path, f"q_{query_str}.pkl"), "rb"))
-    if query.type == xavi.QueryType.WHAT_IF:
-        cf_action_group = causes[0]
-        logger.info(cf_action_group)
-        final_causes = causes[1]
-        efficient_causes = causes[2]
-    else:
-        final_causes = causes[0]
-        efficient_causes = causes[1]
-    plot_explanation(final_causes, efficient_causes[0:2], query, query_str, plot_path_query)
 
 
     return 0

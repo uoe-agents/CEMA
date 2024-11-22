@@ -1,16 +1,12 @@
 import json
 import os
-import gofi
 import pickle
 import argparse
 import logging
-from matplotlib import pyplot as plt
+from util import setup_xavi_logging
 
 import xavi
 import oxavi
-import gofi
-import igp2 as ip
-from util import setup_xavi_logging
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +41,7 @@ if __name__ == "__main__":
 
     logger.info(args)
 
-    scenario_map = gofi.OMap.parse_from_opendrive(f"scenarios/maps/scenario{scenario}.xodr")
+    # scenario_map = gofi.OMap.parse_from_opendrive(f"scenarios/maps/scenario{scenario}.xodr")
     config = json.load(open(f"scenarios/configs/scenario{scenario}.json", "r"))
     queries = json.load(open(f"scenarios/queries/query_scenario{scenario}.json", "r"))
     query = xavi.Query(**queries[query_idx])
@@ -60,7 +56,7 @@ if __name__ == "__main__":
             mcts.n = n
             mcts._allow_hide_occluded = allow_hide_occluded
         # xavi_agent._cf_n_samples = 100
-        # xavi_agent._n_trajectories = 2
+        xavi_agent._n_trajectories = 1
         if os.path.exists(sd_path):
             xavi_agent._cf_sampling_distribution = pickle.load(open(sd_path, "rb"))
         causes = xavi_agent.explain_actions(query)
