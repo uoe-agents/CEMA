@@ -15,7 +15,8 @@ import itertools
 from typing import List, Dict
 
 import igp2 as ip
-import verbalize
+from llm import verbalize
+from llm import gpt
 import scenarios.util as sutil
 from scenarios.evaluation import load_scenario
 
@@ -40,11 +41,14 @@ logger = logging.getLogger(__name__)
 
 #     return ret
 
-
+SYSTEM_PROMPT = """You are the explanation module of an autonomous driving system.
+You explain the actions of the autonomous driving system in various scenarios when prompted by a user query.
+Reply with helpful and detailed answers which include driving action justification."""
 
 
 def main(args) -> int:
-    """ Run h"""
+    """ Verbalize the scenario and prompt GPT-4o for an explanation. """
+
     # Create folder structure
     os.makedirs("output", exist_ok=True)
     output_path = os.path.join("output", f"scenario_{args.scenario}")
@@ -52,20 +56,26 @@ def main(args) -> int:
     log_path = os.path.join(output_path, "logs")
     os.makedirs(log_path, exist_ok=True)
 
+
     # Setup logging
     sutil.setup_xavi_logging(log_dir=log_path, log_name="llm")
     logging.getLogger("xavi.explainer").setLevel(logging.WARNING)
     logger.info("Current arguments: %s", args)
 
-    # Load scenario and query
+
+    # Load scenario and query and observations
     config = sutil.load_config(args)
-    agent, query = load_scenario(args.sid, args.qid)
-    scenario_map = agent.scenario_map
-    query_str = f"n30_t{query.t_query}_m{query.type}"
+    agent, query = load_scenario(args.scenario, args.query)
+
 
     # Verbalize the road layout for the scenario
-    scenario = verbalize.scenario(config)
-    road_layout = verbalize.road_layout(scenario_map)
+    scenario = verbalize.scenario(config, agent.scenario_map, agent.observations)
+
+
+    # Create Chat object
+    chat = gpt.Chat(system_prompt=SYSTEM_PROMPT)
+    chat.prompt(scenario)
+
 
     return 1
 
@@ -76,8 +86,6 @@ if __name__ == '__main__':
                         help='Scenario ID.. If not provided, the test scenario will be used.')
     parser.add_argument("--query", type=int, default=0,
                         help="Index of query to generate explanations for.")
-    parser.add_argument('--temperature', type=float, default=1.0,
-                        help='Temperature value for GPT-4o.')
     cmd_args = parser.parse_args()
 
     sys.exit(main(cmd_args))

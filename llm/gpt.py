@@ -21,11 +21,14 @@ class Chat:
             system_prompt = "You are a helpful assistant."
         self._system = system_prompt
         self._user_history = []
-        self._assistant_history = []
+        self._response_history = []
 
-    def prompt(self, prompt: str, use_history: bool = True, **gpt_kwargs):
-        """ Send a prompt to the OpenAI API and return the response. 
-        
+    def prompt(self,
+               prompt: str,
+               use_history: bool = True,
+               **gpt_kwargs):
+        """ Send a prompt to the OpenAI API and return the response.
+
         Args:
             prompt: The message to send to the API.
             use_history: Whether to use the chat history in the prompt.
@@ -49,23 +52,25 @@ class Chat:
             messages=messages,
             **gpt_kwargs
         )
-        response = response.choices[0].message.content
-        if response:
-            self.assistant_history.append({"role": "assistant", "content": response})
-        else:
-            logger.warning("Empty response from OpenAI API.")
 
-        return response
+        self.response_history.append(response)
+
+        return response.choices[0].message.content
 
     def reset_history(self):
         """ Reset all of the chat history. """
         self._user_history = []
-        self._assistant_history = []
+        self._response_history = []
 
     def save_chat_history(self, path: str):
         """ Save the chat history to a file. """
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self.history, f)
+
+    def save_response_history(self, path: str):
+        """ Save the chat history to a file. """
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.response_history, f)
 
     @property
     def client(self) -> openai.Client:
@@ -80,7 +85,9 @@ class Chat:
     @property
     def history(self) -> Dict[str, List[Dict[str, str]]]:
         """ Return the combined user and assisstant chat history as alternating messages. """
-        return list(chain.from_iterable(zip(self._user_history, self._assistant_history)))
+        assistant_history = [{"role": "assistant", "content": r.choices[0].message.content}
+                             for r in self.response_history]
+        return list(chain.from_iterable(zip(self._user_history, assistant_history)))
 
     @property
     def user_history(self) -> List[Dict[str, str]]:
@@ -88,6 +95,6 @@ class Chat:
         return self._user_history
 
     @property
-    def assistant_history(self) -> List[Dict[str, str]]:
-        """ Return the message history of the assistant. """
-        return self._assistant_history
+    def response_history(self) -> List[Dict[str, str]]:
+        """ Return the full response history of the assistant. """
+        return self._response_history

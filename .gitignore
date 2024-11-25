@@ -131,6 +131,7 @@ dmypy.json
 
 # PyCharm ignores
 .idea/
+.vscode/
 
 output/
 

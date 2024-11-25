@@ -12,8 +12,8 @@ from typing import Tuple, Union, Dict, Any
 import numpy as np
 from tqdm import trange, tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
-from util import setup_xavi_logging
-from plotting import plot_sampling_results, plot_distribution_results, plot_explanation
+from scenarios.util import setup_xavi_logging
+from scenarios.plotting import plot_sampling_results, plot_distribution_results, plot_explanation
 import xavi
 import oxavi
 
@@ -28,10 +28,11 @@ def load_scenario(scenario_id: int, query_idx: int) -> Tuple[Union[xavi.XAVIAgen
     query_path = os.path.join("scenarios", "queries", f"query_scenario{scenario_id}.json")
     queries = json.load(open(query_path, encoding="utf-8"))
     query = xavi.Query(**queries[query_idx])
-    agent_path = os.path.join(scenario_path, f"agent_n30_t{query.t_query}_m{query.type}.pkl")
+    agent_path = os.path.join(scenario_path, f"agent_t{query.t_query}_m{query.type}.pkl")
     xavi_agent = pickle.load(open(agent_path, "rb"))
-    sd_path = os.path.join(scenario_path, f"sd_n30_t{query.t_query}_m{query.type}.pkl")
-    xavi_agent._cf_sampling_distribution = pickle.load(open(sd_path, "rb"))
+    sd_path = os.path.join(scenario_path, f"sd_t{query.t_query}_m{query.type}.pkl")
+    if os.path.exists(sd_path):
+        xavi_agent._cf_sampling_distribution = pickle.load(open(sd_path, "rb"))
     return xavi_agent, query
 
 

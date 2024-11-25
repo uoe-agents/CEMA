@@ -91,6 +91,9 @@ class XAVIAgent(ip.MCTSAgent):
         self._total_trajectories = None
         self._mcts_results_buffer = []
 
+    def __repr__(self) -> str:
+        return f"XAVIAgent({self.agent_id})"
+
     def update_plan(self, observation: ip.Observation):
         super(XAVIAgent, self).update_plan(observation)
 
