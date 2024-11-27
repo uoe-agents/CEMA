@@ -62,7 +62,7 @@ def setup_xavi_logging(log_dir: str = None, log_name: str = None):
             os.mkdir(log_dir)
 
         date_time = datetime.today().strftime('%Y%m%d_%H%M%S')
-        file_handler = logging.FileHandler("{0}/{1}_{2}.log".format(log_dir, log_name, date_time))
+        file_handler = logging.FileHandler(f"{log_dir}/{log_name}_{date_time}.log")
         file_handler.setFormatter(log_formatter)
         root_logger.addHandler(file_handler)
     console_handler = logging.StreamHandler(stream=sys.stdout)
@@ -70,14 +70,15 @@ def setup_xavi_logging(log_dir: str = None, log_name: str = None):
     root_logger.addHandler(console_handler)
 
 
-def load_config(args):
-    if args.config_path is not None:
+def load_config(args: argparse.Namespace) -> Dict[str, Any]:
+    """ Load the scenario configuration from a file given a scenario ID or file path. """
+    if "config_path" in args and args.config_path is not None:
         path = args.config_path
-    elif args.scenario is not None:
+    elif "scenario" in args and args.scenario is not None:
         path = os.path.join("scenarios", "configs", f"scenario{args.scenario}.json")
     else:
         raise ValueError("No scenario was specified!")
-    return json.load(open(path, "r"))
+    return json.load(open(path, "r", encoding="utf-8"))
 
 
 def parse_query(args) -> List[Query]:
@@ -89,7 +90,7 @@ def parse_query(args) -> List[Query]:
     else:
         raise ValueError("No query was specified!")
     try:
-        queries = json.load(open(path, "r"))
+        queries = json.load(open(path, "r", encoding="utf-8"))
         if isinstance(queries, dict):
             queries = queries[f"s{args.scenario}"]
         return [Query(**query_dict) for query_dict in queries]

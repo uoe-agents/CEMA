@@ -41,16 +41,16 @@ if __name__ == "__main__":
 
     logger.info(args)
 
-    # scenario_map = gofi.OMap.parse_from_opendrive(f"scenarios/maps/scenario{scenario}.xodr")
-    config = json.load(open(f"scenarios/configs/scenario{scenario}.json", "r"))
-    queries = json.load(open(f"scenarios/queries/query_scenario{scenario}.json", "r"))
+    scenario_map = gofi.OMap.parse_from_opendrive(f"scenarios/maps/scenario{scenario}.xodr")
+    config = json.load(open(f"scenarios/configs/scenario{scenario}.json", "r", encoding="utf-8"))
+    queries = json.load(open(f"scenarios/queries/query_scenario{scenario}.json", "r", encoding="utf-8"))
     query = xavi.Query(**queries[query_idx])
 
     oxavi.OFollowLaneCL.IGNORE_VEHICLE_IN_FRONT_CHANCE = config["scenario"].get("ignore_vehicle_in_front_chance", 0.0)
 
     if not load_existing:
-        xavi_agent = pickle.load(open(f"output/scenario_{scenario}/agent_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
-        sd_path = os.path.join(output_path, f"sd_n{n}_t{query.t_query}_m{query.type}.pkl")
+        xavi_agent = pickle.load(open(f"output/scenario_{scenario}/agent_t{query.t_query}_m{query.type}.pkl", "rb"))
+        sd_path = os.path.join(output_path, f"sd_t{query.t_query}_m{query.type}.pkl")
 
         for mcts in xavi_agent.cf_mcts.values():
             mcts.n = n
@@ -63,11 +63,11 @@ if __name__ == "__main__":
         if not os.path.exists(sd_path):
             pickle.dump(xavi_agent.sampling_distributions, open(sd_path, "wb"))
 
-        causes_path = os.path.join(output_path, f"q_n{n}_t{query.t_query}_m{query.type}.pkl")
+        causes_path = os.path.join(output_path, f"q_t{query.t_query}_m{query.type}.pkl")
         pickle.dump(causes, open(causes_path, "wb"))
     else:
         causes = pickle.load(
-            open(f"output/scenario_{scenario}/q_n{n}_t{query.t_query}_m{query.type}.pkl", "rb"))
+            open(f"output/scenario_{scenario}/q_t{query.t_query}_m{query.type}.pkl", "rb"))
 
     if query.type == xavi.QueryType.WHAT_IF:
         cf_action_group = causes[0]
