@@ -1,4 +1,4 @@
-""" Evaluate the robustness of the explanation generation with increasing sample sizes 
+""" Evaluate the robustness of the explanation generation with increasing sample sizes
 and distribution smoothing. Also plot explanation reults."""
 
 import sys
@@ -11,6 +11,7 @@ from typing import Tuple, Union, Dict, Any
 
 import numpy as np
 from tqdm import trange, tqdm
+import matplotlib
 from tqdm.contrib.logging import logging_redirect_tqdm
 from scenarios.util import setup_xavi_logging
 from scenarios.plotting import plot_sampling_results, plot_distribution_results, plot_explanation
@@ -106,7 +107,7 @@ def main(args) -> int:
     # Load scenario and query
     logger.info("Loading scenario and query . . .")
     agent, query = load_scenario(args.sid, args.qid)
-    query_str = f"n30_t{query.t_query}_m{query.type}"
+    query_str = f"t{query.t_query}_m{query.type}"
 
     plot_path_query = os.path.join(plot_path, query_str)
     if not os.path.exists(plot_path_query):
@@ -125,6 +126,10 @@ def main(args) -> int:
         final_causes = causes[0]
         efficient_causes = causes[1]
     plot_explanation(final_causes, efficient_causes[0:2], query_str, plot_path_query)
+
+
+    if args.norobust:
+        return 0
 
 
     # Run explanation generation with increasing uniformity
@@ -158,6 +163,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process scenario parameters.")
     parser.add_argument('--sid', type=int, default=1, help='Scenario ID')
     parser.add_argument('--qid', type=int, default=0, help='Index of query to run')
+    parser.add_argument('--norobust', action='store_true', default=False, help='Do not run robustness evaluation.')
     arguments = parser.parse_args()
 
     sys.exit(main(arguments))

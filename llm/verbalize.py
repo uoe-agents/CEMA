@@ -6,19 +6,14 @@ from typing import Dict, Tuple
 
 import re
 import numpy as np
-import simplenlg as nlg
 import igp2 as ip
 from igp2.opendrive.elements.geometry import ramer_douglas
 
 import xavi
+import llm.util as util
 
 
 logger = logging.getLogger(__name__)
-TENSES = {
-    "past": nlg.Tense.PAST,
-    "present": nlg.Tense.PRESENT,
-    "future": nlg.Tense.FUTURE
-}
 
 ROAD_LAYOUT_PRETEXT = """The following is metadata to parse the elements of the road layout.
 
@@ -45,6 +40,7 @@ def scenario(
         config: Dict,
         scenario_map: ip.Map,
         observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]],
+        query_obj: xavi.Query,
         **kwargs) -> str:
     """ Utility function to verbalize the entire scenario.
 
@@ -52,29 +48,33 @@ def scenario(
         config: The scenario configuration dictionary.
         scenario_map: The road layout of the scenario.
         observations: The ego agent's observations of the scenario.
+        query_obj: The user query to prompt.
 
     Keyword Args:
-        rules: Whether to add the scenario rules ([True]/False).
-        road_layout: Whether to add the road layout description ([True]/False).
-        agents: Whether to add the agent descriptions ([True]/False).
+        add_rules: Whether to add the scenario rules ([True]/False).
+        add_road_layout: Whether to add the road layout description ([True]/False).
+        add_agents: Whether to add the agent descriptions ([True]/False).
+        add_query: Whether to add the user query ([True]/False).
+        add_metadata: Whether to add metadata before descriptions ([False]/True).
         lanes: Whether to add lane descriptions ([True]/False).
         intersections: Whether to add intersection descriptions ([True]/False).
         intersection_links: Whether to add intersection lane links (True/[False]).
         resolution: The resolution of the road midline (default=0.01).
-        metadata: Whether to add metadata before the road layout description ([False]/True).
 
     Returns:
         A string describing the scenario configuration, road layout, and simulation state.
     """
     ret = ""
-    if kwargs.get("rules", True):
+    if kwargs.get("add_rules", True):
         ret += rules(config) + "\n\n"
-    if kwargs.get("road_layout", True):
+    if kwargs.get("add_road_layout", True):
         ret += road_layout(scenario_map, **kwargs) + "\n\n"
-    if kwargs.get("agents", True):
-        ret += agents(scenario_map, observations, **kwargs)
+    if kwargs.get("add_agents", True):
+        ret += agents(observations, **kwargs) + "\n\n"
+    if kwargs.get("add_query", True):
+        ret += query(query_obj, **kwargs) + "\n\n"
 
-    return ret
+    return ret[:-2]  # Remove the last two newlines
 
 
 def rules(config: Dict) -> str:
@@ -100,25 +100,26 @@ def road_layout(scenario_map: ip.Map, **kwargs) -> str:
         intersections: Whether to add intersection descriptions ([True]/False).
         intersection_links: Whether to add intersection lane links (True/[False]).
         resolution: The resolution of the road midline (default=0.01).
-        metadata: Whether to add metadata before the road layout description ([False]/True).
+        add_metadata: Whether to add metadata before the road layout description ([False]/True).
 
     Returns:
         A string describing the road layout.
     """
+    ret = ""
 
-    ret = ROAD_LAYOUT_PRETEXT if kwargs.get("metadata", False) else ""
-
-    lane_links = kwargs.get("intersection_links", False)
-    if ret:
+    add_metadata = kwargs.get("add_metadata", False)
+    if add_metadata:
+        ret += ROAD_LAYOUT_PRETEXT
+        lane_links = kwargs.get("intersection_links", False)
         if not lane_links:
             ret += "  Connections are written as 'incoming road id->connecting road id'."
         else:
             ret += "  Connections are written as 'incoming road id:lane id->connecting road id:lane id'."
         ret += "\n\n"
 
+
     ret += "The road layout consists of the following elements:"
     ret += "\n\n"
-
 
     # Describe roads
     for rid, road in scenario_map.roads.items():
@@ -167,21 +168,57 @@ def road_layout(scenario_map: ip.Map, **kwargs) -> str:
     return ret
 
 
-def agents(scenario_map: ip.Map, observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]], **kwargs) -> str:
+def agents(observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState]], **kwargs) -> str:
     """ Verbalize a frame of the simulation state.
 
     Args:
-        scenario_map: The road layout of the scenario.
         observations: The ego agent's observations of the scenario.
 
     Keyword Args:
-        TODO
+        f_subsample: Frequency of subsampling observations. Use this to decrease
+             the complexity of the verbalization. ([1]/int).
+        rounding: Number of decimal places to round the values to ([2]/int).
+        control_signals: List of control signals to include in the verbalization.
+            Possible values: ["time", "timesteps", "position", "speed", "acceleration", "heading"].
+            Default is all control signals except time.
 
     Returns:
         A string describing the frame of the simulation state.
     """
-    for t, (trajectory, start_state) in observations.items():
-        pass
+    n_agents = len([ss for _, ss in observations.values()])
+    ret = f"""The scenario has {n_agents} agents. Agent 0 is the autonomous vehicle (ego vehicle).
+
+The ego vehicle observed the following control signals for each agent:
+
+"""
+
+    f_subsample = kwargs.get("f_subsample", 1)
+    rounding = kwargs.get("rounding", 2)
+    control_signals = kwargs.get("control_signals",
+                                 ["timesteps", "position", "speed", "acceleration", "heading"])
+    for agent_id, (trajectory, _) in observations.items():
+        ret += f"Agent {agent_id}:\n"
+
+        if f_subsample > 1:
+            trajectory = util.subsample_trajectory(trajectory, f_subsample)
+
+        for signal in control_signals:
+            if signal == "time":
+                ret += f"  Time: {util.ndarray2str(trajectory.times, rounding)}\n"
+            elif signal == "timesteps":
+                timesteps = np.array([s.time for s in trajectory.states])
+                ret += f"  Timesteps: {util.ndarray2str(timesteps)}\n"
+            elif signal == "position":
+                ret += f"  Position: {util.ndarray2str(trajectory.path, rounding)}\n"
+            elif signal == "speed":
+                ret += f"  Speed: {util.ndarray2str(trajectory.velocity, rounding)}\n"
+            elif signal == "acceleration":
+                ret += f"  Acceleration: {util.ndarray2str(trajectory.acceleration, rounding)}\n"
+            elif signal == "heading":
+                ret += f"  Heading: {util.ndarray2str(trajectory.heading, rounding)}\n"
+        ret += "\n"
+
+    return ret[:-1]  # Remove the last newline
 
 
 def query(query_obj: xavi.Query, **kwargs) -> str:
@@ -198,46 +235,59 @@ def query(query_obj: xavi.Query, **kwargs) -> str:
     Returns:
         A string describing the  user query.
     """
-    lexicon = nlg.Lexicon().getDefaultLexicon()
-    factory = nlg.NLGFactory(lexicon)
-    realiser = nlg.Realiser(lexicon)
 
-    # Create an interrogative sentence
-    sentence = factory.createClause()
-    sentence.setFeature(nlg.Feature.INTERROGATIVE_TYPE, nlg.InterrogativeType.WHY)
-
-    # Get the agent and use it as subject
     if query_obj.agent_id == 0:
         subject = "the ego vehicle" if kwargs.get("ego_ref", True) else "agent 0"
     else:
         subject = f"agent {query_obj.agent_id}"
-    sentence.setSubject(subject)
 
-    # Regex to split camel case actions into words
     rex = re.compile(r'(?<=[a-z])(?=[A-Z])')
-    action = " ".join(rex.split(query_obj.action)).lower()
-    vp = factory.createVerbPhrase()
-    vp.setHead(action)
-    vp.setNegated(query_obj.negative)
-    sentence.addComplement(vp)
+    words = [w.lower() for w in rex.split(query_obj.action)]
+    if words[-1] == "junction":
+        words = words[:-1]
+    action = " ".join(words).lower()
 
-    # Add factual action if present and needed
-    if kwargs.get("include_factual", True) and query_obj.factual:
-        factual = " ".join(rex.split(query_obj.factual)).lower()
-        pp = factory.createPrepositionPhrase("instead of")
-        factual = factory.createVerbPhrase(factual)
-        factual.setFeature(nlg.Feature.FORM, nlg.Form.GERUND)
-        pp.addComplement(factual)
-        sentence.addComplement(pp)
+    ret = ""
+    if query_obj.type in [xavi.QueryType.WHY, xavi.QueryType.WHY_NOT]:
+        if query_obj.tense == "past":
+            ret += f"Why did {subject} {'not ' if query_obj.negative else ''}{action}"
+        elif query_obj.tense == "present":
+            action = util.to_gerund(words)
+            ret += f"Why is {subject} {'not ' if query_obj.negative else ''}{action}"
+        else:
+            ret += f"Why will {subject} {'not ' if query_obj.negative else ''}{action}"
 
-    # Add query timing information if needed
+    elif query_obj.type == xavi.QueryType.WHAT_IF:  # What if question
+        if query_obj.tense == "past":
+            action = util.to_past(words, participle=True)
+            ret += f"What if {subject} had {'not ' if query_obj.negative else ''}{action}"
+        elif query_obj.tense == "present":
+            if not query_obj.negative:
+                action = util.to_past(words)
+            ret += f"What if {subject} {'did not ' if query_obj.negative else ''}{action}"
+        else:
+            if not query_obj.negative:
+                action = util.to_3rd_person(words)
+            ret += f"What if {subject} {'does not ' if query_obj.negative else ''}{action}"
+
+    else:  # What question
+        if query_obj.tense == "past":
+            ret += f"What did {subject} do"
+        elif query_obj.tense == "present":
+            ret += f"What is {subject} doing"
+        else:
+            ret += f"What will {subject} do"
+
+    if kwargs.get("include_factual", False) and query_obj.factual:
+        factual = rex.split(query_obj.factual)
+        factual[0] = util.to_gerund(factual[0])
+        factual = " ".join(factual).lower()
+        ret += f" instead of {factual}"
+
     if kwargs.get("include_t_query", False):
-        sentence.addComplement(f"at timestep {query_obj.t_query}")
+        ret += f" at timestep {query_obj.t_query}"
 
-    # Set the tense of the sentence
-    sentence.setTense(TENSES[query_obj.tense])
-
-    return realiser.realiseSentence(sentence)
+    return ret + "?"
 
 
 def causes(cause) -> str:

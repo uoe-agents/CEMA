@@ -10,16 +10,37 @@ import openai
 logger = logging.getLogger(__name__)
 
 
+SYSTEM_PROMPT = """You are the explanation module of an autonomous driving system.
+You explain the actions of the autonomous driving system in various scenarios when prompted by a user query.
+Reply with helpful and concise answers which include driving action justification."""
+
+
 class Chat:
     """ Helper class to manage a conversation with the OpenAI API over multiple turns. """
 
-    def __init__(self, system_prompt: str = None):
-        """ Initialize the Chat class."""
+    def __init__(self,
+                 system_prompt: str = None,
+                 auto_log: bool = True):
+        """ Initialize the Chat class.
+
+        Args:
+            system_prompt: The system prompt to use for the chat.
+                Uses car explainer system prompt by default.
+            auto_log: Whether to automatically log the chat history ([True]/False).
+        """
+        logging.getLogger("openai").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+
         self._client = openai.OpenAI(api_key=openai.api_key)
 
         if system_prompt is None:
-            system_prompt = "You are a helpful assistant."
+            system_prompt = SYSTEM_PROMPT
         self._system = system_prompt
+        if auto_log:
+            logger.warning("[SYSTEM] %s", system_prompt)
+        self._auto_log = auto_log
+
         self._user_history = []
         self._response_history = []
 
@@ -46,6 +67,9 @@ class Chat:
         messages.append(user_message)
         self._user_history.append(user_message)
 
+        if self._auto_log:
+            logger.warning("\n[USER] %s", prompt)
+
         # Send message to API and store response if not empty
         response = self.client.chat.completions.create(
             model="gpt-4o",
@@ -54,6 +78,9 @@ class Chat:
         )
 
         self.response_history.append(response)
+
+        if self._auto_log:
+            logger.warning("\n[ASSISTANT] %s", response.choices[0].message.content)
 
         return response.choices[0].message.content
 

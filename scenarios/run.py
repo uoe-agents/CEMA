@@ -136,7 +136,7 @@ def explain(queries: List[xavi.Query], xavi_agent: xavi.XAVIAgent, t: int, outpu
                 file_path = os.path.join(output_path, f"q_t{t}_m{query.type}.pkl")
                 pickle.dump(causes, open(file_path, "wb"))
                 file_path = os.path.join(output_path, f"sd_t{t}_m{query.type}.pkl")
-                pickle.dump(xavi_agent.sampling_distributions, open(file_path, "wb"))
+                pickle.dump(xavi_agent.cf_sampling_distributions, open(file_path, "wb"))
 
 
 if __name__ == '__main__':

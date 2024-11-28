@@ -7,6 +7,7 @@ from util import setup_xavi_logging
 
 import xavi
 import oxavi
+import gofi
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ if __name__ == "__main__":
 
     logger.info(args)
 
-    scenario_map = gofi.OMap.parse_from_opendrive(f"scenarios/maps/scenario{scenario}.xodr")
+    scenario_map = gofi.OMap.parse_from_opendrive(f"scenarios/maps/scenario{max(1, scenario)}.xodr")
     config = json.load(open(f"scenarios/configs/scenario{scenario}.json", "r", encoding="utf-8"))
     queries = json.load(open(f"scenarios/queries/query_scenario{scenario}.json", "r", encoding="utf-8"))
     query = xavi.Query(**queries[query_idx])
@@ -61,7 +62,7 @@ if __name__ == "__main__":
             xavi_agent._cf_sampling_distribution = pickle.load(open(sd_path, "rb"))
         causes = xavi_agent.explain_actions(query)
         if not os.path.exists(sd_path):
-            pickle.dump(xavi_agent.sampling_distributions, open(sd_path, "wb"))
+            pickle.dump(xavi_agent.cf_sampling_distributions, open(sd_path, "wb"))
 
         causes_path = os.path.join(output_path, f"q_t{query.t_query}_m{query.type}.pkl")
         pickle.dump(causes, open(causes_path, "wb"))

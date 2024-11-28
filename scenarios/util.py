@@ -56,6 +56,7 @@ def setup_xavi_logging(log_dir: str = None, log_name: str = None):
     root_logger.setLevel(logging.DEBUG)
     logging.getLogger("igp2.core.velocitysmoother").setLevel(logging.INFO)
     logging.getLogger("matplotlib").setLevel(logging.INFO)
+    logging.getLogger("fontTools").setLevel(logging.WARNING)
     logging.getLogger("PIL").setLevel(logging.INFO)
     if log_dir and log_name:
         if not os.path.isdir(log_dir):
