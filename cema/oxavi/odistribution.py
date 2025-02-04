@@ -2,7 +2,7 @@ from typing import Dict, Tuple
 import gofi
 import igp2 as ip
 
-import xavi
+from cema import xavi
 
 
 class ODistribution(xavi.Distribution):

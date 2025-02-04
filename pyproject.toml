@@ -24,13 +24,17 @@ dependencies = [
     "shapely~=2.0.1",
     "simplenlg~=0.2.0",
     "typer>=0.15.1",
+    "tqdm>=4.67.1",
 ]
+
+[project.scripts]
+cema = "cema.scripts.run:cli"
 
 [project.optional-dependencies]
 llm = [
-  "torch",
-  "huggingface_hub",
-  "vllm"
+  "torch>=2.6.0",
+  "huggingface_hub>=0.28.1",
+  "vllm>=0.2.5"
 ]
 
 [tool.uv.sources]

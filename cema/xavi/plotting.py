@@ -6,7 +6,7 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 
-from xavi.query import Query
+from .query import Query
 
 
 # -----------Simulation plotting functions---------------------

@@ -110,6 +110,7 @@ dependencies = [
     { name = "setuptools" },
     { name = "shapely" },
     { name = "simplenlg" },
+    { name = "tqdm" },
     { name = "typer" },
 ]
 
@@ -123,7 +124,7 @@ llm = [
 [package.metadata]
 requires-dist = [
     { name = "gofi", git = "https://github.com/gyevnarb/gofi" },
-    { name = "huggingface-hub", marker = "extra == 'llm'" },
+    { name = "huggingface-hub", marker = "extra == 'llm'", specifier = ">=0.28.1" },
     { name = "igp2", git = "https://github.com/uoe-agents/IGP2" },
     { name = "matplotlib", specifier = ">=3.7.3" },
     { name = "numpy", specifier = "~=1.24.2" },
@@ -134,9 +135,10 @@ requires-dist = [
     { name = "setuptools", specifier = "~=66.0.0" },
     { name = "shapely", specifier = "~=2.0.1" },
     { name = "simplenlg", specifier = "~=0.2.0" },
-    { name = "torch", marker = "extra == 'llm'" },
+    { name = "torch", marker = "extra == 'llm'", specifier = ">=2.6.0" },
+    { name = "tqdm", specifier = ">=4.67.1" },
     { name = "typer", specifier = ">=0.15.1" },
-    { name = "vllm", marker = "extra == 'llm'" },
+    { name = "vllm", marker = "extra == 'llm'", specifier = ">=0.2.5" },
 ]
 
 [[package]]

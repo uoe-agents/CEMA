@@ -3,11 +3,11 @@ import os
 import pickle
 import argparse
 import logging
-from util import setup_xavi_logging
 
+import gofi
+from util import setup_cema_logging
 import xavi
 import oxavi
-import gofi
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     logger_path = os.path.join(output_path, "logs")
     if not os.path.exists(logger_path):
         os.makedirs(logger_path, exist_ok=True)
-    setup_xavi_logging(log_dir=logger_path, log_name=f"test_s{scenario}")
+    setup_cema_logging(log_dir=logger_path, log_name=f"test_s{scenario}")
 
     logger.info(args)
 

@@ -2,11 +2,11 @@ from typing import Tuple, Dict
 import logging
 
 import gofi
-import xavi
+from cema import xavi
 import igp2 as ip
-from oxavi.ofeatures import OFeatures
-from oxavi.odistribution import ODistribution
-from oxavi.util import fill_missing_actions, get_occluded_trajectory, \
+from .ofeatures import OFeatures
+from .odistribution import ODistribution
+from .util import fill_missing_actions, get_occluded_trajectory, \
     OItem, OFollowLaneCL, overwrite_predictions, get_deterministic_trajectories
 
 logger = logging.getLogger(__name__)

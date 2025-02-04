@@ -1,8 +1,8 @@
 from typing import Dict, Any, List, Tuple, Optional
 
-import xavi
+from cema import xavi
 
-from oxavi.util import OItem
+from .util import OItem
 
 
 class OFeatures(xavi.Features):

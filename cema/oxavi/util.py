@@ -5,7 +5,7 @@ import logging
 
 import numpy as np
 import igp2 as ip
-import xavi
+from cema import xavi
 import gofi
 
 logger = logging.getLogger(__name__)

@@ -6,8 +6,8 @@ import pandas as pd
 import simplenlg as nlg
 import re
 
-from xavi.query import Query, QueryType
-from xavi.matching import ActionGroup
+from .query import Query, QueryType
+from .matching import ActionGroup
 
 logger = logging.getLogger(__name__)
 

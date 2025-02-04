@@ -4,8 +4,8 @@ import logging
 from typing import Dict, Any, List, Tuple, Optional
 
 import igp2 as ip
-from xavi.util import find_common, Item
-from xavi.query import Query
+from .util import find_common, Item
+from .query import Query
 
 logger = logging.getLogger(__name__)
 

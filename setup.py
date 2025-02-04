@@ -1,10 +1,10 @@
 import setuptools
 
-with open('requirements.txt') as f:
+with open("requirements.txt", "r", encoding="utf-8") as f:
     requirements = f.read().splitlines()
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+with open("README.md", "r", encoding="utf-8") as f:
+    long_description = f.read()
 
 setuptools.setup(name='cema',
                  version='0.1.0',
@@ -15,6 +15,6 @@ setuptools.setup(name='cema',
                  author='Balint Gyevnar, Cheng Wang',
                  author_email='balint.gyevnar@ed.ac.uk',
                  url='https://github.com/uoe-agents/cema',
-                 packages=setuptools.find_packages(exclude=["scenarios"]),
+                 packages=["cema"],
                  install_requires=requirements
                  )

@@ -8,15 +8,15 @@ from collections import Counter
 
 from sklearn.linear_model import LogisticRegression
 
-from xavi.features import Features
-from xavi.util import fill_missing_actions, truncate_observations, \
+from .features import Features
+from .util import fill_missing_actions, truncate_observations, \
     to_state_trajectory, find_join_index, Observations, get_coefficient_significance, \
     split_by_query, list_startswith, find_matching_rollout, Exit_, \
     Item, overwrite_predictions, get_deterministic_trajectories, get_visit_probabilities
-from xavi.matching import ActionMatching, ActionGroup, ActionSegment
-from xavi.query import Query, QueryType
-from xavi.language import Language
-from xavi.distribution import Distribution
+from .matching import ActionMatching, ActionGroup, ActionSegment
+from .query import Query, QueryType
+from .language import Language
+from .distribution import Distribution
 
 logger = logging.getLogger(__name__)
 

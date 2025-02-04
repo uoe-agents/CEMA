@@ -5,7 +5,7 @@ import igp2 as ip
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Union
 
-from xavi.util import fix_initial_state
+from .util import fix_initial_state
 
 logger = logging.getLogger(__name__)
 

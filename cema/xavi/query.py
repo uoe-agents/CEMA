@@ -6,7 +6,7 @@ import logging
 import igp2 as ip
 import numpy as np
 
-from xavi.matching import ActionMatching, ActionSegment
+from .matching import ActionMatching, ActionSegment
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +48,15 @@ class Query:
     exclusive: str = True
 
     fps: int = 20
-    tau_limits: np.ndarray = np.array([1, 5])  # Minimum and maximum distance of tau in seconds from the current time
+    # Minimum and maximum distance of tau in seconds from the current time
+    tau_limits = np.array([1, 5])
     t_action_min: int = 1  # Minimum distance in seconds for the action start
-    time_limits = np.array([5, 5])  # Maximum lengths of the trajectories, both in past and future, in seconds.
+    # Maximum lengths of the trajectories, both in past and future, in seconds.
+    time_limits = np.array([5, 5])
 
     def __post_init__(self):
-        self.__all_factual = self.type == QueryType.WHY_NOT or self.type == QueryType.WHAT_IF and not self.negative
+        self.__all_factual = self.type == QueryType.WHY_NOT or \
+            self.type == QueryType.WHAT_IF and not self.negative
         self.__matching = ActionMatching()
         self.type = QueryType(self.type)
         if self.negative is None:
@@ -83,7 +86,7 @@ class Query:
         """
         if self.t_action is not None and self.tau is not None:
             return
-        
+
         agent_id = self.agent_id
         trajectory = observations[agent_id][0]
         self.__matching.set_scenario_map(scenario_map)
@@ -233,7 +236,7 @@ class Query:
             if segmentations:
                 return segmentations
         raise ValueError(f"The queried action {self.action} does not exist in future rollouts!")
-    
+
 
     def slice_segment_trajectory(self,
                                  trajectory: ip.StateTrajectory,
