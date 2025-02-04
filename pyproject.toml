@@ -23,6 +23,7 @@ dependencies = [
     "setuptools~=66.0.0",
     "shapely~=2.0.1",
     "simplenlg~=0.2.0",
+    "typer>=0.15.1",
 ]
 
 [project.optional-dependencies]
