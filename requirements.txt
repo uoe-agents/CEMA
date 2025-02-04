@@ -1,4 +1,4 @@
-igp2~=0.3.0
+igp2>=0.3.0
 scikit-learn~=1.2.2
 seaborn~=0.12.2
 simplenlg~=0.2.0

@@ -1,0 +1,37 @@
+[project]
+name = "cema"
+version = "0.1.0"
+description = "Causal Explanations for Sequential Decision-Making in Multi-Agent Systems"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  {name = "Balint Gyevnar", email = "balint.gyevnar@ed.ac.uk"},
+  {name = "Cheng Wang"}
+]
+maintainers = [
+  {name = "Balint Gyevnar", email = "balint.gyevnar@ed.ac.uk"}
+]
+dependencies = [
+    "igp2",
+    "gofi",
+    "matplotlib>=3.7.3",
+    "numpy~=1.24.2",
+    "pandas~=2.0.0",
+    "pygame~=2.3.0",
+    "scikit-learn~=1.2.2",
+    "seaborn~=0.12.2",
+    "setuptools~=66.0.0",
+    "shapely~=2.0.1",
+    "simplenlg~=0.2.0",
+]
+
+[project.optional-dependencies]
+llm = [
+  "torch",
+  "huggingface_hub",
+  "vllm"
+]
+
+[tool.uv.sources]
+igp2 = { git = "https://github.com/uoe-agents/IGP2" }
+gofi = { git = "https://github.com/gyevnarb/gofi" }
