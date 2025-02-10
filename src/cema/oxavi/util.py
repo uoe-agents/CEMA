@@ -5,8 +5,8 @@ import logging
 
 import numpy as np
 import igp2 as ip
-from cema import xavi
 import gofi
+from cema import xavi
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class OFollowLaneCL(ip.FollowLaneCL):
         self.ignore_vehicle_in_front = (self.agent_id == 0 and
                                         np.random.random() >= 1 - self.IGNORE_VEHICLE_IN_FRONT_CHANCE)
         if self.ignore_vehicle_in_front:
-            logger.debug(f"    Ego ignores vehicle in front.")
+            logger.debug("    Ego ignores vehicle in front.")
 
     def _get_acceleration(self, target_velocity: float, frame: Dict[int, ip.AgentState]):
         state = frame[self.agent_id]

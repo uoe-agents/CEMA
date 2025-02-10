@@ -26,9 +26,14 @@ dependencies = [
     "typer>=0.15.1",
     "tqdm>=4.67.1",
 ]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/uoe-agents/cema"
 
 [project.scripts]
-cema = "cema.scripts.run:cli"
+cema = "cema.script.run:cli"
 
 [project.optional-dependencies]
 llm = [
@@ -36,6 +41,10 @@ llm = [
   "huggingface_hub>=0.28.1",
   "vllm>=0.2.5"
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.uv.sources]
 igp2 = { git = "https://github.com/uoe-agents/IGP2" }

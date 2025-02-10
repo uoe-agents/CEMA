@@ -1,9 +1,16 @@
 """ CEMA: Causal Explanations for Decision Making in Multi-Agent Systems. """
 import os
+import sys
 import logging
-import datetime
+from datetime import datetime
 
-from cema import xavi, oxavi, llm
+from torch import cuda
+
+from cema import xavi, oxavi
+if cuda.is_available():
+    from cema import llm
+else:
+    print("CUDA is not available. Skipping cema.llm import.")
 
 
 def setup_cema_logging(log_dir: str = None, log_name: str = None):

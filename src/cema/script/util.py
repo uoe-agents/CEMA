@@ -17,16 +17,6 @@ from cema import xavi, oxavi
 
 logger = logging.getLogger(__name__)
 
-# def parse_eval_args() -> argparse.Namespace:
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("scenario", metavar="S", type=int, default=1,
-#                         help="The number of the scenario to execute.")
-#     parser.add_argument("query", metavar="Q", type=int, default=0,
-#                         help="The index of the query to evaluate in the given scenario.")
-#     parser.add_argument("--size", action="store_true", help="Whether to run a size robustness evaluation.")
-#     parser.add_argument("--sampling", action="store_true", help="Whether to run a sampling robustness evaluation.")
-#     return parser.parse_args()
-
 
 def load_config(config_path: str = None, scenario: int = None) -> Dict[str, Any]:
     """ Load the scenario configuration from a file given a scenario ID or file path.
